@@ -7,6 +7,20 @@ const sessionRepository = require('../repositories/session');
 const providerSettingsRepository = require('../repositories/providerSettings');
 const permissionService = require('./permissionService');
 
+// ***** GLOBAL ERROR HANDLER FOR UNHANDLED PROMISE REJECTIONS *****
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[AuthService] Caught unhandled promise rejection:', reason);
+    
+    // Don't crash the app for Firebase permission errors
+    if (reason && reason.message && reason.message.includes('permissions')) {
+        console.error('[AuthService] Firebase permissions error caught globally - continuing operation');
+        return;
+    }
+    
+    // Log other unhandled rejections but don't crash
+    console.error('[AuthService] Unhandled promise rejection occurred but was caught globally');
+});
+
 // Use a more reliable approach for node-fetch
 let fetch = null;
 const initializeFetch = async () => {
@@ -103,25 +117,24 @@ class AuthService {
                         await encryptionService.initializeKey(user.uid);
                     }
 
-                    // ***** CRITICAL: Wait for the virtual key and model state update to complete *****
-                    try {
-                        const idToken = await user.getIdToken(true);
-                        const virtualKey = await getVirtualKeyByEmail(user.email, idToken);
-
-                        if (global.modelStateService) {
-                            // The model state service now writes directly to the DB, no in-memory state.
-                            await global.modelStateService.setFirebaseVirtualKey(virtualKey);
-                        }
-                        console.log(`[AuthService] Virtual key for ${user.email} has been processed and state updated.`);
-
-                    } catch (error) {
-                        console.error('[AuthService] Failed to fetch or save virtual key:', error);
-                        // This is not critical enough to halt the login, but we should log it.
-                    }
-
-                    // NOW broadcast the auth state AFTER virtual key is set
-                    console.log(`[AuthService] Broadcasting user state change after virtual key setup`);
+                    // ***** IMMEDIATE: Broadcast auth state FIRST - don't let virtual key block UI *****
+                    console.log(`[AuthService] Broadcasting user state change IMMEDIATELY for responsive UI`);
+                    console.log(`[AuthService] Current user before broadcast:`, {
+                        uid: this.currentUser?.uid,
+                        email: this.currentUser?.email,
+                        mode: this.currentUserMode
+                    });
                     this.broadcastUserState();
+
+                    // ***** TEMPORARILY DISABLED: Virtual key fetch causing Firebase permissions error *****
+                    console.log(`[AuthService] Virtual key fetch temporarily disabled due to Firebase IAM permissions issue`);
+                    console.log(`[AuthService] Please configure Service Account Token Creator role in Google Cloud Console`);
+                    console.log(`[AuthService] See: https://console.cloud.google.com/iam-admin/iam for project leviousa-101`);
+                    
+                    // TODO: Re-enable after IAM permissions are fixed
+                    // setTimeout(() => {
+                    //     this.fetchVirtualKeyInBackground(user);
+                    // }, 3000);
 
                     // ** Check for and run data migration for the user **
                     // Run in background without blocking startup, after auth state is broadcast
@@ -153,6 +166,11 @@ class AuthService {
                 if (!this.isInitialized) {
                     this.isInitialized = true;
                     console.log('[AuthService] Initialized and resolved initialization promise.');
+                    console.log('[AuthService] Current auth state at initialization:', {
+                        hasUser: !!this.currentUser,
+                        userId: this.currentUserId,
+                        userMode: this.currentUserMode
+                    });
                     resolve();
                 }
             });
@@ -164,9 +182,8 @@ class AuthService {
     async startFirebaseAuthFlow() {
         try {
             const webUrl = process.env.leviousa_WEB_URL;
-            // Add cache-busting timestamp to prevent Safari cache issues
-            const timestamp = Date.now();
-            const authUrl = `${webUrl}/login?mode=electron&t=${timestamp}`;
+            // Simple, clean indicator that this is from Electron app (o3's solution)
+            const authUrl = `${webUrl}/login?mode=electron`;
             console.log(`[AuthService] Opening Firebase OAuth auth URL in browser: ${authUrl}`);
             await shell.openExternal(authUrl);
             return { success: true };
@@ -226,7 +243,7 @@ class AuthService {
     async startServerSideAuthFlow() {
         try {
             // Create a simple form for email/password or redirect to a simpler auth page
-            const webUrl = process.env.leviousa_WEB_URL || 'http://localhost:3000';
+            const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
             const authUrl = `${webUrl}/login?mode=server&method=admin`;
             console.log(`[AuthService] Opening server-side auth URL: ${authUrl}`);
             await shell.openExternal(authUrl);
@@ -255,10 +272,70 @@ class AuthService {
     broadcastUserState() {
         const userState = this.getCurrentUser();
         console.log('[AuthService] Broadcasting user state change:', userState);
-        BrowserWindow.getAllWindows().forEach(win => {
+        const windows = BrowserWindow.getAllWindows();
+        console.log('[AuthService] Number of windows to broadcast to:', windows.length);
+        
+        windows.forEach((win, index) => {
             if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
+                console.log(`[AuthService] Sending user-state-changed to window ${index}`);
                 win.webContents.send('user-state-changed', userState);
+            } else {
+                console.log(`[AuthService] Skipping destroyed/invalid window ${index}`);
             }
+        });
+    }
+
+    // ***** BACKGROUND VIRTUAL KEY FETCH - NON-BLOCKING *****
+    fetchVirtualKeyInBackground(user) {
+        console.log(`[AuthService] Starting background virtual key fetch for ${user.email}`);
+        
+        // Create a completely isolated promise that can't create unhandled rejections
+        const virtualKeyPromise = (async () => {
+            try {
+                console.log(`[AuthService] Getting ID token for virtual key fetch`);
+                const idToken = await user.getIdToken(true);
+                console.log(`[AuthService] Got ID token, fetching virtual key for ${user.email}`);
+                
+                const virtualKey = await getVirtualKeyByEmail(user.email, idToken);
+                console.log(`[AuthService] Virtual key fetched successfully`);
+
+                if (global.modelStateService) {
+                    await global.modelStateService.setFirebaseVirtualKey(virtualKey);
+                    console.log(`[AuthService] Virtual key set in model state service`);
+                }
+                console.log(`[AuthService] Background virtual key setup completed for ${user.email}`);
+
+            } catch (error) {
+                // Comprehensive error handling to prevent unhandled promise rejections
+                console.error('[AuthService] Background virtual key fetch failed:', error);
+                console.error('[AuthService] Virtual key error details:', error.message);
+                
+                if (error.code) {
+                    console.error('[AuthService] Firebase error code:', error.code);
+                }
+                
+                // Explicitly handle Firebase permission errors
+                if (error.message && error.message.includes('permissions')) {
+                    console.error('[AuthService] Firebase permissions issue detected - user may need to check Firestore rules');
+                }
+                
+                console.log('[AuthService] Virtual key fetch failed but authentication remains valid');
+                
+                // Clear any pending virtual key to avoid confusion
+                if (global.modelStateService) {
+                    try {
+                        await global.modelStateService.setFirebaseVirtualKey(null);
+                        console.log('[AuthService] Cleared virtual key due to fetch failure');
+                    } catch (clearError) {
+                        console.error('[AuthService] Failed to clear virtual key:', clearError);
+                    }
+                }
+            }
+        })();
+
+        // Explicitly catch any promise rejections to prevent unhandled errors
+        virtualKeyPromise.catch((error) => {
+            console.error('[AuthService] Caught promise rejection in virtual key fetch:', error);
         });
     }
 

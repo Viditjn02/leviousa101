@@ -101,6 +101,7 @@ class LeviousaConfig {
                 ],
                 apiKey: this.apiKeys.gemini
             }
+            // Note: Local models (Ollama, Whisper) removed by user request
         };
     }
 

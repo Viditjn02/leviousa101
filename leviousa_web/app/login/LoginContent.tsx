@@ -6,6 +6,8 @@ import { Chrome, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth } from '@/utils/firebase'
 import { useAuth } from '@/utils/auth'
+import { setUserInfo } from '@/utils/api'
+import { UrlParamPreserver } from '@/utils/urlParams'
 
 // Main login content component
 function LoginContent() {
@@ -24,15 +26,70 @@ function LoginContent() {
     password: '',
     general: ''
   })
+  const [isElectronMode, setIsElectronMode] = useState(false)
+
+  // o3's solution: Check for Electron mode and store flag before Firebase redirect
+  useEffect(() => {
+    console.log('🔗 [LoginContent] Checking for Electron mode...')
+    console.log('🔗 [LoginContent] Current URL:', window.location.href)
+    
+    // Capture the hint *before* Firebase redirect
+    const qp = new URLSearchParams(window.location.search);
+    if (qp.get('mode') === 'electron') {
+      sessionStorage.setItem('fromElectron', 'yes');
+      setIsElectronMode(true);
+      console.log('🔗 [LoginContent] Electron mode detected, flag stored in sessionStorage');
+    } else {
+      console.log('🔗 [LoginContent] No Electron mode detected');
+      setIsElectronMode(false);
+    }
+  }, [])
 
   // Auto-redirect when user becomes authenticated (only for web mode)
   useEffect(() => {
     if (!authLoading && user) {
-      // Detect mode from URL
+      // Detect mode from URL with comprehensive debugging
       const urlParams = new URLSearchParams(window.location.search)
-      const mode = urlParams.get('mode')
-      const isElectronMode = mode === 'electron'
-      const isServerMode = mode === 'server'
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const mode = urlParams.get('mode') || hashParams.get('mode')
+      
+      console.log('🔍 [LoginContent] Mode detection debug:')
+      console.log('🔍 Current URL:', window.location.href)
+      console.log('🔍 Search params:', window.location.search)
+      console.log('🔍 Hash params:', window.location.hash)
+      console.log('🔍 URL mode param:', urlParams.get('mode'))
+      console.log('🔍 Hash mode param:', hashParams.get('mode'))
+      console.log('🔍 Final mode detected:', mode)
+      
+      // Also check preserved parameters and cookies
+      const preserved = UrlParamPreserver.restoreParams()
+      console.log('🔍 Preserved params:', preserved)
+      console.log('🔍 Preserved params keys:', Object.keys(preserved))
+      console.log('🔍 Preserved params values:', Object.values(preserved))
+      console.log('🔍 Preserved params JSON:', JSON.stringify(preserved))
+      const preservedMode = preserved.mode || preserved.electron_init
+      console.log('🔍 Preserved mode (mode):', preserved.mode)
+      console.log('🔍 Preserved mode (electron_init):', preserved.electron_init)
+      console.log('🔍 Final preserved mode:', preservedMode)
+      
+      // Check cookie (o3 solution)
+      const cookieMode = document.cookie.includes('leviousa_platform=electron') ? 'electron' : null
+      console.log('🔍 Cookie mode:', cookieMode)
+      
+      // Check sessionStorage as additional fallback
+      const sessionMode = sessionStorage.getItem('leviousa_auth_mode')
+      const localMode = localStorage.getItem('leviousa_auth_mode')
+      console.log('🔍 Session mode:', sessionMode)
+      console.log('🔍 Local mode:', localMode)
+      
+      // Use strict mode detection - only electron if explicitly indicated
+      const explicitModes = [mode, cookieMode, sessionMode, localMode, preservedMode].filter(Boolean)
+      const finalMode = explicitModes.length > 0 ? explicitModes[0] : null
+      console.log('🔍 Explicit modes found:', explicitModes)
+      console.log('🔍 Final mode (with all fallbacks):', finalMode)
+      
+      const isElectronMode = finalMode === 'electron'
+      const isServerMode = finalMode === 'server'
       
       // Only redirect to activity page for web mode (not Electron/server mode)
       if (!isElectronMode && !isServerMode) {
@@ -40,6 +97,7 @@ function LoginContent() {
         router.push('/activity')
       } else {
         console.log('✅ User authenticated via AuthProvider, but staying for Electron/server mode handling')
+        console.log('🔍 Mode details: isElectron=', isElectronMode, 'isServer=', isServerMode)
       }
     }
   }, [user, authLoading, router])
@@ -71,113 +129,67 @@ function LoginContent() {
     handleRedirectResult()
   }, [])
 
-  const handleAuthSuccess = React.useCallback(async (user: any) => {
-    console.log('✅ Authentication successful:', user.uid)
-    
-    // Prevent multiple simultaneous auth handling
-    if (isLoading) {
-      console.log('⚠️ Auth already in progress, skipping duplicate handling')
-      return
-    }
-    
-    setIsLoading(true)
-    
-    // Detect mode from current URL
-    const urlParams = new URLSearchParams(window.location.search)
-    const mode = urlParams.get('mode')
-    const isServerMode = mode === 'server'
-    const isElectronMode = mode === 'electron'
-    
-    // Get fresh ID token for all authentication methods
-    const idToken = await user.getIdToken(true)
-    console.log('🔑 Got fresh ID token for authentication')
-    
-    if (isServerMode) {
-      try {
-        // Server-side authentication: return user info for custom token creation
-        const deepLinkUrl = 'leviousa://server-auth-success?' + new URLSearchParams({
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || 'User',
-          photoURL: user.photoURL || '',
-          method: 'server'
-        }).toString()
+  const handleAuthSuccess = async (user: any) => {
+    console.log('🔥 Authentication successful:', user.uid)
+    try {
+      setUserInfo({
+        uid: user.uid,
+        display_name: user.displayName || 'User',
+        email: user.email || '',
+      })
+      
+      // o3's solution: Only deep-link if the flag survived the redirect round-trip
+      if (sessionStorage.getItem('fromElectron') === 'yes') {
+        sessionStorage.removeItem('fromElectron'); // consume it once
         
-        console.log('🔒 Return to electron app via server-side auth:', deepLinkUrl)
-        window.location.href = deepLinkUrl
+        const token = await user.getIdToken();
+        const deepLinkUrl = `leviousa://auth-success?token=${token}&uid=${user.uid}&email=${encodeURIComponent(user.email || '')}&displayName=${encodeURIComponent(user.displayName || 'User')}`;
         
-      } catch (error) {
-        console.error('❌ Server-side auth processing failed:', error)
-        alert('Login was successful but failed to return to app. Please check the app.')
-      }
-    }
-    else if (isElectronMode) {
-      try {
-        const deepLinkUrl = 'leviousa://auth-success?' + new URLSearchParams({
-          token: idToken,
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || 'User'
-        }).toString()
+        console.log('🔗 Deep linking to Electron app:', deepLinkUrl);
         
-        console.log('🔗 Return to electron app via deep link with token')
+        // Show success notification
+        const notification = document.createElement('div')
+        notification.style.cssText = `
+          position: fixed; top: 20px; right: 20px; z-index: 10000;
+          background: #4f46e5; color: white; padding: 16px 20px;
+          border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          font-family: system-ui, -apple-system, sans-serif; font-size: 14px;
+          max-width: 350px; line-height: 1.4;
+        `
+        notification.innerHTML = `
+          <div style="font-weight: 600; margin-bottom: 4px;">✅ Login Successful!</div>
+          <div>Opening Leviousa app...</div>
+        `
+        document.body.appendChild(notification)
         
-        // Try the deep link, but also show a fallback button if it fails
-        window.location.href = deepLinkUrl
-        
-        // Show success message with manual return option after a short delay
+        // Remove notification after delay
         setTimeout(() => {
-          document.body.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui; text-align: center; padding: 20px;">
-              <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 400px;">
-                <h1 style="color: #22c55e; margin-bottom: 16px;">✅ Login Successful!</h1>
-                <p style="color: #6b7280; margin-bottom: 24px;">You have been logged in as:<br><strong>${user.email}</strong></p>
-                <p style="color: #6b7280; margin-bottom: 24px;">If Leviousa didn't open automatically, click the button below:</p>
-                <button onclick="window.location.href='${deepLinkUrl}'" style="background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; margin-bottom: 16px;">Return to Leviousa App</button>
-                <p style="color: #9ca3af; font-size: 14px;">You can safely close this browser window.</p>
-              </div>
-            </div>
-          `
-        }, 1000)
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification)
+          }
+        }, 3000)
         
-      } catch (error) {
-        console.error('❌ Deep link processing failed:', error)
-        alert('Login was successful but failed to return to app. Please check the app.')
+        // Trigger the OS-level prompt → opens the desktop app
+        setTimeout(() => {
+          window.location.href = deepLinkUrl;
+        }, 1000);
+        
+        // Redirect to activity page as fallback
+        setTimeout(() => {
+          router.push('/activity')
+        }, 2000)
+        
+      } else {
+        // Normal web login - go to activity page immediately
+        console.log('🌐 Normal web login, redirecting to activity page');
+        router.push('/activity')
       }
-    } 
-    else if (typeof window !== 'undefined' && window.require) {
-      try {
-        const { ipcRenderer } = window.require('electron')
-        const idToken = await user.getIdToken()
-        
-        ipcRenderer.send('firebase-auth-success', {
-          uid: user.uid,
-          displayName: user.displayName,
-          email: user.email,
-          idToken
-        })
-     
-        console.log('📡 Auth info sent to electron successfully')
-        
-        // Clear all stored modes after successful use
-        sessionStorage.removeItem('leviousa_auth_mode')
-        localStorage.removeItem('leviousa_auth_mode')
-        // Clear hash
-        if (window.location.hash.includes('mode=')) {
-          window.location.hash = ''
-        }
-      } catch (error) {
-        console.error('❌ Electron communication failed:', error)
-      }
-    } 
-    else {
-      // For web mode, let AuthProvider context handle the redirect automatically
-      console.log('🌐 Web mode - auth complete, AuthProvider will handle redirect')
+      
+    } catch (error) {
+      console.error('❌ Error in auth success handler:', error)
+      router.push('/activity') // fallback
     }
-    
-    // Reset loading state
-    setIsLoading(false)
-  }, [isLoading, router])
+  }
 
   const validateForm = () => {
     const newErrors = { email: '', password: '', general: '' }
@@ -265,23 +277,11 @@ function LoginContent() {
     try {
       const provider = new GoogleAuthProvider()
       
-      // Detect mode from current URL
-      const urlParams = new URLSearchParams(window.location.search)
-      const mode = urlParams.get('mode')
-      const isElectronMode = mode === 'electron'
-      
-      // Use redirect for Electron/localhost to avoid HTTPS popup issues
-      if (isElectronMode || window.location.hostname === 'localhost') {
-        console.log('🔄 Using redirect method for localhost/electron')
-        await signInWithRedirect(auth, provider)
-        // Redirect will happen automatically, no need to handle result here
-      } else {
-        // Use popup for production
-        console.log('🔄 Using popup method for production')
-        const result = await signInWithPopup(auth, provider)
-        const user = result.user
-        await handleAuthSuccess(user)
-      }
+      // Use popup method for both web and electron
+      console.log('🔄 Using popup method for Google sign-in')
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+      await handleAuthSuccess(user)
       
     } catch (error: any) {
       console.error('❌ Google login failed:', error)
@@ -304,8 +304,39 @@ function LoginContent() {
 
   // Detect mode from URL for display purposes
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-  const isElectronMode = urlParams?.get('mode') === 'electron'
-  const isServerMode = urlParams?.get('mode') === 'server'
+  const hashParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.substring(1)) : null
+  const urlDisplayMode = urlParams?.get('mode') || hashParams?.get('mode')
+  
+  // Check all sources for display mode
+  let displayMode = urlDisplayMode
+  if (typeof window !== 'undefined') {
+    const cookieMode = document.cookie.includes('leviousa_platform=electron') ? 'electron' : null
+    const sessionMode = sessionStorage.getItem('leviousa_auth_mode')
+    const localMode = localStorage.getItem('leviousa_auth_mode')
+    
+    // Use strict mode detection - only electron if explicitly indicated
+    const explicitModes = [urlDisplayMode, cookieMode, sessionMode, localMode].filter(Boolean)
+    displayMode = explicitModes.length > 0 ? explicitModes[0] : null
+  }
+  
+  // Using state variable isElectronMode instead of const declaration
+  const isServerMode = displayMode === 'server'
+  
+  // Debug display mode detection
+  if (typeof window !== 'undefined') {
+    console.log('🔍 [LoginContent Display] Mode detection debug:')
+    console.log('🔍 Current URL:', window.location.href)
+    console.log('🔍 URL mode:', urlDisplayMode)
+    console.log('🔍 Hash mode:', hashParams?.get('mode'))
+    const cookieMode = document.cookie.includes('leviousa_platform=electron') ? 'electron' : null
+    const sessionMode = sessionStorage.getItem('leviousa_auth_mode')
+    const localMode = localStorage.getItem('leviousa_auth_mode')
+    console.log('🔍 Cookie mode:', cookieMode)
+    console.log('🔍 Session mode:', sessionMode)
+    console.log('🔍 Local mode:', localMode)
+    console.log('🔍 Final display mode:', displayMode)
+    console.log('🔍 isElectronMode for display:', isElectronMode)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 relative">

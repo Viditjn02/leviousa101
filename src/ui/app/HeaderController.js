@@ -127,13 +127,17 @@ class HeaderTransitionManager {
 
     //////// after_modelStateService ////////
     async handleStateUpdate(userState) {
+        console.log('[HeaderController] handleStateUpdate called with userState:', userState);
         const isConfigured = await window.api.apiKeyHeader.areProvidersConfigured();
+        console.log('[HeaderController] Providers configured:', isConfigured);
         
         // Enforce login requirement - check if user is authenticated
         const isAuthenticated = userState && userState.isLoggedIn;
+        console.log('[HeaderController] Is authenticated:', isAuthenticated);
         
         if (!isAuthenticated) {
             // User is not logged in, show welcome header to prompt for login
+            console.log('[HeaderController] User not authenticated, showing welcome header');
             await this._resizeForWelcome();
             this.ensureHeader('welcome');
             return;

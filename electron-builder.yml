@@ -15,9 +15,10 @@ publish:
 
 # Protocols configuration for deep linking
 protocols:
-    name: Leviousa Protocol
+  - name: "Leviousa"
+    role: "Viewer"
     schemes: 
-        - leviousa
+      - leviousa
 
 # List of files to be included in the app package
 files:

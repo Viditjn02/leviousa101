@@ -606,19 +606,28 @@ export const logout = async () => {
       console.log('✅ Firebase sign out successful');
     }
     
+    // Clear user info immediately
     setUserInfo(null);
     
+    // Clear all authentication-related localStorage items
     localStorage.removeItem('openai_api_key');
     localStorage.removeItem('leviousa_user');
     localStorage.removeItem('user_info');
+    localStorage.removeItem('leviousa_auth_mode');
     
-    // Add a small delay before redirect to ensure cleanup
-    setTimeout(() => {
-      window.location.href = '/login';
-    }, 100);
+    // Clear session storage
+    sessionStorage.removeItem('leviousa_auth_mode');
+    
+    console.log('✅ Logout completed, redirecting to login...');
+    
+    // Force a hard redirect to ensure clean state
+    window.location.href = '/login';
   } catch (error) {
     console.error('❌ Logout error:', error);
-    // Still redirect even if logout fails
+    // Still clear local state and redirect even if logout fails
+    setUserInfo(null);
+    localStorage.clear();
+    sessionStorage.clear();
     window.location.href = '/login';
   }
 }; 

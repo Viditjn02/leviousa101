@@ -175,6 +175,18 @@ class PermissionService {
       return false;
     }
   }
+
+  async checkPermissionsCompleted() {
+    try {
+      const permissions = await this.checkSystemPermissions();
+      const allCompleted = !permissions.needsSetup;
+      console.log('[Permissions] All permissions completed:', allCompleted);
+      return allCompleted;
+    } catch (error) {
+      console.error('[Permissions] Error checking permissions completed status:', error);
+      return false;
+    }
+  }
 }
 
 const permissionService = new PermissionService();

@@ -7,7 +7,7 @@
     "scripts": {
         "setup": "npm install && cd leviousa_web && npm install && npm run build && cd .. && npm start",
         "start": "npm run build:renderer && electron .",
-        "dev": "npm run build:renderer && echo '\n🔥 Starting Electron app with Firebase hosting support...\n' && echo '📋 Next steps:\n  1. Open a new terminal\n  2. cd leviousa_web\n  3. npm run dev:hosting\n  4. Access your app at: https://leviousa-101.firebaseapp.com\n' && electron .",
+        "dev": "npm run build:renderer && echo '\n🔥 Starting Electron app with Firebase hosting...\n' && echo '📋 Frontend served from: https://leviousa-101.web.app\n  API served from: http://localhost:9001\n' && electron .",
         "package": "npm run build:all && electron-builder --dir",
         "make": "npm run build:renderer && electron-forge make",
         "build": "npm run build:all && electron-builder --config electron-builder.yml --publish never",
@@ -18,7 +18,8 @@
         "build:renderer": "node build.js",
         "build:web": "cd leviousa_web && npm run build && cd ..",
         "build:all": "npm run build:renderer && npm run build:web",
-        "watch:renderer": "node build.js --watch"
+        "watch:renderer": "node build.js --watch",
+        "build:dev-dmg": "LEVIOUSA_DEV_BUILD=true npm run build:all && electron-builder --config electron-builder.yml --publish never"
     },
     "keywords": [
         "leviousa",

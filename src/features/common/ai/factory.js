@@ -65,34 +65,7 @@ const PROVIDERS = {
         { id: 'nova-3', name: 'Nova-3 (General)' },
         ],
     },
-  'ollama': {
-      name: 'Ollama (Local)',
-      handler: () => require("./providers/ollama"),
-      llmModels: [], // Dynamic models populated from installed Ollama models
-      sttModels: [], // Ollama doesn't support STT yet
-  },
-  'whisper': {
-      name: 'Whisper (Local)',
-      handler: () => {
-          // This needs to remain a function due to its conditional logic for renderer/main process
-          if (typeof window === 'undefined') {
-              const { WhisperProvider } = require("./providers/whisper");
-              return new WhisperProvider();
-          }
-          // Return a dummy object for the renderer process
-          return {
-              validateApiKey: async () => ({ success: true }), // Mock validate for renderer
-              createSTT: () => { throw new Error('Whisper STT is only available in main process'); },
-          };
-      },
-      llmModels: [],
-      sttModels: [
-          { id: 'whisper-tiny', name: 'Whisper Tiny (39M)' },
-          { id: 'whisper-base', name: 'Whisper Base (74M)' },
-          { id: 'whisper-small', name: 'Whisper Small (244M)' },
-          { id: 'whisper-medium', name: 'Whisper Medium (769M)' },
-      ],
-  },
+
 };
 
 function sanitizeModelId(model) {

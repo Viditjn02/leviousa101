@@ -425,7 +425,7 @@ const toggleContentProtection = () => {
 
 
 const openLoginPage = () => {
-    const webUrl = process.env.leviousa_WEB_URL || 'http://localhost:3000';
+    const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
     const personalizeUrl = `${webUrl}/personalize?desktop=true`;
     shell.openExternal(personalizeUrl);
     console.log('Opening personalization page:', personalizeUrl);
@@ -434,6 +434,9 @@ const openLoginPage = () => {
 
 function createFeatureWindows(header, namesToCreate) {
     // if (windowPool.has('listen')) return;
+
+    // Check if this is a development build that should show dev tools
+    const isDevBuild = process.env.LEVIOUSA_DEV_BUILD === 'true';
 
     const commonChildOptions = {
         parent: header,
@@ -449,6 +452,8 @@ function createFeatureWindows(header, namesToCreate) {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, '../preload.js'),
+            // Enable dev tools in development builds
+            ...(isDevBuild && { enableRemoteModule: false, devTools: true }),
         },
     };
 
@@ -482,10 +487,13 @@ function createFeatureWindows(header, namesToCreate) {
                         }
                     });
                 }
-                // DevTools disabled for cleaner development experience
-                // if (!app.isPackaged) {
-                //     listen.webContents.openDevTools({ mode: 'detach' });
-                // }
+                // Open DevTools for listen window in development builds
+                if (isDevBuild) {
+                    listen.webContents.once('dom-ready', () => {
+                        console.log('🔧 [DevBuild] Opening dev tools for listen window...');
+                        listen.webContents.openDevTools({ mode: 'detach' });
+                    });
+                }
                 windowPool.set('listen', listen);
                 break;
             }
@@ -515,10 +523,13 @@ function createFeatureWindows(header, namesToCreate) {
                     });
                 }
                 
-                // DevTools disabled for cleaner development experience
-                // if (!app.isPackaged) {
-                //     ask.webContents.openDevTools({ mode: 'detach' });
-                // }
+                // Open DevTools for ask window in development builds
+                if (isDevBuild) {
+                    ask.webContents.once('dom-ready', () => {
+                        console.log('🔧 [DevBuild] Opening dev tools for ask window...');
+                        ask.webContents.openDevTools({ mode: 'detach' });
+                    });
+                }
                 windowPool.set('ask', ask);
                 break;
             }
@@ -641,6 +652,8 @@ function getCurrentDisplay(window) {
 
 
 function createWindows() {
+    console.log('>>> [windowManager.js] Creating windows...');
+    
     const HEADER_HEIGHT        = 47;
     const DEFAULT_WINDOW_WIDTH = 353;
 
@@ -649,6 +662,9 @@ function createWindows() {
 
     const initialX = Math.round((screenWidth - DEFAULT_WINDOW_WIDTH) / 2);
     const initialY = workAreaY + 21;
+    
+    // Check if this is a development build that should show dev tools
+    const isDevBuild = process.env.LEVIOUSA_DEV_BUILD === 'true';
         
     const header = new BrowserWindow({
         width: DEFAULT_WINDOW_WIDTH,
@@ -674,6 +690,8 @@ function createWindows() {
             enableRemoteModule: false,
             // Ensure proper rendering and prevent pixelation
             experimentalFeatures: false,
+            // Enable dev tools in development builds
+            ...(isDevBuild && { devTools: true }),
         },
         // Prevent pixelation and ensure proper rendering
         useContentSize: true,
@@ -699,8 +717,14 @@ function createWindows() {
         });
     }
     windowPool.set('header', header);
+    console.log('[WindowManager] Header window created and added to windowPool');
+    
+    // Set custom User-Agent to identify as Leviousa instead of Electron
+    header.webContents.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Leviousa/1.0.0 Safari/537.36');
+    
     layoutManager = new WindowLayoutManager(windowPool);
     movementManager = new SmoothMovementManager(windowPool);
+    console.log('[WindowManager] Layout and movement managers initialized');
 
 
     header.on('moved', () => {
@@ -725,10 +749,16 @@ function createWindows() {
     header.setContentProtection(isContentProtectionOn);
     header.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     
-    // DevTools disabled for cleaner development experience
-    // if (!app.isPackaged) {
-    //     header.webContents.openDevTools({ mode: 'detach' });
-    // }
+    // Open DevTools in development builds for debugging
+    if (isDevBuild) {
+        console.log('🔧 [DevBuild] Opening developer tools for debugging...');
+        header.webContents.openDevTools({ mode: 'detach' });
+        
+        // Also enable dev tools for feature windows when they're created
+        header.webContents.once('dom-ready', () => {
+            console.log('🔧 [DevBuild] Developer tools available - press F12 or Cmd+Opt+I');
+        });
+    }
 
     header.on('focus', () => {
         console.log('[WindowManager] Header gained focus');

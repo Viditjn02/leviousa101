@@ -203,18 +203,6 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
         []
     );
 
-    const bottomItems = useMemo(
-        () => [
-            {
-                href: 'https://discord.gg/UCZH5B5Hpd',
-                icon: '/linkout.svg',
-                text: 'Join Discord',
-                ariaLabel: 'Help Center (new window)',
-            },
-        ],
-        []
-    );
-
     const toggleSidebar = useCallback(() => {
         onToggle(!isCollapsed);
     }, [isCollapsed, onToggle]);
@@ -476,8 +464,8 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                             <Image
                                 src={isCollapsed ? '/symbol.svg' : '/word.svg'}
                                 alt="Leviousa Logo"
-                                width={75}
-                                height={21}
+                                width={120}
+                                height={35}
                                 className="mx-3 shrink-0"
                             />
                         </Link>
@@ -520,37 +508,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
 
 
                 <div className="mt-auto space-y-[0px]" role="navigation" aria-label="Additional links">
-                    {bottomItems.map((item, index) => (
-                        <Link
-                            key={item.text}
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`
-                group flex items-center rounded-[6px] px-[12px] py-[8px] text-[13px] text-[#282828]
-                hover:text-[#282828] hover:bg-[#f7f7f7] ${isCollapsed ? '' : 'gap-x-[10px]'}
-                transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out 
-                focus:outline-none
-              `}
-                            title={isCollapsed ? item.text : undefined}
-                            aria-label={item.ariaLabel}
-                            style={{ willChange: 'background-color, color' }}
-                        >
-                            <div className=" overflow-hidden">
-                                <span className="" style={getUniformTextStyle()}>
-                                    {item.text}
-                                </span>
-                            </div>
-                            <div className="shrink-0 flex items-center justify-center w-4 h-4">
-                                <IconComponent
-                                    icon={item.icon}
-                                    isLucide={false}
-                                    alt={`${item.text} icon`}
-                                    className={`h-[16px] w-[16px] transition-transform duration-${ANIMATION_DURATION.ICON_HOVER}`}
-                                />
-                            </div>
-                        </Link>
-                    ))}
+                    {/* Removed bottomItems rendering since Discord link was removed */}
                 </div>
 
                 <div className="mt-[0px] flex items-center w-full h-[1px] px-[4px] mt-[8px] mb-[8px]">

@@ -6,7 +6,7 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow authenticated users to read/write their own sessions
+    // Allow authenticated users to read/write their own sessions (nested under users)
     match /users/{userId}/sessions/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -26,9 +26,28 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow authenticated users to read/write their own presets
+    // Allow authenticated users to read/write their own presets (nested under users)
     match /users/{userId}/presets/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // **FIX: Allow authenticated users to access top-level collections used by migration**
+    // Sessions collection (top-level)
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.uid == request.auth.uid || request.resource.data.uid == request.auth.uid);
+    }
+    
+    // Sessions subcollections
+    match /sessions/{sessionId}/{subcollection=**} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/sessions/$(sessionId)).data.uid == request.auth.uid;
+    }
+    
+    // Prompt presets collection (top-level)
+    match /prompt_presets/{presetId} {
+      allow read, write: if request.auth != null && 
+        (resource.data.uid == request.auth.uid || request.resource.data.uid == request.auth.uid);
     }
   }
 }

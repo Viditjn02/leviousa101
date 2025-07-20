@@ -438,8 +438,8 @@ export class ApiKeyHeader extends LitElement {
             for (const id in config) {
                 // 'openai-glass' 같은 가상 Provider는 UI에 표시하지 않음
                 if (id.includes('-glass')) continue;
-                const hasLlmModels = config[id].llmModels.length > 0 || id === 'ollama';
-                const hasSttModels = config[id].sttModels.length > 0 || id === 'whisper';
+                const hasLlmModels = config[id].llmModels.length > 0;
+                const hasSttModels = config[id].sttModels.length > 0;
 
                 if (hasLlmModels) {
                     llmProviders.push({ id, name: config[id].name });
@@ -1491,38 +1491,7 @@ export class ApiKeyHeader extends LitElement {
         try {
             // Handle LLM provider
             let llmResult;
-            if (this.llmProvider === 'ollama') {
-                // For Ollama ensure it's ready and validate model selection
-                if (!this.selectedLlmModel?.trim()) {
-                    throw new Error('Please enter an Ollama model name');
-                }
-
-                const ollamaReady = await this.ensureOllamaReady();
-                if (!ollamaReady) {
-                    throw new Error('Failed to setup Ollama');
-                }
-
-                // Check if model is installed, if not install it
-                const selectedModel = this.getCombinedModelSuggestions().find(m => m.name === this.selectedLlmModel);
-                if (!selectedModel || selectedModel.status !== 'installed') {
-                    console.log(`[ApiKeyHeader] Installing model ${this.selectedLlmModel}...`);
-                    await this.installModel(this.selectedLlmModel);
-                }
-
-                // Validate Ollama is working
-                llmResult = await window.api.apiKeyHeader.validateKey({
-                    provider: 'ollama',
-                    key: 'local',
-                });
-
-                if (llmResult.success) {
-                    // Set the selected model
-                    await window.api.apiKeyHeader.setSelectedModel({
-                        type: 'llm',
-                        modelId: this.selectedLlmModel,
-                    });
-                }
-            } else {
+            {
                 // For other providers, validate API key
                 if (!this.llmApiKey.trim()) {
                     throw new Error('Please enter LLM API key');
@@ -2007,36 +1976,7 @@ export class ApiKeyHeader extends LitElement {
                     </div>
                     <div class="row">
                         <div class="label">4. Enter STT API Key</div>
-                        ${this.sttProvider === 'ollama'
-                            ? html`
-                                  <div class="api-input" style="background: transparent; border: none; text-align: right; color: #a0a0a0;">
-                                      STT not supported by Ollama
-                                  </div>
-                              `
-                            : this.sttProvider === 'whisper'
-                              ? html`
-                                    <div class="input-wrapper">
-                                        <select
-                                            class="api-input ${this.sttError ? 'invalid' : ''}"
-                                            .value=${this.selectedSttModel || ''}
-                                            @change=${e => {
-                                                this.handleSttModelChange(e);
-                                                this.sttError = '';
-                                            }}
-                                            ?disabled=${this.isLoading}
-                                        >
-                                            <option value="">Select a model...</option>
-                                            ${[
-                                                { id: 'whisper-tiny', name: 'Whisper Tiny (39M)' },
-                                                { id: 'whisper-base', name: 'Whisper Base (74M)' },
-                                                { id: 'whisper-small', name: 'Whisper Small (244M)' },
-                                                { id: 'whisper-medium', name: 'Whisper Medium (769M)' },
-                                            ].map(model => html` <option value="${model.id}">${model.name}</option> `)}
-                                        </select>
-                                        ${this.sttError ? html`<div class="inline-error-message">${this.sttError}</div>` : ''}
-                                    </div>
-                                `
-                              : html`
+                        ${html`
                                     <div class="input-wrapper">
                                         <input
                                             type="password"

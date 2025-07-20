@@ -44,25 +44,31 @@ let isShuttingDown = false; // Flag to prevent infinite shutdown loop
 global.modelStateService = modelStateService;
 //////// after_modelStateService ////////
 
-// Import and initialize OllamaService
-const ollamaService = require('./features/common/services/ollamaService');
-const ollamaModelRepository = require('./features/common/repositories/ollamaModel');
+// Local AI services removed by user request
+// ollamaModelRepository removed - local models disabled
 
 // Native deep link handling - cross-platform compatible
 let pendingDeepLinkUrl = null;
 
 function setupProtocolHandling() {
     // Protocol registration - must be done before app is ready
+    console.log('🔗 [Protocol] Setting up protocol handling...');
     try {
+        console.log('🔗 [Protocol] Is default protocol client?', app.isDefaultProtocolClient('leviousa'));
+        
+        // Set app name for protocol registration
+        app.setName('Leviousa');
+        
         if (!app.isDefaultProtocolClient('leviousa')) {
             const success = app.setAsDefaultProtocolClient('leviousa');
+            console.log('🔗 [Protocol] Set as default protocol client result:', success);
             if (success) {
-                console.log('[Protocol] Successfully set as default protocol client for leviousa://');
+                console.log('🔗 [Protocol] Successfully set as default protocol client for leviousa://');
             } else {
-                console.warn('[Protocol] Failed to set as default protocol client - this may affect deep linking');
+                console.warn('🔗 [Protocol] Failed to set as default protocol client - this may affect deep linking');
             }
         } else {
-            console.log('[Protocol] Already registered as default protocol client for leviousa://');
+            console.log('🔗 [Protocol] Already registered as default protocol client for leviousa://');
         }
     } catch (error) {
         console.error('[Protocol] Error during protocol registration:', error);
@@ -70,7 +76,7 @@ function setupProtocolHandling() {
 
     // Handle protocol URLs on Windows/Linux
     app.on('second-instance', (event, commandLine, workingDirectory) => {
-        console.log('[Protocol] Second instance command line:', commandLine);
+        console.log('🔗 [Protocol] SECOND INSTANCE TRIGGERED! Command line:', commandLine);
         
         focusMainWindow();
         
@@ -108,7 +114,7 @@ function setupProtocolHandling() {
     // Handle protocol URLs on macOS
     app.on('open-url', (event, url) => {
         event.preventDefault();
-        console.log('[Protocol] Received URL via open-url:', url);
+        console.log('🔗 [Protocol] MACOS OPEN-URL TRIGGERED! Received URL:', url);
         
         if (!url || !url.startsWith('leviousa://')) {
             console.warn('[Protocol] Invalid URL format:', url);
@@ -191,6 +197,16 @@ app.whenReady().then(async () => {
         });
     });
 
+    // Check if this is a development build with enhanced debugging
+    const isDevBuild = process.env.LEVIOUSA_DEV_BUILD === 'true';
+    if (isDevBuild) {
+        console.log('🔧 ===== DEVELOPMENT BUILD MODE =====');
+        console.log('🔧 Enhanced debugging features enabled');
+        console.log('🔧 Developer tools will auto-open for all windows');
+        console.log('🔧 Full console logging enabled');
+        console.log('🔧 ====================================');
+    }
+
     // Initialize core services
     await initializeFirebase();
     
@@ -202,13 +218,16 @@ app.whenReady().then(async () => {
         // sessionRepository.endAllActiveSessions();
 
         await authService.initialize();
+        console.log('>>> [index.js] AuthService initialized successfully');
 
         //////// after_modelStateService ////////
         await modelStateService.initialize();
+        console.log('>>> [index.js] ModelStateService initialized successfully');
         //////// after_modelStateService ////////
 
         // Initialize Leviousa pre-configured API keys
         await leviousaBridge.initializePreConfiguredKeys();
+        console.log('>>> [index.js] PreConfigured keys initialized successfully');
         
         featureBridge.initialize();  // 추가: featureBridge 초기화
         windowBridge.initialize();
@@ -224,20 +243,14 @@ app.whenReady().then(async () => {
         }
 
         // Initialize Ollama models in database
-        await ollamaModelRepository.initializeDefaultModels();
+        // ollamaModelRepository initialization removed - local models disabled
 
-        // Auto warm-up selected Ollama model in background (non-blocking)
-        setTimeout(async () => {
-            try {
-                console.log('[index.js] Starting background Ollama model warm-up...');
-                await ollamaService.autoWarmUpSelectedModel();
-            } catch (error) {
-                console.log('[index.js] Background warm-up failed (non-critical):', error.message);
-            }
-        }, 2000); // Wait 2 seconds after app start
+        // Ollama warm-up removed - local models disabled
 
         // Start web server and create windows ONLY after all initializations are successful
         WEB_PORT = await startWebStack();
+        console.log('>>> [index.js] Web stack started successfully');
+        
         const isDev = !app.isPackaged;
         if (isDev) {
             console.log('🔥 Development mode: Frontend served via Firebase hosting at', process.env.leviousa_WEB_URL);
@@ -246,7 +259,14 @@ app.whenReady().then(async () => {
             console.log('📱 Production mode: Web front-end listening on', WEB_PORT);
         }
         
-        createWindows();
+        console.log('>>> [index.js] About to create windows...');
+        try {
+            createWindows();
+            console.log('>>> [index.js] Windows created successfully');
+        } catch (windowError) {
+            console.error('>>> [index.js] Window creation failed:', windowError);
+            console.error('>>> [index.js] Window creation error stack:', windowError.stack);
+        }
 
     } catch (err) {
         console.error('>>> [index.js] Database initialization failed - some features may not work', err);
@@ -296,24 +316,7 @@ app.on('before-quit', async (event) => {
             console.warn('[Shutdown] Could not end active sessions (database may be closed):', dbError.message);
         }
         
-        // 3. Shutdown Ollama service (potentially time-consuming)
-        console.log('[Shutdown] shutting down Ollama service...');
-        const ollamaShutdownSuccess = await Promise.race([
-            ollamaService.shutdown(false), // Graceful shutdown
-            new Promise(resolve => setTimeout(() => resolve(false), 8000)) // 8s timeout
-        ]);
-        
-        if (ollamaShutdownSuccess) {
-            console.log('[Shutdown] Ollama service shut down gracefully');
-        } else {
-            console.log('[Shutdown] Ollama shutdown timeout, forcing...');
-            // Force shutdown if graceful failed
-            try {
-                await ollamaService.shutdown(true);
-            } catch (forceShutdownError) {
-                console.warn('[Shutdown] Force shutdown also failed:', forceShutdownError.message);
-            }
-        }
+        // Ollama shutdown removed - local models disabled
         
         // 4. Close database connections (final cleanup)
         try {
@@ -473,7 +476,7 @@ function setupWebDataHandlers() {
 
 async function handleCustomUrl(url) {
     try {
-        console.log('[Custom URL] Processing URL:', url);
+        console.log('🔗 [Custom URL] DEEP LINK RECEIVED! Processing URL:', url);
         
         // Validate and clean URL
         if (!url || typeof url !== 'string' || !url.startsWith('leviousa://')) {
@@ -682,23 +685,16 @@ async function startWebStack() {
     });
   };
 
-  // Use Firebase hosting for development to avoid OAuth redirect issues
+  // Always use Firebase hosting for frontend to avoid OAuth issues
   let apiPort, frontendPort, webUrl;
   
-  if (isDev) {
-    // Use Firebase hosting domain for development
-    apiPort = 9001;
-    frontendPort = 3000;
-    webUrl = 'https://leviousa-101.firebaseapp.com'; // Use Firebase hosting domain
-    console.log(`🔧 Using Firebase hosting for development: API=${apiPort}, Frontend=${frontendPort}`);
-    console.log(`🌐 Web URL: ${webUrl}`);
-  } else {
-    // Dynamic ports for production
-    apiPort = await getAvailablePort();
-    frontendPort = await getAvailablePort();
-    webUrl = `http://localhost:${frontendPort}`;
-    console.log(`🔧 Allocated production ports: API=${apiPort}, Frontend=${frontendPort}`);
-  }
+  // Always use Firebase hosting domain for consistent OAuth behavior
+  apiPort = isDev ? 9001 : await getAvailablePort();
+  frontendPort = 3000; // Not used when using Firebase hosting
+  webUrl = 'https://leviousa-101.web.app'; // Always use Firebase hosting domain
+  
+  console.log(`🔧 Using Firebase hosting for all builds: API=${apiPort}`);
+  console.log(`🌐 Web URL: ${webUrl}`);
 
   process.env.leviousa_API_PORT = apiPort.toString();
   process.env.leviousa_API_URL = `http://localhost:${apiPort}`;
@@ -713,71 +709,10 @@ async function startWebStack() {
   const createBackendApp = require('../leviousa_web/backend_node');
   const nodeApi = createBackendApp(eventBridge);
 
-  // Only start local frontend server for production builds
-  // For development, we'll use Firebase hosting
-  if (!isDev) {
-    const staticDir = app.isPackaged
-      ? path.join(process.resourcesPath, 'out')
-      : path.join(__dirname, '..', 'leviousa_web', 'out');
-
-    const fs = require('fs');
-
-    if (!fs.existsSync(staticDir)) {
-      console.error(`============================================================`);
-      console.error(`[ERROR] Frontend build directory not found!`);
-      console.error(`Path: ${staticDir}`);
-      console.error(`Please run 'npm run build' inside the 'leviousa_web' directory first.`);
-      console.error(`============================================================`);
-      app.quit();
-      return;
-    }
-
-    const runtimeConfig = {
-      API_URL: `http://localhost:${apiPort}`,
-      WEB_URL: webUrl,
-      timestamp: Date.now()
-    };
-    
-    // 쓰기 가능한 임시 폴더에 런타임 설정 파일 생성
-    const tempDir = app.getPath('temp');
-    const configPath = path.join(tempDir, 'runtime-config.json');
-    fs.writeFileSync(configPath, JSON.stringify(runtimeConfig, null, 2));
-    console.log(`📝 Runtime config created in temp location: ${configPath}`);
-
-    const frontSrv = express();
-    
-    // 프론트엔드에서 /runtime-config.json을 요청하면 임시 폴더의 파일을 제공
-    frontSrv.get('/runtime-config.json', (req, res) => {
-      res.sendFile(configPath);
-    });
-
-    frontSrv.use((req, res, next) => {
-      if (req.path.indexOf('.') === -1 && req.path !== '/') {
-        const htmlPath = path.join(staticDir, req.path + '.html');
-        if (fs.existsSync(htmlPath)) {
-          return res.sendFile(htmlPath);
-        }
-      }
-      next();
-    });
-    
-    frontSrv.use(express.static(staticDir));
-    
-    const frontendServer = await new Promise((resolve, reject) => {
-      const server = frontSrv.listen(frontendPort, '127.0.0.1', () => resolve(server));
-      server.on('error', reject);
-      app.once('before-quit', () => server.close());
-    });
-
-    console.log(`✅ Frontend server started on ${webUrl}`);
-  } else {
-    console.log(`🔥 Development mode: Using Firebase hosting at ${webUrl}`);
-    console.log(`📋 To serve your app:`);
-    console.log(`   1. cd leviousa_web`);
-    console.log(`   2. npm run build`);
-    console.log(`   3. firebase hosting:channel:deploy dev --expires 7d`);
-    console.log(`   4. Your app will be available at: ${webUrl}`);
-  }
+  // No local frontend server needed - always use Firebase hosting
+  console.log(`🔥 Using Firebase hosting at ${webUrl}`);
+  console.log(`📋 Frontend is served from Firebase hosting`);
+  console.log(`📋 API runs locally on http://localhost:${apiPort}`);
 
   const apiSrv = express();
   apiSrv.use(nodeApi);
@@ -791,8 +726,8 @@ async function startWebStack() {
   console.log(`✅ API server started on http://localhost:${apiPort}`);
 
   console.log(`🚀 All services ready:
-   Frontend: ${webUrl}
-   API:      http://localhost:${apiPort}`);
+   Frontend: ${webUrl} (Firebase Hosting)
+   API:      http://localhost:${apiPort} (Local)`);
 
   return frontendPort;
 }

@@ -6,7 +6,7 @@ const { identifyUser } = require('./middleware/auth');
 function createApp(eventBridge) {
     const app = express();
 
-    const webUrl = process.env.leviousa_WEB_URL || 'http://localhost:3000';
+    const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
     console.log(`🔧 Backend CORS configured for: ${webUrl}`);
 
     app.use(cors({

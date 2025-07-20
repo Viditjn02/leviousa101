@@ -93,89 +93,14 @@ function SettingsPageContent() {
 
   const renderBillingContent = () => (
     <div className="space-y-8">
-      <div className={`p-4 rounded-lg border ${isFirebaseMode ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-        <div className="flex items-center gap-2 mb-2">
-          {isFirebaseMode ? (
-            <Cloud className="h-5 w-5 text-blue-600" />
-          ) : (
-            <HardDrive className="h-5 w-5 text-gray-600" />
-          )}
-          <h3 className={`font-semibold ${isFirebaseMode ? 'text-blue-900' : 'text-gray-900'}`}>
-            {isFirebaseMode ? 'Firebase Hosting Mode' : 'Local Execution Mode'}
-          </h3>
-        </div>
-        <p className={`text-sm ${isFirebaseMode ? 'text-blue-700' : 'text-gray-700'}`}>
-          {isFirebaseMode 
-            ? 'All data is safely stored and synchronized in Firebase Cloud.'
-            : 'Data is stored in local database and you can use personal API keys.'
-          }
-        </p>
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => setBillingCycle('monthly')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            billingCycle === 'monthly'
-              ? 'bg-gray-200 text-gray-900'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setBillingCycle('annually')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            billingCycle === 'annually'
-              ? 'bg-gray-200 text-gray-900'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Annually
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Free</h3>
-            <div className="text-3xl font-bold text-gray-900">
-              $0<span className="text-lg font-normal text-gray-600">/month</span>
-            </div>
-          </div>
-          
-          <p className="text-gray-600 mb-6">
-            Experience how Leviousa works with unlimited responses.
-          </p>
-          
-          <ul className="space-y-3 mb-8">
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Daily unlimited responses</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Unlimited access to free models</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Unlimited text output</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Screen viewing, audio listening</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Custom system prompts</span>
-            </li>
-            <li className="flex items-center gap-3">
-              <Check className="h-5 w-5 text-green-500" />
-              <span className="text-sm text-gray-700">Community support only</span>
-            </li>
-          </ul>
-          
-          <button className="w-full py-2 px-4 bg-gray-200 text-gray-700 rounded-md font-medium">
+      {/* Removed Firebase Hosting Mode banner */}
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white border border-gray-300 rounded-lg p-6 flex flex-col">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Free</h3>
+          <p className="text-gray-600 text-sm mb-4 flex-1">Perfect for getting started with basic features</p>
+          <div className="text-2xl font-bold text-gray-900 mb-4">$0<span className="text-sm font-normal text-gray-500">/month</span></div>
+          <button className="w-full py-2 px-4 bg-gray-900 text-white rounded-md font-medium">
             Current Plan
           </button>
         </div>
@@ -291,59 +216,37 @@ function SettingsPageContent() {
       case 'profile':
         return (
           <div className="space-y-6">
-            <div className={`p-4 rounded-lg border ${isFirebaseMode ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {isFirebaseMode ? (
-                    <Cloud className="h-5 w-5 text-blue-600" />
-                  ) : (
-                    <HardDrive className="h-5 w-5 text-gray-600" />
-                  )}
-                  <div>
-                    <h3 className={`font-semibold ${isFirebaseMode ? 'text-blue-900' : 'text-gray-900'}`}>
-                      {isFirebaseMode ? 'Firebase Hosting Mode' : 'Local Execution Mode'}
-                    </h3>
-                    <p className={`text-sm ${isFirebaseMode ? 'text-blue-700' : 'text-gray-700'}`}>
-                      {isFirebaseMode 
-                        ? `Logged in with Google account (${userInfo?.email || 'Unknown'})`
-                        : 'Running as local user'
-                      }
-                    </p>
-                  </div>
-                </div>
-                {isFirebaseMode && (
-                  <button
-                    onClick={handleLogout}
-                    className="px-3 py-1 text-sm text-blue-600 hover:text-blue-700 underline"
-                  >
-                    Logout
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Display Name</h3>
-              <p className="text-sm text-gray-600 mb-4">Enter your full name or a display name you're comfortable using.</p>
-              <div className="max-w-sm">
-                 <input
+            {/* Removed Firebase Hosting Mode banner */}
+            
+            <div className="bg-white border border-gray-300 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Display Name</h3>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Display Name
+                  </label>
+                  <input
                     type="text"
-                    id="display-name"
+                    id="displayName"
                     value={displayNameInput}
                     onChange={(e) => setDisplayNameInput(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm text-black"
-                    maxLength={32}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                    placeholder="Enter your display name"
                   />
-                  <p className="text-xs text-gray-500 mt-2">You can use up to 32 characters.</p>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
-                <button
+                </div>
+                <div className="flex justify-end">
+                  <button
                     onClick={handleUpdateDisplayName}
                     disabled={isSaving || !displayNameInput || displayNameInput === profile?.display_name}
-                    className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50"
+                    className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
+                      isSaving || !displayNameInput || displayNameInput === profile?.display_name
+                        ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                        : 'text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                    }`}
                   >
-                    Update
+                    {isSaving ? 'Saving...' : 'Save'}
                   </button>
+                </div>
               </div>
             </div>
 

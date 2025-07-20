@@ -10,7 +10,7 @@ let Store;
 const encryptionService = require('./encryptionService');
 const providerSettingsRepository = require('../repositories/providerSettings');
 const authService = require('./authService');
-const ollamaModelRepository = require('../repositories/ollamaModel');
+// ollamaModelRepository removed - local models disabled
 
 class ModelStateService extends EventEmitter {
     constructor() {
@@ -33,7 +33,7 @@ class ModelStateService extends EventEmitter {
         console.log('[ModelStateService] Initializing one-time setup...');
         await this._initializeEncryption();
         await this._runMigrations();
-        this.setupLocalAIStateSync();
+        // setupLocalAIStateSync removed - local models disabled
         await this._autoSelectAvailableModels([], true);
         console.log('[ModelStateService] One-time setup complete.');
     }
@@ -115,21 +115,7 @@ class ModelStateService extends EventEmitter {
         }
     }
     
-    setupLocalAIStateSync() {
-        const localAIManager = require('./localAIManager');
-        localAIManager.on('state-changed', (service, status) => {
-            this.handleLocalAIStateChange(service, status);
-        });
-    }
-
-    async handleLocalAIStateChange(service, state) {
-        console.log(`[ModelStateService] LocalAI state changed: ${service}`, state);
-        if (!state.installed || !state.running) {
-            const types = service === 'ollama' ? ['llm'] : service === 'whisper' ? ['stt'] : [];
-            await this._autoSelectAvailableModels(types);
-        }
-        this.emit('state-updated', await this.getLiveState());
-    }
+    // setupLocalAIStateSync and handleLocalAIStateChange removed - local models disabled
 
     async getLiveState() {
         const providerSettings = await providerSettingsRepository.getAll();
@@ -170,13 +156,15 @@ class ModelStateService extends EventEmitter {
                 console.log(`[ModelStateService] No valid ${type.toUpperCase()} model selected or selection forced. Finding an alternative...`);
                 const availableModels = await this.getAvailableModels(type);
                 if (availableModels.length > 0) {
+                    // Only use cloud-based API models
                     const apiModel = availableModels.find(model => {
                         const provider = this.getProviderForModel(model.id, type);
-                        return provider && provider !== 'ollama' && provider !== 'whisper';
+                        return provider && ['openai', 'anthropic', 'gemini', 'deepgram'].includes(provider);
                     });
-                    const newModel = apiModel || availableModels[0];
-                    await this.setSelectedModel(type, newModel.id);
-                    console.log(`[ModelStateService] Auto-selected ${type.toUpperCase()} model: ${newModel.id}`);
+                    if (apiModel) {
+                        await this.setSelectedModel(type, apiModel.id);
+                        console.log(`[ModelStateService] Auto-selected ${type.toUpperCase()} model: ${apiModel.id}`);
+                    }
                 } else {
                     await providerSettingsRepository.setActiveProvider(null, type);
                     if (!isInitialBoot) {
@@ -310,10 +298,6 @@ class ModelStateService extends EventEmitter {
                 return providerId;
             }
         }
-        if (type === 'llm') {
-            const installedModels = ollamaModelRepository.getInstalledModels();
-            if (installedModels.some(m => m.name === modelId)) return 'ollama';
-        }
         return null;
     }
 
@@ -346,10 +330,6 @@ class ModelStateService extends EventEmitter {
         
         console.log(`[ModelStateService] Selected ${type} model: ${modelId} (provider: ${provider})`);
         
-        if (type === 'llm' && provider === 'ollama') {
-            require('./localAIManager').warmUpModel(modelId).catch(err => console.warn(err));
-        }
-        
         this.emit('state-updated', await this.getLiveState());
         this.emit('settings-updated');
         return true;
@@ -364,10 +344,7 @@ class ModelStateService extends EventEmitter {
             if (!setting.api_key) continue;
 
             const providerId = setting.provider;
-            if (providerId === 'ollama' && type === 'llm') {
-                const installed = ollamaModelRepository.getInstalledModels();
-                available.push(...installed.map(m => ({ id: m.name, name: m.name })));
-            } else if (PROVIDERS[providerId]?.[modelListKey]) {
+            if (PROVIDERS[providerId]?.[modelListKey]) {
                 available.push(...PROVIDERS[providerId][modelListKey]);
             }
         }
