@@ -1,0 +1,6 @@
+{
+  "API_URL": "http://localhost:9001",
+  "WEB_URL": "https://leviousa-101.firebaseapp.com",
+  "timestamp": 1752978650000,
+  "note": "Firebase hosting config for development - API runs locally, frontend on Firebase"
+} 
