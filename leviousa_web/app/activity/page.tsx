@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/utils/auth'
 import {
   UserProfile,
@@ -12,32 +13,86 @@ import {
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
 
 function ActivityPageContent() {
+  const router = useRouter()
   const { user: userInfo } = useAuth()
   const [sessions, setSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null)
+  const [showStuckWarning, setShowStuckWarning] = useState(false)
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
-      const fetchedSessions = await getSessions();
+      setIsLoading(true);
+      setError(null);
+      console.log('🔍 [ActivityPage] Starting to fetch sessions for user:', userInfo?.uid);
+      
+      // Add timeout to prevent hanging forever
+      const fetchPromise = getSessions();
+      const timeoutPromise = new Promise<Session[]>((_, reject) => 
+        setTimeout(() => reject(new Error('Fetch sessions timeout')), 15000)
+      );
+      
+      const fetchedSessions = await Promise.race([fetchPromise, timeoutPromise]);
+      console.log('✅ [ActivityPage] Fetched', fetchedSessions.length, 'sessions');
+      
       setSessions(fetchedSessions);
+      setLastFetchTime(new Date());
     } catch (error) {
-      console.error('Failed to fetch conversations:', error)
+      console.error('❌ [ActivityPage] Failed to fetch conversations:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load conversations');
+      // Set an empty array so the UI doesn't stay stuck loading
+      setSessions([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  }, [userInfo?.uid]);
+
+  // Self-healing mechanism: if stuck loading, redirect to root (mimics working invalid route behavior)
+  useEffect(() => {
+    const warningTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('⚠️ [ActivityPage] Showing stuck loading warning');
+        setShowStuckWarning(true);
+      }
+    }, 8000); // Show warning at 8 seconds
+    
+    const redirectTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('🔄 [ActivityPage] Stuck loading detected, redirecting to root for self-healing');
+        router.push('/'); // This will redirect back to /activity but through the working flow
+      }
+    }, 12000); // Redirect at 12 seconds
+    
+    // Reset warning when no longer loading
+    if (!isLoading && showStuckWarning) {
+      setShowStuckWarning(false);
+    }
+    
+    return () => {
+      clearTimeout(warningTimeout);
+      clearTimeout(redirectTimeout);
+    };
+  }, [isLoading, router, showStuckWarning]);
 
   useEffect(() => {
-    fetchSessions()
-  }, [])
+    console.log('🔄 [ActivityPage] useEffect triggered - userInfo:', !!userInfo, 'isLoading:', isLoading);
+    if (userInfo) {
+      console.log('🔄 [ActivityPage] User available, fetching sessions...');
+      fetchSessions();
+    } else {
+      console.log('⚠️ [ActivityPage] No user available for fetching sessions');
+      setIsLoading(false);
+    }
+  }, [userInfo, fetchSessions]);
 
   if (!userInfo) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Loading user information...</p>
         </div>
       </div>
     )
@@ -64,6 +119,11 @@ function ActivityPageContent() {
     }
   }
 
+  const handleRetry = () => {
+    console.log('🔄 [ActivityPage] Manual retry requested');
+    fetchSessions();
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-8 py-12">
@@ -73,13 +133,49 @@ function ActivityPageContent() {
           </h1>
         </div>
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-8 text-center">
-            Your Past Activity
-          </h2>
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              Your Past Activity
+            </h2>
+            {lastFetchTime && (
+              <div className="text-sm text-gray-500">
+                Last updated: {lastFetchTime.toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+          
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">
+                    Failed to load conversations
+                  </h3>
+                  <p className="text-sm text-red-600 mt-1">{error}</p>
+                </div>
+                <button
+                  onClick={handleRetry}
+                  className="ml-4 px-3 py-1 bg-red-100 text-red-800 text-sm rounded hover:bg-red-200 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+          
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">Loading conversations...</p>
+              <p className="mt-2 text-sm text-gray-500">This may take a few moments</p>
+              {showStuckWarning && (
+                <p className="mt-3 text-sm text-orange-600 font-medium">
+                  ⚠️ Loading is taking longer than expected. Will auto-refresh in a few seconds...
+                </p>
+              )}
+              <p className="mt-2 text-xs text-gray-400">
+                Debug: Activity isLoading={isLoading.toString()}, userInfo={!!userInfo}
+              </p>
             </div>
           ) : sessions.length > 0 ? (
             <div className="space-y-4">
@@ -111,11 +207,19 @@ function ActivityPageContent() {
           ) : (
             <div className="text-center bg-white rounded-lg p-12">
               <p className="text-gray-500 mb-4">
-                No conversations yet. Start a conversation in the desktop app to see your activity here.
+                {error ? 'Unable to load conversations at this time.' : 'No conversations yet. Start a conversation in the desktop app to see your activity here.'}
               </p>
               <div className="text-sm text-gray-400">
                 💡 Tip: Use the desktop app to have AI-powered conversations that will appear here automatically.
               </div>
+              {error && (
+                <button
+                  onClick={handleRetry}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
             </div>
           )}
         </div>

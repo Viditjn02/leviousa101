@@ -86,16 +86,51 @@ export interface SessionDetails {
     summary: Summary | null;
 }
 
-// Track current auth state
+// Track current auth state with better initialization handling
 let currentAuthUser: any = null;
 let authInitialized = false;
+let authInitializationPromise: Promise<void> | null = null;
 
-// Initialize auth state listener
+// Create a promise that resolves when auth is initialized
+const waitForAuthInitialization = (): Promise<void> => {
+  if (authInitialized) {
+    return Promise.resolve();
+  }
+  
+  if (!authInitializationPromise) {
+    authInitializationPromise = new Promise<void>((resolve) => {
+      const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+        currentAuthUser = user;
+        authInitialized = true;
+        console.log('🔑 Auth state initialized:', user ? user.email : 'No user');
+        unsubscribe();
+        resolve();
+      });
+      
+      // Add timeout to prevent hanging forever
+      setTimeout(() => {
+        if (!authInitialized) {
+          console.warn('⚠️ Auth initialization timeout, proceeding without auth');
+          authInitialized = true;
+          unsubscribe();
+          resolve();
+        }
+      }, 10000); // 10 second timeout
+    });
+  }
+  
+  return authInitializationPromise;
+};
+
+// Initialize auth state listener with better error handling
 if (typeof window !== 'undefined') {
   onAuthStateChanged(firebaseAuth, (user) => {
     currentAuthUser = user;
     authInitialized = true;
     console.log('🔑 Auth state updated:', user ? user.email : 'No user');
+  }, (error) => {
+    console.error('❌ Auth state change error:', error);
+    authInitialized = true; // Mark as initialized even on error to prevent hanging
   });
 }
 
@@ -120,10 +155,10 @@ const convertFirestoreSession = (session: { id: string } & FirestoreSession, uid
     uid,
     title: session.title,
     session_type: session.session_type,
-    started_at: timestampToUnix(session.startedAt),
-    ended_at: session.endedAt ? timestampToUnix(session.endedAt) : undefined,
+    started_at: timestampToUnix(session.started_at),
+    ended_at: session.ended_at ? timestampToUnix(session.ended_at) : undefined,
     sync_state: 'clean',
-    updated_at: timestampToUnix(session.startedAt)
+    updated_at: timestampToUnix(session.started_at)
   };
 };
 
@@ -189,11 +224,18 @@ let API_ORIGIN = process.env.NODE_ENV === 'development'
 
 const loadRuntimeConfig = async (): Promise<string | null> => {
   try {
-    const response = await fetch('/runtime-config.json');
+    const response = await fetch('/runtime-config.json', {
+      cache: 'no-cache',
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
     if (response.ok) {
       const config = await response.json();
       console.log('✅ Runtime config loaded:', config);
       return config.API_URL;
+    } else {
+      console.log('⚠️ Runtime config response not ok:', response.status);
     }
   } catch (error) {
     console.log('⚠️ Failed to load runtime config:', error);
@@ -207,15 +249,26 @@ let initializationPromise: Promise<void> | null = null;
 const initializeApiUrl = async () => {
   if (apiUrlInitialized) return;
   
-  // Electron IPC 관련 코드를 모두 제거하고 runtime-config.json 또는 fallback에만 의존합니다.
-  const runtimeUrl = await loadRuntimeConfig();
-  if (runtimeUrl) {
-    API_ORIGIN = runtimeUrl;
-    apiUrlInitialized = true;
-    return;
+  try {
+    // Add timeout to prevent hanging on runtime config load
+    const runtimeUrl = await Promise.race([
+      loadRuntimeConfig(),
+      new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('Runtime config timeout')), 5000)
+      )
+    ]);
+    
+    if (runtimeUrl) {
+      API_ORIGIN = runtimeUrl;
+      console.log('✅ API URL from runtime config:', API_ORIGIN);
+    } else {
+      console.log('📍 Using fallback API URL:', API_ORIGIN);
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to load runtime config, using fallback:', error);
+    console.log('📍 Using fallback API URL:', API_ORIGIN);
   }
-
-  console.log('📍 Using fallback API URL:', API_ORIGIN);
+  
   apiUrlInitialized = true;
 };
 
@@ -333,18 +386,42 @@ export const searchConversations = async (query: string): Promise<Session[]> => 
 };
 
 export const getSessions = async (): Promise<Session[]> => {
-  if (isFirebaseMode()) {
-    if (!currentAuthUser) {
-      console.warn('Firebase mode but no current user');
-      return [];
+  try {
+    // Wait for auth to be initialized to avoid race conditions
+    await waitForAuthInitialization();
+    
+    if (isFirebaseMode()) {
+      if (!currentAuthUser) {
+        console.warn('Firebase mode but no current user after initialization');
+        return [];
+      }
+      const uid = currentAuthUser.uid;
+      console.log('🔍 [getSessions] Fetching Firestore sessions for uid:', uid);
+      
+      try {
+        const firestoreSessions = await FirestoreSessionService.getSessions(uid);
+        console.log('✅ [getSessions] Successfully fetched', firestoreSessions.length, 'sessions');
+        return firestoreSessions.map(session => convertFirestoreSession(session, uid));
+      } catch (firestoreError) {
+        console.error('❌ [getSessions] Firestore query failed:', firestoreError);
+        // Return empty array instead of throwing to prevent UI from hanging
+        return [];
+      }
+    } else {
+      console.log('🔍 [getSessions] Fetching sessions from API');
+      const response = await apiCall(`/api/conversations`, { method: 'GET' });
+      if (!response.ok) {
+        console.error('❌ [getSessions] API call failed:', response.status, response.statusText);
+        return []; // Return empty array instead of throwing
+      }
+      const sessions = await response.json();
+      console.log('✅ [getSessions] Successfully fetched', sessions.length, 'sessions from API');
+      return sessions;
     }
-    const uid = currentAuthUser.uid;
-    const firestoreSessions = await FirestoreSessionService.getSessions(uid);
-    return firestoreSessions.map(session => convertFirestoreSession(session, uid));
-  } else {
-    const response = await apiCall(`/api/conversations`, { method: 'GET' });
-    if (!response.ok) throw new Error('Failed to fetch sessions');
-    return response.json();
+  } catch (error) {
+    console.error('❌ [getSessions] Unexpected error:', error);
+    // Return empty array to prevent UI from hanging
+    return [];
   }
 };
 
@@ -382,7 +459,7 @@ export const createSession = async (title?: string): Promise<{ id: string }> => 
     const sessionId = await FirestoreSessionService.createSession(uid, {
       title: title || 'New Session',
       session_type: 'ask',
-      endedAt: undefined
+      ended_at: undefined
     });
     return { id: sessionId };
   } else {
@@ -439,28 +516,77 @@ export const updateUserProfile = async (data: { displayName: string }): Promise<
 };
 
 export const findOrCreateUser = async (user: UserProfile): Promise<UserProfile> => {
+  console.log('🔍 [findOrCreateUser] Starting for uid:', user.uid);
+  
   if (isFirebaseMode()) {
     if (!currentAuthUser) {
+      console.error('❌ [findOrCreateUser] No authenticated user');
       throw new Error('No authenticated user');
     }
-    const uid = currentAuthUser.uid;
-    const existingUser = await FirestoreUserService.getUser(uid);
     
-    if (!existingUser) {
-      await FirestoreUserService.createUser(uid, {
-        displayName: user.display_name,
-        email: user.email
-      });
+    try {
+      const uid = currentAuthUser.uid;
+      console.log('🔍 [findOrCreateUser] Checking Firestore for user:', uid);
+      
+      // Add timeout protection to Firestore operations
+      const firestorePromise = (async () => {
+        const existingUser = await FirestoreUserService.getUser(uid);
+        
+        if (!existingUser) {
+          console.log('🔍 [findOrCreateUser] Creating new user in Firestore');
+          await FirestoreUserService.createUser(uid, {
+            displayName: user.display_name,
+            email: user.email
+          });
+          console.log('✅ [findOrCreateUser] User created in Firestore');
+        } else {
+          console.log('✅ [findOrCreateUser] User found in Firestore');
+        }
+        
+        return user;
+      })();
+      
+      const timeoutPromise = new Promise<UserProfile>((_, reject) => 
+        setTimeout(() => reject(new Error('Firestore user operations timeout')), 6000)
+      );
+      
+      const result = await Promise.race([firestorePromise, timeoutPromise]);
+      console.log('✅ [findOrCreateUser] Firebase mode success');
+      return result;
+      
+    } catch (error) {
+      console.error('❌ [findOrCreateUser] Firestore operation failed or timed out:', error);
+      console.log('📋 [findOrCreateUser] Returning user profile as fallback');
+      // Return the user profile as fallback even if Firestore fails
+      return user;
     }
-    
-    return user;
   } else {
-    const response = await apiCall(`/api/user/find-or-create`, {
-        method: 'POST',
-        body: JSON.stringify(user),
-    });
-    if (!response.ok) throw new Error('Failed to find or create user');
-    return response.json();
+    console.log('🔍 [findOrCreateUser] API mode - calling find-or-create endpoint');
+    try {
+      // Add timeout to API call as well
+      const apiPromise = apiCall(`/api/user/find-or-create`, {
+          method: 'POST',
+          body: JSON.stringify(user),
+      });
+      
+      const timeoutPromise = new Promise<Response>((_, reject) => 
+        setTimeout(() => reject(new Error('API user creation timeout')), 8000)
+      );
+      
+      const response = await Promise.race([apiPromise, timeoutPromise]);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to find or create user: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ [findOrCreateUser] API mode success');
+      return result;
+    } catch (error) {
+      console.error('❌ [findOrCreateUser] API operation failed:', error);
+      // Return the user profile as fallback
+      return user;
+    }
   }
 };
 
@@ -621,7 +747,7 @@ export const logout = async () => {
     console.log('✅ Logout completed, redirecting to login...');
     
     // Force a hard redirect to ensure clean state
-    window.location.href = '/login';
+      window.location.href = '/login';
   } catch (error) {
     console.error('❌ Logout error:', error);
     // Still clear local state and redirect even if logout fails

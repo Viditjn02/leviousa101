@@ -438,6 +438,17 @@ function createFeatureWindows(header, namesToCreate) {
     // Check if this is a development build that should show dev tools
     const isDevBuild = process.env.LEVIOUSA_DEV_BUILD === 'true';
 
+    // Set icon based on platform
+    const getIconPath = () => {
+        if (process.platform === 'darwin') {
+            return path.join(__dirname, '../ui/assets/logo.icns');
+        } else if (process.platform === 'win32') {
+            return path.join(__dirname, '../ui/assets/logo.ico');
+        } else {
+            return path.join(__dirname, '../ui/assets/logo.png');
+        }
+    };
+
     const commonChildOptions = {
         parent: header,
         show: false,
@@ -448,6 +459,7 @@ function createFeatureWindows(header, namesToCreate) {
         skipTaskbar: true,
         hiddenInMissionControl: true,
         resizable: false,
+        icon: getIconPath(),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -666,6 +678,17 @@ function createWindows() {
     // Check if this is a development build that should show dev tools
     const isDevBuild = process.env.LEVIOUSA_DEV_BUILD === 'true';
         
+    // Set icon based on platform
+    const getIconPath = () => {
+        if (process.platform === 'darwin') {
+            return path.join(__dirname, '../ui/assets/logo.icns');
+        } else if (process.platform === 'win32') {
+            return path.join(__dirname, '../ui/assets/logo.ico');
+        } else {
+            return path.join(__dirname, '../ui/assets/logo.png');
+        }
+    };
+
     const header = new BrowserWindow({
         width: DEFAULT_WINDOW_WIDTH,
         height: HEADER_HEIGHT,
@@ -681,6 +704,7 @@ function createWindows() {
         resizable: false,
         focusable: true,
         acceptFirstMouse: true,
+        icon: getIconPath(),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

@@ -29,14 +29,14 @@ const PROVIDERS = {
       ],
   },
 
-  'openai-glass': {
-      name: 'OpenAI (Glass)',
+      'openai-leviousa': {
+        name: 'OpenAI (Leviousa)',
       handler: () => require("./providers/openai"),
       llmModels: [
-          { id: 'gpt-4.1-glass', name: 'GPT-4.1 (glass)' },
+                      { id: 'gpt-4.1-leviousa', name: 'GPT-4.1 (leviousa)' },
       ],
       sttModels: [
-          { id: 'gpt-4o-mini-transcribe-glass', name: 'GPT-4o Mini Transcribe (glass)' }
+                      { id: 'gpt-4o-mini-transcribe-leviousa', name: 'GPT-4o Mini Transcribe (leviousa)' }
       ],
   },
   'gemini': {
@@ -69,11 +69,11 @@ const PROVIDERS = {
 };
 
 function sanitizeModelId(model) {
-  return (typeof model === 'string') ? model.replace(/-glass$/, '') : model;
+      return (typeof model === 'string') ? model.replace(/-leviousa$/, '') : model;
 }
 
 function createSTT(provider, opts) {
-  if (provider === 'openai-glass') provider = 'openai';
+  if (provider === 'openai-leviousa') provider = 'openai';
   
   const handler = PROVIDERS[provider]?.handler();
   if (!handler?.createSTT) {
@@ -86,7 +86,7 @@ function createSTT(provider, opts) {
 }
 
 function createLLM(provider, opts) {
-  if (provider === 'openai-glass') provider = 'openai';
+  if (provider === 'openai-leviousa') provider = 'openai';
 
   const handler = PROVIDERS[provider]?.handler();
   if (!handler?.createLLM) {
@@ -99,7 +99,7 @@ function createLLM(provider, opts) {
 }
 
 function createStreamingLLM(provider, opts) {
-  if (provider === 'openai-glass') provider = 'openai';
+  if (provider === 'openai-leviousa') provider = 'openai';
   
   const handler = PROVIDERS[provider]?.handler();
   if (!handler?.createStreamingLLM) {
@@ -115,9 +115,9 @@ function getProviderClass(providerId) {
     const providerConfig = PROVIDERS[providerId];
     if (!providerConfig) return null;
     
-    // Handle special cases for glass providers
+    // Handle special cases for leviousa providers
     let actualProviderId = providerId;
-    if (providerId === 'openai-glass') {
+    if (providerId === 'openai-leviousa') {
         actualProviderId = 'openai';
     }
     

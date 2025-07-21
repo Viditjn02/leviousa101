@@ -542,7 +542,7 @@ class OllamaService extends EventEmitter {
     async downloadFile(url, destination, options = {}) {
         const { 
             onProgress = null,
-            headers = { 'User-Agent': 'Glass-App' },
+                            headers = { 'User-Agent': 'Leviousa-App' },
             timeout = 300000,
             modelId = null
         } = options;

@@ -221,21 +221,21 @@ function SettingsPageContent() {
             <div className="bg-white border border-gray-300 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Display Name</h3>
               <div className="space-y-4">
-                <div>
+                  <div>
                   <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
                     Display Name
                   </label>
-                  <input
+                 <input
                     type="text"
                     id="displayName"
                     value={displayNameInput}
                     onChange={(e) => setDisplayNameInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Enter your display name"
                   />
-                </div>
+              </div>
                 <div className="flex justify-end">
-                  <button
+                <button
                     onClick={handleUpdateDisplayName}
                     disabled={isSaving || !displayNameInput || displayNameInput === profile?.display_name}
                     className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${

@@ -21,38 +21,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   useEffect(() => {
     console.log('🔍 AuthProvider: Setting up single auth state listener');
+    let mounted = true; // Track if component is still mounted
+    
+    // Add overall timeout to prevent AuthProvider from hanging forever
+    const authProviderTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('⚠️ AuthProvider: Auth state initialization timeout, forcing loading to false');
+        setIsLoading(false);
+      }
+    }, 12000); // 12 second timeout for the entire auth provider
     
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
       console.log('🔔 Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
       
-      if (firebaseUser) {
-        console.log('🔥 Firebase authentication successful:', firebaseUser.uid);
-        setMode('firebase');
-        
-        let profile: UserProfile = {
-          uid: firebaseUser.uid,
-          display_name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email || 'no-email@example.com',
-        };
-        
-        try {
-          profile = await findOrCreateUser(profile);
-          console.log('✅ Firestore user created/verified:', profile);
-        } catch (error) {
-          console.error('❌ Firestore user creation/verification failed:', error);
-          // Continue with Firebase profile even if Firestore fails
-        }
+      try {
+        if (firebaseUser) {
+          console.log('🔥 Firebase authentication successful:', firebaseUser.uid);
+          setMode('firebase');
+          
+          let profile: UserProfile = {
+            uid: firebaseUser.uid,
+            display_name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email || 'no-email@example.com',
+          };
+          
+          try {
+            // Add timeout protection to findOrCreateUser call
+            console.log('🔍 AuthProvider: Creating/verifying user in Firestore...');
+            const userPromise = findOrCreateUser(profile);
+            const timeoutPromise = new Promise<UserProfile>((_, reject) => 
+              setTimeout(() => reject(new Error('findOrCreateUser timeout')), 8000)
+            );
+            
+            profile = await Promise.race([userPromise, timeoutPromise]);
+            console.log('✅ Firestore user created/verified:', profile);
+          } catch (error) {
+            console.error('❌ Firestore user creation/verification failed or timed out:', error);
+            console.log('📋 Continuing with Firebase profile as fallback');
+            // Continue with Firebase profile even if Firestore fails or times out
+          }
 
-        setUser(profile);
-        setUserInfo(profile);
-      } else {
-        console.log('🔓 No authenticated user - Firebase authentication required');
+          setUser(profile);
+          setUserInfo(profile);
+        } else {
+          console.log('🔓 No authenticated user - Firebase authentication required');
+          setMode(null);
+          setUser(null);
+          setUserInfo(null);
+        }
+      } catch (error) {
+        console.error('❌ AuthProvider: Error in auth state change handler:', error);
+        // Set fallback state to prevent hanging
         setMode(null);
         setUser(null);
         setUserInfo(null);
-      }
-      setIsLoading(false);
-    });
+             } finally {
+         // ALWAYS set loading to false, regardless of what happens above
+         if (mounted) {
+           console.log('✅ AuthProvider: Setting isLoading to false');
+           setIsLoading(false);
+           clearTimeout(authProviderTimeout);
+         }
+       }
+     }, (error) => {
+       console.error('❌ Auth state change error:', error);
+       // Even on auth state change error, make sure we stop loading
+       if (mounted) {
+         setIsLoading(false);
+         clearTimeout(authProviderTimeout);
+       }
+     });
 
     // Check current auth state immediately
     const currentUser = firebaseAuth.currentUser;
@@ -60,9 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       console.log('🚪 AuthProvider: Cleaning up auth state listener');
+      mounted = false; // Mark as unmounted
+      clearTimeout(authProviderTimeout);
       unsubscribe();
     };
-  }, [])
+  }, []) // Empty dependency array - don't re-run when isLoading changes
 
   return (
     <AuthContext.Provider value={{ user, isLoading, mode }}>

@@ -39,7 +39,6 @@ module.exports = {
     ipcMain.handle('open-system-preferences', async (event, section) => await permissionService.openSystemPreferences(section));
     ipcMain.handle('mark-keychain-completed', async () => await permissionService.markKeychainCompleted());
     ipcMain.handle('check-keychain-completed', async () => await permissionService.checkKeychainCompleted());
-    ipcMain.handle('check-permissions-completed', async () => await permissionService.checkPermissionsCompleted());
     ipcMain.handle('initialize-encryption-key', async () => {
         const userId = authService.getCurrentUserId();
         await encryptionService.initializeKey(userId);

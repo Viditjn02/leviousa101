@@ -182,8 +182,10 @@ class AuthService {
     async startFirebaseAuthFlow() {
         try {
             const webUrl = process.env.leviousa_WEB_URL;
-            // Simple, clean indicator that this is from Electron app (o3's solution)
-            const authUrl = `${webUrl}/login?mode=electron`;
+            // Add cache-busting timestamp to prevent Safari cache issues
+            const timestamp = Date.now();
+            // Use a simple URL that sets window.name via fragment and includes app identifier
+            const authUrl = `${webUrl}/login?t=${timestamp}&app=leviousa#electron=${timestamp}`;
             console.log(`[AuthService] Opening Firebase OAuth auth URL in browser: ${authUrl}`);
             await shell.openExternal(authUrl);
             return { success: true };
