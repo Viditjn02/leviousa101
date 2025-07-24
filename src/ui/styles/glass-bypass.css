@@ -1,12 +1,42 @@
 /*
   이 파일은 body.has-glass 클래스가 적용되었을 때 모든 애니메이션, 트랜지션,
   배경, 테두리 등을 비활성화하여 깨끗한 투명 효과(Glass)를 보장합니다.
+  Updated to be more selective and preserve essential UI functionality.
 */
+
+/* Base glass bypass styles - but preserve essential elements */
 body.has-glass * {
     animation: none !important;
     transition: none !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
     backdrop-filter: none !important;
+}
+
+/* Override backgrounds selectively - preserve essential backgrounds */
+body.has-glass *:not(.preserve-background):not(input):not(button):not(.response-container):not(.ask-container):not(.text-input-container) {
+    background: transparent !important;
+}
+
+/* Override borders selectively - preserve essential borders */
+body.has-glass *:not(.preserve-border):not(input):not(button):not(.response-container):not(.ask-container) {
+    border: none !important;
+}
+
+/* Override box-shadows selectively - preserve essential shadows */
+body.has-glass *:not(.preserve-shadow):not(input):not(button):not(.response-container):not(.ask-container) {
+    box-shadow: none !important;
+}
+
+/* Ensure text remains visible */
+body.has-glass * {
+    color: inherit;
+}
+
+/* Preserve functionality for interactive elements */
+body.has-glass input,
+body.has-glass button,
+body.has-glass .response-container,
+body.has-glass .ask-container,
+body.has-glass .text-input-container {
+    opacity: 1 !important;
+    visibility: visible !important;
 }

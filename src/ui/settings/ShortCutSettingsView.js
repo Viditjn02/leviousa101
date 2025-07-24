@@ -11,6 +11,9 @@ const displayNameMap = {
     moveDown: 'Move Down Window',
     scrollUp: 'Scroll Up Response',
     scrollDown: 'Scroll Down Response',
+    invisibilityAnswer: 'Trigger Auto-Answer (Invisibility)',
+    toggleInvisibility: 'Toggle Complete Invisibility Mode',
+    showOverlayTemporary: 'Show Overlay Temporarily',
   };
 
 export class ShortcutSettingsView extends LitElement {

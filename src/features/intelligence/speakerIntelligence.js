@@ -138,33 +138,66 @@ class SpeakerIntelligence extends EventEmitter {
             /\b(I|my|me|myself|mine)\b/gi,
             /\b(I'm|I'll|I've|I'd)\b/gi,
             /\b(let me|allow me|I think|I believe)\b/gi,
-            /\b(as I mentioned|from my perspective)\b/gi
+            /\b(as I mentioned|from my perspective)\b/gi,
+            /\b(I need|I want|I would like)\b/gi,
+            /\b(I can|I will|I should)\b/gi
         ];
 
-        const otherIndicators = [
+        const participantIndicators = [
             /\b(you|your|yours)\b/gi,
             /\b(they|them|their)\b/gi,
-            /\b(the team|everyone|we should)\b/gi,
-            /\b(what do you think|your thoughts)\b/gi
+            /\b(we should|let's|shall we)\b/gi,
+            /\b(what do you think|your thoughts|do you)\b/gi,
+            /\b(have you|did you|can you|will you)\b/gi,
+            /\b(you could|you should|you might)\b/gi
+        ];
+
+        // Question patterns that suggest addressing the user
+        const questionIndicators = [
+            /\?.*\b(you|your)\b/gi,
+            /^(what|how|when|where|why|who).*\byou\b/gi,
+            /\bdo you\b/gi,
+            /\bhave you\b/gi
         ];
 
         let userScore = 0;
-        let otherScore = 0;
+        let participantScore = 0;
 
+        // Check user indicators
         userIndicators.forEach(pattern => {
             const matches = text.match(pattern);
             if (matches) userScore += matches.length;
         });
 
-        otherIndicators.forEach(pattern => {
+        // Check participant indicators
+        participantIndicators.forEach(pattern => {
             const matches = text.match(pattern);
-            if (matches) otherScore += matches.length;
+            if (matches) participantScore += matches.length;
         });
 
-        const total = userScore + otherScore;
-        if (total === 0) return 0.5;
+        // Check question indicators (strong indicator of participant speech)
+        questionIndicators.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) participantScore += matches.length * 2; // Weight questions more heavily
+        });
 
-        return userScore / total;
+        // If text starts with a greeting or question, likely participant
+        if (/^(hello|hi|hey|good morning|good afternoon|what|how|when|where|why)/i.test(text.trim())) {
+            participantScore += 1;
+        }
+
+        // If text contains answers or confirmations, likely user
+        if (/^(yes|no|okay|sure|absolutely|definitely|maybe|perhaps|I think so)/i.test(text.trim())) {
+            userScore += 1;
+        }
+
+        const total = userScore + participantScore;
+        if (total === 0) return 0.3; // Slight bias toward participant if no indicators
+
+        const userRatio = userScore / total;
+        console.log(`[SpeakerIntelligence] Content analysis - User: ${userScore}, Participant: ${participantScore}, Ratio: ${userRatio.toFixed(2)}`);
+        
+        return userRatio;
     }
 
     /**
@@ -175,20 +208,80 @@ class SpeakerIntelligence extends EventEmitter {
         
         if (recentTranscriptions.length === 0) return 0.5;
 
+        // Look at conversation patterns
         const recentUserSpeech = recentTranscriptions.filter(t => t.isUser).length;
+        const recentParticipantSpeech = recentTranscriptions.filter(t => !t.isUser).length;
+        
+        // If there's been a lot of user speech recently, this might be participant
         const continuityScore = recentUserSpeech / recentTranscriptions.length;
-
-        const lengthScore = Math.min(transcription.text.length / 100, 1) * 0.3;
-
-        return (continuityScore * 0.7) + lengthScore;
+        
+        // Length-based heuristic: Users often give shorter responses
+        const lengthScore = Math.min(transcription.text.length / 100, 1);
+        const lengthBias = transcription.text.length < 50 ? 0.3 : -0.1; // Short text biased toward user
+        
+        // Time-based analysis: Check for turn-taking patterns
+        const timeBias = this.analyzeTurnTaking();
+        
+        const contextScore = (continuityScore * 0.4) + (lengthScore * 0.3) + (lengthBias * 0.2) + (timeBias * 0.1);
+        
+        console.log(`[SpeakerIntelligence] Context analysis - Continuity: ${continuityScore.toFixed(2)}, Length: ${lengthScore.toFixed(2)}, Bias: ${lengthBias.toFixed(2)}, Score: ${contextScore.toFixed(2)}`);
+        
+        return Math.max(0, Math.min(1, contextScore));
     }
 
     /**
-     * Get participant ID
+     * Analyze turn-taking patterns
+     */
+    analyzeTurnTaking() {
+        const recentTranscriptions = this.transcriptionBuffer.slice(-3);
+        if (recentTranscriptions.length < 2) return 0.5;
+        
+        // If the last speaker was a participant, this is likely user
+        const lastSpeaker = recentTranscriptions[recentTranscriptions.length - 1];
+        if (lastSpeaker && !lastSpeaker.isUser) {
+            return 0.7; // Likely user response
+        }
+        
+        // If last speaker was user, this is likely participant
+        if (lastSpeaker && lastSpeaker.isUser) {
+            return 0.3; // Likely participant response
+        }
+        
+        return 0.5;
+    }
+
+    /**
+     * Get participant ID based on speech characteristics
      */
     getParticipantId(transcription) {
-        // In production, this would use voice biometrics
-        return Math.floor(Math.random() * 3) + 1;
+        // Simple heuristic-based participant identification
+        // In production, this would use voice biometrics or other advanced methods
+        
+        const text = transcription.text.toLowerCase();
+        const textLength = text.length;
+        
+        // Use text characteristics to create consistent participant IDs
+        let participantId = 1;
+        
+        // Method 1: Hash-based on speaking style indicators
+        if (text.includes('question') || text.includes('?') || text.startsWith('what') || text.startsWith('how')) {
+            participantId = 1; // "Questioner" participant
+        } else if (text.includes('think') || text.includes('believe') || text.includes('opinion')) {
+            participantId = 2; // "Thinker" participant  
+        } else if (textLength > 100) {
+            participantId = 3; // "Detailed" participant (long responses)
+        } else {
+            participantId = Math.floor((textLength + text.charCodeAt(0)) % 3) + 1;
+        }
+        
+        // Store participant in our tracking
+        const speakerId = `participant-${participantId}`;
+        if (!this.meetingContext.participants.includes(speakerId)) {
+            this.meetingContext.participants.push(speakerId);
+            console.log(`[SpeakerIntelligence] New participant identified: ${speakerId}`);
+        }
+        
+        return participantId;
     }
 
     /**

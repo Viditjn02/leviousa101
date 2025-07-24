@@ -35,7 +35,10 @@ async function createElectronStorePersistence(storeName = 'firebase-auth-session
     await initializeStore();
     
     // Create a single `electron-store` behind the scenes – all Persistence instances will use it.
-    const sharedStore = new Store({ name: storeName });
+    const sharedStore = new Store({ 
+        name: storeName,
+        projectName: 'Leviousa'
+    });
 
     return class ElectronStorePersistence {
         constructor() {

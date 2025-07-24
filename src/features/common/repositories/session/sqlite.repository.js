@@ -9,15 +9,80 @@ function create(uid, type = 'ask') {
     const db = sqliteClient.getDb();
     const sessionId = require('crypto').randomUUID();
     const now = Math.floor(Date.now() / 1000);
+    
+    // Generate better default title based on session type
+    const defaultTitle = getDefaultTitle(type);
+    
     const query = `INSERT INTO sessions (id, uid, title, session_type, started_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`;
     
     try {
-        db.prepare(query).run(sessionId, uid, `Session @ ${new Date().toLocaleTimeString()}`, type, now, now);
+        db.prepare(query).run(sessionId, uid, defaultTitle, type, now, now);
         console.log(`SQLite: Created session ${sessionId} for user ${uid} (type: ${type})`);
         return sessionId;
     } catch (err) {
         console.error('SQLite: Failed to create session:', err);
         throw err;
+    }
+}
+
+// NEW: Generate better default titles
+function getDefaultTitle(sessionType) {
+    const date = new Date();
+    const timeStr = date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    const dateStr = date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    switch (sessionType) {
+        case 'listen':
+            return `Listen Session - ${dateStr} ${timeStr}`;
+        case 'ask':
+            return `Q&A Session - ${dateStr} ${timeStr}`;
+        default:
+            return `Conversation - ${dateStr} ${timeStr}`;
+    }
+}
+
+// NEW: Generate intelligent title from session content
+async function generateIntelligentTitle(sessionId) {
+    try {
+        const sessionTitleService = require('../../services/sessionTitleService');
+        const session = getById(sessionId);
+        
+        if (!session) {
+            console.warn(`[SQLite] Session ${sessionId} not found for title generation`);
+            return null;
+        }
+
+        // Get related data for title generation
+        const transcriptRepo = require('../transcript/sqlite.repository');
+        const aiMessageRepo = require('../aiMessage/sqlite.repository');
+        
+        const transcripts = transcriptRepo.getBySessionId(sessionId) || [];
+        const aiMessages = aiMessageRepo.getBySessionId(sessionId) || [];
+        
+        // Generate title using the service
+        const newTitle = await sessionTitleService.generateTitle(sessionId, {
+            transcripts,
+            aiMessages,
+            sessionType: session.session_type
+        });
+        
+        if (newTitle && newTitle !== session.title) {
+            updateTitle(sessionId, newTitle);
+            console.log(`[SQLite] Updated session ${sessionId} title to: "${newTitle}"`);
+            return newTitle;
+        }
+        
+        return session.title;
+    } catch (error) {
+        console.error('[SQLite] Error generating intelligent title:', error);
+        return null;
     }
 }
 
@@ -135,4 +200,5 @@ module.exports = {
     touch,
     getOrCreateActive,
     endAllActiveSessions,
+    generateIntelligentTitle, // NEW: Export the intelligent title function
 }; 

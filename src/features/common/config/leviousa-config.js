@@ -19,7 +19,7 @@ class LeviousaConfig {
         this.providers = {
             llm: {
                 provider: process.env.DEFAULT_LLM_PROVIDER || 'openai',
-                model: process.env.DEFAULT_LLM_MODEL || 'gpt-4.1',
+                model: process.env.DEFAULT_LLM_MODEL || 'gpt-4o-mini',
                 apiKey: this.apiKeys.openai
             },
             stt: {
@@ -31,11 +31,11 @@ class LeviousaConfig {
 
         // Feature flags
         this.features = {
-            speakerIntelligence: process.env.ENABLE_SPEAKER_INTELLIGENCE === 'true',
+            speakerIntelligence: process.env.ENABLE_SPEAKER_INTELLIGENCE !== 'false', // Enable by default
             meetingIntelligence: process.env.ENABLE_MEETING_INTELLIGENCE === 'true',
             memorySystem: process.env.ENABLE_MEMORY_SYSTEM === 'true',
             localLLM: process.env.ENABLE_LOCAL_LLM === 'true',
-            eyeContactCorrection: process.env.ENABLE_EYE_CONTACT_CORRECTION === 'true',
+    
             userApiKeys: false // Disabled - we use pre-configured keys only
         };
 
@@ -67,7 +67,8 @@ class LeviousaConfig {
             openai: {
                 name: 'OpenAI',
                 llmModels: [
-                    { id: 'gpt-4.1', name: 'GPT-4.1' },
+                    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+                    { id: 'gpt-4o', name: 'GPT-4o' },
                     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
                 ],
                 sttModels: [

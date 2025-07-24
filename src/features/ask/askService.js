@@ -144,6 +144,30 @@ class AskService {
         }
     }
 
+    // NEW: Trigger intelligent title generation for session
+    async triggerTitleGeneration(sessionId) {
+        try {
+            // Don't generate titles immediately - wait for a few exchanges
+            const sessionRepository = require('../common/repositories/session');
+            const askRepository = require('./repositories');
+            
+            // Get message count for this session
+            const messages = await askRepository.getAllAiMessagesBySessionId(sessionId);
+            
+            // Generate title after 2-3 message exchanges (4-6 total messages)
+            if (messages.length >= 4 && messages.length <= 8) {
+                console.log(`[AskService] Triggering title generation for session ${sessionId} (${messages.length} messages)`);
+                
+                // Generate title in background (don't await to avoid blocking)
+                sessionRepository.generateIntelligentTitle(sessionId).catch(error => {
+                    console.warn('[AskService] Title generation failed:', error.message);
+                });
+            }
+        } catch (error) {
+            console.warn('[AskService] Error in title generation trigger:', error.message);
+        }
+    }
+
     async toggleAskButton(inputScreenOnly = false) {
         const askWindow = getWindowPool()?.get('ask');
 
@@ -418,6 +442,9 @@ class AskService {
                  try {
                     await askRepository.addAiMessage({ sessionId, role: 'assistant', content: fullResponse });
                     console.log(`[AskService] DB: Saved partial or full assistant response to session ${sessionId} after stream ended.`);
+                    
+                    // NEW: Trigger intelligent title generation after assistant response
+                    this.triggerTitleGeneration(sessionId);
                 } catch(dbError) {
                     console.error("[AskService] DB: Failed to save assistant response after stream ended:", dbError);
                 }
@@ -441,6 +468,80 @@ class AskService {
             errorMessage.includes('invalid') ||
             errorMessage.includes('not supported')
         );
+    }
+
+    /**
+     * Process insight request from speaker intelligence system
+     * @param {Object} request - The insight request object
+     * @returns {Promise<{text: string, confidence: number}>}
+     */
+    async processInsightRequest(request) {
+        try {
+            console.log('[AskService] Processing insight request:', request.type);
+            
+            if (request.type === 'meeting_insight') {
+                const { transcription, context } = request;
+                
+                // Create a prompt for generating meeting insights
+                const insightPrompt = `Based on this participant's speech in a meeting, provide a brief, helpful insight or suggestion:
+
+Participant said: "${transcription.text}"
+
+Context from recent conversation:
+${context.map(msg => `${msg.speaker}: ${msg.text}`).join('\n')}
+
+Provide a concise insight (1-2 sentences max) that would be helpful for the user to know about this participant's contribution. Focus on:
+- Key information or decisions mentioned
+- Action items or commitments
+- Important questions or concerns raised
+- Technical details or expertise shared
+
+Keep it brief and actionable:`;
+
+                // Get current model info
+                const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+                if (!modelInfo || !modelInfo.apiKey) {
+                    throw new Error('AI model not configured for insights');
+                }
+
+                // Create a simple LLM request (not streaming)
+                const { createLLM } = require('../common/ai/factory');
+                const llm = createLLM(modelInfo.provider, {
+                    apiKey: modelInfo.apiKey,
+                    model: modelInfo.model,
+                    temperature: 0.3,
+                    maxTokens: 150,
+                    usePortkey: modelInfo.provider === 'openai-leviousa',
+                    portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
+                });
+
+                const response = await llm.chat([
+                    { role: 'user', content: insightPrompt }
+                ]);
+
+                if (response && response.content && response.content.trim()) {
+                    return {
+                        text: response.content.trim(),
+                        confidence: 0.8,
+                        type: 'meeting_insight'
+                    };
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('[AskService] Error processing insight request:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Capture a screenshot of the current screen
+     * @param {Object} options - Screenshot options
+     * @returns {Promise<{success: boolean, base64?: string, width?: number, height?: number, error?: string}>}
+     */
+    async captureScreenshot(options = {}) {
+        return await captureScreenshot(options);
     }
 
 }

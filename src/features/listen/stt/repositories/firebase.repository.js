@@ -15,17 +15,17 @@ async function addTranscript({ uid, sessionId, speaker, text }) {
     const newTranscript = {
         uid, // To identify the author/source of the transcript
         session_id: sessionId,
-        start_at: now,
+        startAt: now, // Changed from start_at to match web dashboard
         speaker,
         text,
-        created_at: now,
+        createdAt: now, // Changed from created_at to match web dashboard
     };
     const docRef = await addDoc(transcriptsCol(sessionId), newTranscript);
     return { id: docRef.id };
 }
 
 async function getAllTranscriptsBySessionId(sessionId) {
-    const q = query(transcriptsCol(sessionId), orderBy('start_at', 'asc'));
+    const q = query(transcriptsCol(sessionId), orderBy('startAt', 'asc')); // Changed from start_at to match web dashboard
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => doc.data());
 }

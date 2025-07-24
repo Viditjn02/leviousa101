@@ -71,6 +71,9 @@ class ShortcutsService {
             nextResponse: isMac ? 'Cmd+]' : 'Ctrl+]',
             scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
             scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
+            invisibilityAnswer: isMac ? 'Cmd+L' : 'Ctrl+L', // Complete invisibility auto-answer
+            toggleInvisibility: isMac ? 'Cmd+I' : 'Ctrl+I', // Toggle complete invisibility mode
+            showOverlayTemporary: isMac ? 'Cmd+Shift+I' : 'Ctrl+Shift+I', // Temporarily show overlay for access
         };
     }
 
@@ -262,6 +265,58 @@ class ShortcutsService {
                     break;
                 case 'nextResponse':
                     callback = () => sendToRenderer('navigate-next-response');
+                    break;
+                case 'invisibilityAnswer':
+                    callback = () => {
+                        try {
+                            // Get invisibility service instance
+                            const invisibilityService = global.invisibilityService;
+                            if (invisibilityService) {
+                                console.log('[Shortcuts] 🔥 CMD+L pressed - triggering question detection and auto-answer!');
+                                invisibilityService.processQuestionAndAnswer();
+                            } else {
+                                console.warn('[Shortcuts] Invisibility service not available');
+                            }
+                        } catch (error) {
+                            console.error('[Shortcuts] Error triggering invisibility answer:', error);
+                        }
+                    };
+                    break;
+                case 'toggleInvisibility':
+                    callback = () => {
+                        try {
+                            // Get invisibility service instance
+                            const invisibilityService = global.invisibilityService;
+                            if (invisibilityService) {
+                                console.log('[Shortcuts] 🕵️ CMD+I pressed - toggling complete invisibility mode!');
+                                if (invisibilityService.isInvisibilityModeActive) {
+                                    invisibilityService.disableInvisibilityMode();
+                                } else {
+                                    invisibilityService.enableInvisibilityMode();
+                                }
+                            } else {
+                                console.warn('[Shortcuts] Invisibility service not available');
+                            }
+                        } catch (error) {
+                            console.error('[Shortcuts] Error toggling invisibility mode:', error);
+                        }
+                    };
+                    break;
+                case 'showOverlayTemporary':
+                    callback = () => {
+                        try {
+                            // Get invisibility service instance
+                            const invisibilityService = global.invisibilityService;
+                            if (invisibilityService) {
+                                console.log('[Shortcuts] 👁️ CMD+Shift+I pressed - temporarily showing overlay for access!');
+                                invisibilityService.showOverlay('Temporary access via shortcut', true); // Force show
+                            } else {
+                                console.warn('[Shortcuts] Invisibility service not available');
+                            }
+                        } catch (error) {
+                            console.error('[Shortcuts] Error showing overlay temporarily:', error);
+                        }
+                    };
                     break;
             }
             

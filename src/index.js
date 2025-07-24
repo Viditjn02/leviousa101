@@ -33,7 +33,11 @@ const modelStateService = require('./features/common/services/modelStateService'
 const featureBridge = require('./bridge/featureBridge');
 const windowBridge = require('./bridge/windowBridge');
 const leviousaBridge = require('./bridge/leviousaBridge');
-const { initializeEyeContactBridge } = require('./features/eyecontact/eyeContactBridge');
+
+// Set up global services for voice agent dependencies
+global.listenService = listenService;
+global.askService = askService;
+
 
 // Global variables
 const eventBridge = new EventEmitter();
@@ -232,15 +236,36 @@ app.whenReady().then(async () => {
         featureBridge.initialize();  // 추가: featureBridge 초기화
         windowBridge.initialize();
         leviousaBridge.initializeLeviousaHandlers();  // Initialize Leviousa-specific handlers
-        initializeEyeContactBridge();  // Initialize eye contact correction handlers
+    
+        
+        // Initialize invisibility mode service
+        const InvisibilityService = require('./features/invisibility/invisibilityService');
+        global.invisibilityService = new InvisibilityService();
+        
+        try {
+            await global.invisibilityService.initialize();
+            console.log('>>> [index.js] Invisibility service initialized successfully');
+        } catch (error) {
+            console.error('>>> [index.js] ❌ Invisibility service initialization failed:', error);
+            console.error('>>> [index.js] Invisibility features will be unavailable until manual restart');
+            // Don't crash the app, but invisibility features won't work
+        }
+
+        const { initializeInvisibilityBridge } = require('./features/invisibility/invisibilityBridge');
+        initializeInvisibilityBridge();  // Initialize invisibility mode handlers
+
+        // Initialize voice agent service
+        const VoiceAgentService = require('./features/voiceAgent/voiceAgentService');
+        global.voiceAgentService = new VoiceAgentService();
+        await global.voiceAgentService.initialize();
+        console.log('>>> [index.js] Voice agent service initialized successfully');
+
+        const { initializeVoiceAgentBridge } = require('./features/voiceAgent/voiceAgentBridge');
+        initializeVoiceAgentBridge();  // Initialize voice agent handlers
+        
         setupWebDataHandlers();
 
-        // Initialize eye contact service if enabled
-        const leviousaConfig = require('./features/common/config/leviousa-config');
-        if (leviousaConfig.leviousaConfig.isFeatureEnabled('eyeContactCorrection')) {
-            const sieveEyeContactService = require('./features/eyecontact/sieveEyeContactService');
-            await sieveEyeContactService.initialize();
-        }
+
 
         // Initialize Ollama models in database
         // ollamaModelRepository initialization removed - local models disabled

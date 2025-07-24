@@ -64,6 +64,20 @@ const sessionRepositoryAdapter = {
         const uid = authService.getCurrentUserId();
         return getBaseRepository().endAllActiveSessions(uid);
     },
+
+    // NEW: Generate intelligent title for session
+    generateIntelligentTitle: (sessionId) => {
+        return getBaseRepository().generateIntelligentTitle(sessionId);
+    },
+
+    // NEW: Migrate encrypted titles (Firebase only)
+    migrateEncryptedTitles: () => {
+        const repo = getBaseRepository();
+        if (repo.migrateEncryptedTitles) {
+            return repo.migrateEncryptedTitles();
+        }
+        return Promise.resolve({ migratedCount: 0, message: 'Migration not available for current repository' });
+    },
 };
 
 module.exports = sessionRepositoryAdapter; 

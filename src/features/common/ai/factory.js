@@ -22,7 +22,8 @@ const PROVIDERS = {
       name: 'OpenAI',
       handler: () => require("./providers/openai"),
       llmModels: [
-          { id: 'gpt-4.1', name: 'GPT-4.1' },
+          { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+        { id: 'gpt-4o', name: 'GPT-4o' },
       ],
       sttModels: [
           { id: 'gpt-4o-mini-transcribe', name: 'GPT-4o Mini Transcribe' }
@@ -33,7 +34,7 @@ const PROVIDERS = {
         name: 'OpenAI (Leviousa)',
       handler: () => require("./providers/openai"),
       llmModels: [
-                      { id: 'gpt-4.1-leviousa', name: 'GPT-4.1 (leviousa)' },
+                      { id: 'gpt-4o-mini-leviousa', name: 'GPT-4o Mini (leviousa)' },
       ],
       sttModels: [
                       { id: 'gpt-4o-mini-transcribe-leviousa', name: 'GPT-4o Mini Transcribe (leviousa)' }

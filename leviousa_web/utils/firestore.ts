@@ -120,104 +120,123 @@ export class FirestoreUserService {
 }
 
 // Function to generate meaningful titles from conversation content
-async function generateSessionTitle(sessionId: string): Promise<string> {
+async function generateSessionTitle(sessionId: string, data: any): Promise<string> {
   try {
     // Get first few messages from the conversation
     const transcriptsRef = collection(firestore, 'sessions', sessionId, 'transcripts');
     const aiMessagesRef = collection(firestore, 'sessions', sessionId, 'ai_messages');
     
-    const [transcriptsSnap, aiMessagesSnap] = await Promise.all([
-      getDocs(query(transcriptsRef, orderBy('start_at', 'asc'), limit(3))),
+    // Get sample data with timeout protection
+    const samplePromises = [
+      getDocs(query(transcriptsRef, orderBy('start_at', 'asc'), limit(5))),
       getDocs(query(aiMessagesRef, orderBy('sent_at', 'asc'), limit(3)))
+    ];
+    
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Title generation timeout')), 3000)
+    );
+    
+    const [transcriptsSnap, aiMessagesSnap] = await Promise.race([
+      Promise.all(samplePromises),
+      timeoutPromise
     ]);
     
-    // Collect conversation content
-    const conversationParts: string[] = [];
+    let content = '';
     
-    // Helper function to check if content looks encrypted
-    const looksEncrypted = (text: string): boolean => {
-      // Encrypted content is base64 and typically very long with no spaces
-      return text.length > 100 && !text.includes(' ') && /^[A-Za-z0-9+/]+=*$/.test(text);
-    };
-    
-    // Add transcripts (user speech)
-    transcriptsSnap.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.text && typeof data.text === 'string' && data.text.length > 3) {
-        // Skip encrypted content for now, but use speaker info
-        if (!looksEncrypted(data.text)) {
-          conversationParts.push(`User: ${data.text}`);
-        } else {
-          // If encrypted, use generic placeholder with speaker info
-          const speaker = data.speaker || 'User';
-          conversationParts.push(`${speaker}: [Speech content]`);
-        }
-      }
-    });
-    
-    // Add AI messages
-    aiMessagesSnap.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.content && typeof data.content === 'string' && data.content.length > 10) {
-        if (!looksEncrypted(data.content)) {
-          // Take first 100 chars of AI response to avoid too much content
-          const content = data.content.length > 100 ? data.content.substring(0, 100) + '...' : data.content;
-          conversationParts.push(`Assistant: ${content}`);
-        } else {
-          // If encrypted, use generic placeholder
-          conversationParts.push(`Assistant: [AI response]`);
-        }
-      }
-    });
-    
-    if (conversationParts.length === 0) {
-      return 'Empty conversation';
-    }
-    
-    // Look for actual content (not placeholders)
-    const realContent = conversationParts.filter(part => 
-      !part.includes('[Speech content]') && !part.includes('[AI response]')
-    );
-    
-    // If we have real content, use it
-    if (realContent.length > 0) {
-      const firstUserMessage = realContent.find(part => part.startsWith('User:'));
-      if (firstUserMessage) {
-        const userText = firstUserMessage.replace('User: ', '').trim();
-        if (userText.length > 50) {
-          return userText.substring(0, 50) + '...';
-        }
-        return userText;
-      }
+    // Extract content based on session type
+    if (data.session_type === 'listen' && !transcriptsSnap.empty) {
+      // For listen sessions, use transcript content
+      const transcripts = transcriptsSnap.docs.map(doc => doc.data());
+      const meaningfulTranscripts = transcripts
+        .filter(t => t.text && t.text.length > 10)
+        .slice(0, 3);
       
-      // Use first real content
-      const firstPart = realContent[0].replace(/^(User|Assistant): /, '').trim();
-      if (firstPart.length > 50) {
-        return firstPart.substring(0, 50) + '...';
-      }
-      return firstPart || 'Conversation';
+      content = meaningfulTranscripts
+        .map(t => `${t.speaker}: ${t.text}`)
+        .join('\n');
+    } else if (data.session_type === 'ask' && !aiMessagesSnap.empty) {
+      // For ask sessions, use Q&A content
+      const messages = aiMessagesSnap.docs.map(doc => doc.data());
+      const userMessages = messages
+        .filter(m => m.role === 'user' && m.content && m.content.length > 10)
+        .slice(0, 2);
+      
+      content = userMessages
+        .map(m => m.content)
+        .join('\n');
     }
     
-    // If all content is encrypted, create title based on conversation type and participants
-    const hasUser = conversationParts.some(part => part.includes('User:') || part.includes(': [Speech content]'));
-    const hasAssistant = conversationParts.some(part => part.includes('Assistant:'));
-    const hasOtherSpeakers = conversationParts.some(part => 
-      !part.includes('User:') && !part.includes('Assistant:') && part.includes(': [Speech content]')
+    // If we have meaningful content, generate an AI title
+    if (content.length > 20) {
+      return await generateAITitle(content.substring(0, 500), data.session_type || 'ask');
+    }
+    
+    // Fallback to improved default title
+    return getImprovedDefaultTitle(data.session_type, data.started_at);
+  } catch (error) {
+    console.error('[generateSessionTitle] Error:', error);
+    return getImprovedDefaultTitle(data.session_type, data.started_at);
+  }
+}
+
+// Generate AI-powered title
+async function generateAITitle(content: string, sessionType: string): Promise<string> {
+  try {
+    // Simple client-side title generation using content analysis
+    const words = content.toLowerCase().split(/\s+/);
+    const meaningfulWords = words.filter(word => 
+      word.length > 3 && 
+      !['this', 'that', 'with', 'from', 'they', 'have', 'been', 'will', 'would', 'could', 'should', 'want', 'need'].includes(word)
     );
     
-    if (hasUser && hasAssistant) {
-      return 'AI Conversation';
-    } else if (hasUser || hasOtherSpeakers) {
-      return 'Voice Conversation';
-    } else if (hasAssistant) {
-      return 'AI Chat';
+    // Look for technical terms, programming concepts, etc.
+    const techTerms = meaningfulWords.filter(word => 
+      ['python', 'javascript', 'react', 'node', 'sql', 'api', 'function', 'array', 'object', 'class', 'method', 'algorithm', 'debug', 'error', 'database', 'server', 'client', 'code', 'programming', 'development', 'web', 'app', 'application', 'component', 'variable', 'string', 'number', 'boolean', 'loop', 'condition', 'syntax', 'framework', 'library', 'package', 'module'].includes(word)
+    );
+    
+    // Generate title based on found terms
+    if (techTerms.length > 0) {
+      const primaryTerm = techTerms[0].charAt(0).toUpperCase() + techTerms[0].slice(1);
+      const actionWords = ['Help', 'Question', 'Discussion', 'Problem', 'Support', 'Tutorial'];
+      const action = actionWords[Math.floor(Math.random() * actionWords.length)];
+      return `${primaryTerm} ${action}`;
     }
     
-    return 'Conversation';
+    // Fallback: use first few meaningful words
+    if (meaningfulWords.length >= 2) {
+      const titleWords = meaningfulWords.slice(0, 3).map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      );
+      return titleWords.join(' ') + ' Discussion';
+    }
     
+    return getImprovedDefaultTitle(sessionType);
   } catch (error) {
-    console.error('❌ [generateSessionTitle] Error generating title:', error);
-    return 'Conversation';
+    console.error('[generateAITitle] Error:', error);
+    return getImprovedDefaultTitle(sessionType);
+  }
+}
+
+// Improved default title generation
+function getImprovedDefaultTitle(sessionType: string, startedAt?: any): string {
+  const date = startedAt ? new Date(startedAt.toMillis()) : new Date();
+  const timeStr = date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+  const dateStr = date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  switch (sessionType) {
+    case 'listen':
+      return `Listen Session - ${dateStr} ${timeStr}`;
+    case 'ask':
+      return `Q&A Session - ${dateStr} ${timeStr}`;
+    default:
+      return `Conversation - ${dateStr} ${timeStr}`;
   }
 }
 
@@ -274,10 +293,20 @@ export class FirestoreSessionService {
           const data = doc.data();
           console.log('🔍 [getSessions] Processing session:', doc.id);
           
-          // Temporarily disable smart title generation to avoid CORS issues
+          // Use intelligent title generation (re-enabled with better fallback)
           let smartTitle: string;
-          console.log('🔧 [getSessions] Using fallback title for session:', doc.id);
-          smartTitle = data.title || `Session ${new Date(data.started_at?.toMillis() || Date.now()).toLocaleDateString()}`;
+          try {
+            if (data.title && data.title.trim() && !data.title.includes('Session @') && !data.title.includes('Session -')) {
+              // Already has a good title
+              smartTitle = data.title;
+            } else {
+              // Try to generate a better title based on available content
+              smartTitle = await generateSessionTitle(doc.id, data);
+            }
+          } catch (titleError) {
+            console.warn('⚠️ [getSessions] Smart title generation failed for session', doc.id, ':', titleError);
+            smartTitle = data.title || `Session ${new Date(data.started_at?.toMillis() || Date.now()).toLocaleDateString()}`;
+          }
           
           sessionsWithTitles.push({
             id: doc.id,

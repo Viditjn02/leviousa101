@@ -1,4 +1,7 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
+import './InvisibilitySettings.js';
+import './VoiceAgentSettings.js';
+
 // import { getOllamaProgressTracker } from '../../features/common/services/localProgressTracker.js'; // 제거됨
 
 export class SettingsView extends LitElement {
@@ -117,14 +120,7 @@ export class SettingsView extends LitElement {
             height: 16px;
         }
 
-        .shortcuts-section {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            padding: 4px 0;
-            position: relative;
-            z-index: 1;
-        }
+        /* Legacy shortcuts section - now integrated into new organization */
 
         .shortcut-item {
             display: flex;
@@ -158,17 +154,7 @@ export class SettingsView extends LitElement {
             color: rgba(255, 255, 255, 0.9);
         }
 
-        /* Buttons Section */
-        .buttons-section {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            padding-top: 6px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            position: relative;
-            z-index: 1;
-            flex: 1;
-        }
+        /* Legacy section - integrated into new organization */
 
         .settings-button {
             background: rgba(255, 255, 255, 0.1);
@@ -219,10 +205,7 @@ export class SettingsView extends LitElement {
             gap: 4px;
         }
 
-        .api-key-section {
-            padding: 6px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
+        /* Legacy - moved to section-based organization */
 
         .api-key-section input {
             width: 100%;
@@ -240,30 +223,7 @@ export class SettingsView extends LitElement {
             color: rgba(255, 255, 255, 0.4);
         }
 
-        /* Preset Management Section */
-        .preset-section {
-            padding: 6px 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .preset-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-
-        .preset-title {
-            font-size: 11px;
-            font-weight: 500;
-            color: white;
-        }
-
-        .preset-count {
-            font-size: 9px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-left: 4px;
-        }
+        /* Legacy preset section - now integrated into new organization */
 
         .preset-toggle {
             font-size: 10px;
@@ -369,6 +329,62 @@ export class SettingsView extends LitElement {
 
         .hidden {
             display: none;
+        }
+
+        /* ═══════════════════════════════════════════════════════════ */
+        /* SETTINGS SECTIONS ORGANIZATION */
+        /* ═══════════════════════════════════════════════════════════ */
+        
+        .settings-section {
+            margin-bottom: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 8px;
+        }
+        
+        .settings-section:first-of-type {
+            border-top: none;
+            padding-top: 0;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 4px;
+        }
+        
+        .section-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .info-box {
+            margin-bottom: 8px;
+        }
+        
+        .shortcuts-display {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .preset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            padding: 4px 0;
+        }
+        
+        .preset-count {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 400;
         }
 
         .api-key-section, .model-selection-section {
@@ -1014,64 +1030,18 @@ export class SettingsView extends LitElement {
 
         const loggedIn = !!this.firebaseUser;
 
-        const apiKeyManagementHTML = html`
-            <div class="api-key-section">
-                <!-- Information about pre-configured API keys -->
-                <div class="provider-key-group">
-                    <label>Cloud AI Services</label>
-                    <div style="padding: 8px; background: rgba(0,122,255,0.1); border-radius: 4px; font-size: 11px; color: rgba(0,122,255,0.8);">
-                        ✅ Pre-configured with OpenAI, Anthropic, Gemini, and Deepgram
-                        <br>No setup required - ready to use immediately!
-                    </div>
-                </div>
-            </div>
-        `;
-        
+        // Helper function to get model display name
         const getModelName = (type, id) => {
             const models = type === 'llm' ? this.availableLlmModels : this.availableSttModels;
             const model = models.find(m => m.id === id);
             return model ? model.name : id;
         }
 
-        const modelSelectionHTML = html`
-            <div class="model-selection-section">
-                <div class="model-select-group">
-                    <label>LLM Model: <strong>${getModelName('llm', this.selectedLlm) || 'Not Set'}</strong></label>
-                    <button class="settings-button full-width" @click=${() => this.toggleModelList('llm')} ?disabled=${this.saving || this.availableLlmModels.length === 0}>
-                        Change LLM Model
-                    </button>
-                    ${this.isLlmListVisible ? html`
-                        <div class="model-list">
-                            ${this.availableLlmModels.map(model => html`
-                                <div class="model-item ${this.selectedLlm === model.id ? 'selected' : ''}" 
-                                     @click=${() => this.selectModel('llm', model.id)}>
-                                    <span>${model.name}</span>
-                                </div>
-                            `)}
-                        </div>
-                    ` : ''}
-                </div>
-                <div class="model-select-group">
-                    <label>STT Model: <strong>${getModelName('stt', this.selectedStt) || 'Not Set'}</strong></label>
-                    <button class="settings-button full-width" @click=${() => this.toggleModelList('stt')} ?disabled=${this.saving || this.availableSttModels.length === 0}>
-                        Change STT Model
-                    </button>
-                    ${this.isSttListVisible ? html`
-                        <div class="model-list">
-                            ${this.availableSttModels.map(model => html`
-                                <div class="model-item ${this.selectedStt === model.id ? 'selected' : ''}" 
-                                     @click=${() => this.selectModel('stt', model.id)}>
-                                    <span>${model.name}</span>
-                                </div>
-                            `)}
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-
         return html`
             <div class="settings-container">
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- HEADER SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
                 <div class="header-section">
                     <div>
                         <h1 class="app-title">Leviousa</h1>
@@ -1089,92 +1059,175 @@ export class SettingsView extends LitElement {
                     </div>
                 </div>
 
-                ${apiKeyManagementHTML}
-                ${modelSelectionHTML}
-
-                <div class="buttons-section" style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 6px; margin-top: 6px;">
-                    <button class="settings-button full-width" @click=${this.openShortcutEditor}>
-                        Edit Shortcuts
-                    </button>
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- ACCOUNT & PROFILE SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">Account & Profile</div>
+                    <div class="section-content">
+                        <button class="settings-button full-width" @click=${this.handlePersonalize}>
+                            <span>Personalize / Meeting Notes</span>
+                        </button>
+                        <div class="bottom-buttons">
+                            ${this.firebaseUser
+                                ? html`
+                                    <button class="settings-button half-width danger" @click=${this.handleFirebaseLogout}>
+                                        <span>Logout</span>
+                                    </button>
+                                    `
+                                : html`
+                                    <button class="settings-button half-width" @click=${this.handleUseLeviousasKey}>
+                                        <span>Login</span>
+                                    </button>
+                                    `
+                            }
+                            <button class="settings-button half-width" @click=${this.handleToggleAutoUpdate} ?disabled=${this.autoUpdateLoading}>
+                                <span>Updates: ${this.autoUpdateEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                
-                <div class="shortcuts-section">
-                    ${this.getMainShortcuts().map(shortcut => html`
-                        <div class="shortcut-item">
-                            <span class="shortcut-name">${shortcut.name}</span>
-                            <div class="shortcut-keys">
-                                ${this.renderShortcutKeys(shortcut.accelerator)}
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- AI MODELS & PROVIDERS SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">AI Models & Providers</div>
+                    <div class="section-content">
+                        <!-- Information about pre-configured API keys -->
+                        <div class="info-box">
+                            <div style="padding: 8px; background: rgba(0,122,255,0.1); border-radius: 4px; font-size: 11px; color: rgba(0,122,255,0.8);">
+                                ✅ Pre-configured with OpenAI, Anthropic, Gemini, and Deepgram
+                                <br>No setup required - ready to use immediately!
                             </div>
                         </div>
-                    `)}
+                        
+                        <!-- Model Selection -->
+                        <div class="model-select-group">
+                            <label>LLM Model: <strong>${getModelName('llm', this.selectedLlm) || 'Not Set'}</strong></label>
+                            <button class="settings-button full-width" @click=${() => this.toggleModelList('llm')} ?disabled=${this.saving || this.availableLlmModels.length === 0}>
+                                Change LLM Model
+                            </button>
+                            ${this.isLlmListVisible ? html`
+                                <div class="model-list">
+                                    ${this.availableLlmModels.map(model => html`
+                                        <div class="model-item ${this.selectedLlm === model.id ? 'selected' : ''}" 
+                                             @click=${() => this.selectModel('llm', model.id)}>
+                                            <span>${model.name}</span>
+                                        </div>
+                                    `)}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="model-select-group">
+                            <label>STT Model: <strong>${getModelName('stt', this.selectedStt) || 'Not Set'}</strong></label>
+                            <button class="settings-button full-width" @click=${() => this.toggleModelList('stt')} ?disabled=${this.saving || this.availableSttModels.length === 0}>
+                                Change STT Model
+                            </button>
+                            ${this.isSttListVisible ? html`
+                                <div class="model-list">
+                                    ${this.availableSttModels.map(model => html`
+                                        <div class="model-item ${this.selectedStt === model.id ? 'selected' : ''}" 
+                                             @click=${() => this.selectModel('stt', model.id)}>
+                                            <span>${model.name}</span>
+                                        </div>
+                                    `)}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
 
-                <div class="preset-section">
-                    <div class="preset-header">
-                        <span class="preset-title">
-                            My Presets
-                            <span class="preset-count">(${this.presets.filter(p => p.is_default === 0).length})</span>
-                        </span>
-                        <span class="preset-toggle" @click=${this.togglePresets}>
-                            ${this.showPresets ? '▼' : '▶'}
-                        </span>
-                    </div>
-                    
-                    <div class="preset-list ${this.showPresets ? '' : 'hidden'}">
-                        ${this.presets.filter(p => p.is_default === 0).length === 0 ? html`
-                            <div class="no-presets-message">
-                                No custom presets yet.<br>
-                                <span class="web-link" @click=${this.handlePersonalize}>
-                                    Create your first preset
-                                </span>
-                            </div>
-                        ` : this.presets.filter(p => p.is_default === 0).map(preset => html`
-                            <div class="preset-item ${this.selectedPreset?.id === preset.id ? 'selected' : ''}"
-                                 @click=${() => this.handlePresetSelect(preset)}>
-                                <span class="preset-name">${preset.title}</span>
-                                ${this.selectedPreset?.id === preset.id ? html`<span class="preset-status">Selected</span>` : ''}
-                            </div>
-                        `)}
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- SHORTCUTS & CONTROLS SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">Shortcuts & Controls</div>
+                    <div class="section-content">
+                        <button class="settings-button full-width" @click=${this.openShortcutEditor}>
+                            Edit Shortcuts
+                        </button>
+                        
+                        <div class="shortcuts-display">
+                            ${this.getMainShortcuts().map(shortcut => html`
+                                <div class="shortcut-item">
+                                    <span class="shortcut-name">${shortcut.name}</span>
+                                    <div class="shortcut-keys">
+                                        ${this.renderShortcutKeys(shortcut.accelerator)}
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
                     </div>
                 </div>
 
-                <div class="buttons-section">
-                    <button class="settings-button full-width" @click=${this.handlePersonalize}>
-                        <span>Personalize / Meeting Notes</span>
-                    </button>
-                    <button class="settings-button full-width" @click=${this.handleToggleAutoUpdate} ?disabled=${this.autoUpdateLoading}>
-                        <span>Automatic Updates: ${this.autoUpdateEnabled ? 'On' : 'Off'}</span>
-                    </button>
-                    
-                    <div class="move-buttons">
-                        <button class="settings-button half-width" @click=${this.handleMoveLeft}>
-                            <span>← Move</span>
-                        </button>
-                        <button class="settings-button half-width" @click=${this.handleMoveRight}>
-                            <span>Move →</span>
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- MY PRESETS SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">My Presets</div>
+                    <div class="section-content">
+                        <div class="preset-header">
+                            <span class="preset-count">${this.presets.filter(p => p.is_default === 0).length} custom presets</span>
+                            <span class="preset-toggle" @click=${this.togglePresets}>
+                                ${this.showPresets ? '▼' : '▶'}
+                            </span>
+                        </div>
+                        
+                        <div class="preset-list ${this.showPresets ? '' : 'hidden'}">
+                            ${this.presets.filter(p => p.is_default === 0).length === 0 ? html`
+                                <div class="no-presets-message">
+                                    No custom presets yet.<br>
+                                    <span class="web-link" @click=${this.handlePersonalize}>
+                                        Create your first preset
+                                    </span>
+                                </div>
+                            ` : this.presets.filter(p => p.is_default === 0).map(preset => html`
+                                <div class="preset-item ${this.selectedPreset?.id === preset.id ? 'selected' : ''}"
+                                     @click=${() => this.handlePresetSelect(preset)}>
+                                    <span class="preset-name">${preset.title}</span>
+                                    ${this.selectedPreset?.id === preset.id ? html`<span class="preset-status">Selected</span>` : ''}
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- PRIVACY & ADVANCED FEATURES SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">Privacy & Advanced Features</div>
+                    <div class="section-content">
+                        <!-- Complete Invisibility Mode -->
+                        <invisibility-settings></invisibility-settings>
+                        
+                        <!-- Voice Agent -->
+                        <voice-agent-settings></voice-agent-settings>
+                        
+                        <button class="settings-button full-width" @click=${this.handleToggleInvisibility}>
+                            <span>${this.isContentProtectionOn ? 'Disable Invisibility' : 'Enable Invisibility'}</span>
                         </button>
                     </div>
-                    
-                    <button class="settings-button full-width" @click=${this.handleToggleInvisibility}>
-                        <span>${this.isContentProtectionOn ? 'Disable Invisibility' : 'Enable Invisibility'}</span>
-                    </button>
-                    
-                    <div class="bottom-buttons">
-                        ${this.firebaseUser
-                            ? html`
-                                <button class="settings-button half-width danger" @click=${this.handleFirebaseLogout}>
-                                    <span>Logout</span>
-                                </button>
-                                `
-                            : html`
-                                <button class="settings-button half-width" @click=${this.handleUseLeviousasKey}>
-                                    <span>Login</span>
-                                </button>
-                                `
-                        }
-                        <button class="settings-button half-width danger" @click=${this.handleQuit}>
-                            <span>Quit</span>
+                </div>
+
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <!-- WINDOW & SYSTEM SECTION -->
+                <!-- ═══════════════════════════════════════════════════════════ -->
+                <div class="settings-section">
+                    <div class="section-title">Window & System</div>
+                    <div class="section-content">
+                        <div class="move-buttons">
+                            <button class="settings-button half-width" @click=${this.handleMoveLeft}>
+                                <span>← Move</span>
+                            </button>
+                            <button class="settings-button half-width" @click=${this.handleMoveRight}>
+                                <span>Move →</span>
+                            </button>
+                        </div>
+                        
+                        <button class="settings-button full-width danger" @click=${this.handleQuit}>
+                            <span>Quit Application</span>
                         </button>
                     </div>
                 </div>

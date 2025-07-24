@@ -6,6 +6,9 @@ let speakerIntelligence = null;
 let originalCallbacks = {};
 
 function initializeSpeakerIntelligence(sttServiceInstance) {
+    // Check if speaker intelligence is enabled
+    console.log('[STTEnhancer] Checking speaker intelligence feature flag:', leviousaConfig.leviousaConfig.isFeatureEnabled('speakerIntelligence'));
+    
     // Initialize speaker intelligence if enabled
     if (leviousaConfig.leviousaConfig.isFeatureEnabled('speakerIntelligence')) {
         console.log('[STTEnhancer] Initializing Speaker Intelligence');
@@ -17,6 +20,7 @@ function initializeSpeakerIntelligence(sttServiceInstance) {
         
         // Override setCallbacks to intercept transcription callbacks
         sttServiceInstance.setCallbacks = function(callbacks) {
+            console.log('[STTEnhancer] Setting up enhanced callbacks with speaker intelligence');
             originalCallbacks = { ...callbacks };
             
             // Wrap the onTranscriptionComplete callback
@@ -40,11 +44,18 @@ function initializeSpeakerIntelligence(sttServiceInstance) {
                                 speakerId: enrichedTranscription.speaker.speakerId
                             }
                         });
-                    }
 
-                    // Call original callback
-                    if (originalCallbacks.onTranscriptionComplete) {
-                        originalCallbacks.onTranscriptionComplete(speaker, text);
+                        // Call original callback with ENRICHED speaker data
+                        if (originalCallbacks.onTranscriptionComplete) {
+                            // Use the detected speaker ID instead of the original
+                            const detectedSpeaker = enrichedTranscription.isUser ? 'Me' : enrichedTranscription.speaker.speakerId;
+                            originalCallbacks.onTranscriptionComplete(detectedSpeaker, text);
+                        }
+                    } else {
+                        // Fallback: Call original callback with original speaker
+                        if (originalCallbacks.onTranscriptionComplete) {
+                            originalCallbacks.onTranscriptionComplete(speaker, text);
+                        }
                     }
                 }
             };

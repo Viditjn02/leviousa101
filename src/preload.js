@@ -10,29 +10,45 @@ contextBridge.exposeInMainWorld('api', {
     platform: process.platform
   },
 
-  // Eye Contact Correction API
-  eyecontact: {
+
+
+  // Complete Invisibility Mode API
+  invisibility: {
     // Control
-    enable: () => ipcRenderer.invoke('eyecontact:enable'),
-    disable: () => ipcRenderer.invoke('eyecontact:disable'),
+    enable: () => ipcRenderer.invoke('invisibility:enable'),
+    disable: () => ipcRenderer.invoke('invisibility:disable'),
     
     // Status
-    getStatus: () => ipcRenderer.invoke('eyecontact:getStatus'),
+    getStatus: () => ipcRenderer.invoke('invisibility:getStatus'),
     
     // Configuration
-    setApiKey: (apiKey) => ipcRenderer.invoke('eyecontact:setApiKey', apiKey),
+    updateConfig: (config) => ipcRenderer.invoke('invisibility:updateConfig', config),
     
-    // Processing
-    correctImage: (imageBuffer) => ipcRenderer.invoke('eyecontact:correctImage', imageBuffer),
-    processFrame: (frameData) => ipcRenderer.invoke('eyecontact:processFrame', frameData),
+    // Manual triggers
+    processQuestion: () => ipcRenderer.invoke('invisibility:processQuestion'),
     
-    // Listeners
-    onCorrectionComplete: (callback) => ipcRenderer.on('eyecontact:correction-complete', callback),
-    removeCorrectionComplete: (callback) => ipcRenderer.removeListener('eyecontact:correction-complete', callback),
-    onCorrectionError: (callback) => ipcRenderer.on('eyecontact:correction-error', callback),
-    removeCorrectionError: (callback) => ipcRenderer.removeListener('eyecontact:correction-error', callback),
-    onStatusChanged: (callback) => ipcRenderer.on('eyecontact:status-changed', callback),
-    removeStatusChanged: (callback) => ipcRenderer.removeListener('eyecontact:status-changed', callback)
+    // Testing methods
+    testQuestionDetection: () => ipcRenderer.invoke('invisibility:testQuestionDetection'),
+    testFieldDetection: () => ipcRenderer.invoke('invisibility:testFieldDetection'),
+    testTyping: () => ipcRenderer.invoke('invisibility:testTyping'),
+    testAnswerGeneration: () => ipcRenderer.invoke('invisibility:testAnswerGeneration'),
+    testRemoteAccessDetection: () => ipcRenderer.invoke('invisibility:testRemoteAccessDetection'),
+    
+    // Event listeners
+    onModeEnabled: (callback) => ipcRenderer.on('invisibility:mode-enabled', callback),
+    removeModeEnabled: (callback) => ipcRenderer.removeListener('invisibility:mode-enabled', callback),
+    onModeDisabled: (callback) => ipcRenderer.on('invisibility:mode-disabled', callback),
+    removeModeDisabled: (callback) => ipcRenderer.removeListener('invisibility:mode-disabled', callback),
+    onRemoteAccessDetected: (callback) => ipcRenderer.on('invisibility:remote-access-detected', callback),
+    removeRemoteAccessDetected: (callback) => ipcRenderer.removeListener('invisibility:remote-access-detected', callback),
+    onRemoteAccessEnded: (callback) => ipcRenderer.on('invisibility:remote-access-ended', callback),
+    removeRemoteAccessEnded: (callback) => ipcRenderer.removeListener('invisibility:remote-access-ended', callback),
+    onOverlayHidden: (callback) => ipcRenderer.on('invisibility:overlay-hidden', callback),
+    removeOverlayHidden: (callback) => ipcRenderer.removeListener('invisibility:overlay-hidden', callback),
+    onOverlayShown: (callback) => ipcRenderer.on('invisibility:overlay-shown', callback),
+    removeOverlayShown: (callback) => ipcRenderer.removeListener('invisibility:overlay-shown', callback),
+    onConfigUpdated: (callback) => ipcRenderer.on('invisibility:config-updated', callback),
+    removeConfigUpdated: (callback) => ipcRenderer.removeListener('invisibility:config-updated', callback)
   },
   
   // Common utilities used across multiple components
@@ -329,5 +345,106 @@ leviousaApp: {
     // Listeners
     onChangeListenCaptureState: (callback) => ipcRenderer.on('change-listen-capture-state', callback),
     removeOnChangeListenCaptureState: (callback) => ipcRenderer.removeListener('change-listen-capture-state', callback)
+  },
+
+  // Complete Invisibility Mode API
+  invisibility: {
+    enable: () => ipcRenderer.invoke('invisibility:enable'),
+    disable: () => ipcRenderer.invoke('invisibility:disable'),
+    getStatus: () => ipcRenderer.invoke('invisibility:getStatus'),
+    updateConfig: (config) => ipcRenderer.invoke('invisibility:updateConfig', config),
+    processQuestion: () => ipcRenderer.invoke('invisibility:processQuestion'),
+    testQuestionDetection: () => ipcRenderer.invoke('invisibility:testQuestionDetection'),
+    testFieldDetection: () => ipcRenderer.invoke('invisibility:testFieldDetection'),
+    testTyping: () => ipcRenderer.invoke('invisibility:testTyping'),
+    testAnswerGeneration: () => ipcRenderer.invoke('invisibility:testAnswerGeneration'),
+    testRemoteAccessDetection: () => ipcRenderer.invoke('invisibility:testRemoteAccessDetection'),
+    onModeEnabled: (callback) => ipcRenderer.on('invisibility:mode-enabled', callback),
+    onModeDisabled: (callback) => ipcRenderer.on('invisibility:mode-disabled', callback),
+    onRemoteAccessDetected: (callback) => ipcRenderer.on('invisibility:remote-access-detected', callback),
+    onRemoteAccessEnded: (callback) => ipcRenderer.on('invisibility:remote-access-ended', callback),
+    onOverlayHidden: (callback) => ipcRenderer.on('invisibility:overlay-hidden', callback),
+    onOverlayShown: (callback) => ipcRenderer.on('invisibility:overlay-shown', callback),
+    onConfigUpdated: (callback) => ipcRenderer.on('invisibility:config-updated', callback)
+  },
+
+  // Voice Agent API - "Hey Leviousa" Assistant
+  voiceAgent: {
+    // Main control
+    enable: () => ipcRenderer.invoke('voice-agent:enable'),
+    disable: () => ipcRenderer.invoke('voice-agent:disable'),
+    getStatus: () => ipcRenderer.invoke('voice-agent:getStatus'),
+    updateConfig: (config) => ipcRenderer.invoke('voice-agent:updateConfig', config),
+    
+    // Manual triggers
+    triggerWakeWord: () => ipcRenderer.invoke('voice-agent:triggerWakeWord'),
+    triggerVoiceCommand: (command) => ipcRenderer.invoke('voice-agent:triggerVoiceCommand', command),
+    endConversation: () => ipcRenderer.invoke('voice-agent:endConversation'),
+    
+    // Screen analysis
+    analyzeScreen: () => ipcRenderer.invoke('voice-agent:analyzeScreen'),
+    getLastScreenAnalysis: () => ipcRenderer.invoke('voice-agent:getLastScreenAnalysis'),
+    findElements: (criteria) => ipcRenderer.invoke('voice-agent:screen:findElements', criteria),
+    
+    // Text-to-Speech
+    speak: (text, options) => ipcRenderer.invoke('voice-agent:tts:speak', text, options),
+    stopSpeaking: () => ipcRenderer.invoke('voice-agent:tts:stop'),
+    setVoice: (voiceName) => ipcRenderer.invoke('voice-agent:tts:setVoice', voiceName),
+    getAvailableVoices: () => ipcRenderer.invoke('voice-agent:tts:getAvailableVoices'),
+    
+    // Conversation
+    injectSpeech: (text) => ipcRenderer.invoke('voice-agent:conversation:injectSpeech', text),
+    simulateUserSpeech: (text) => ipcRenderer.invoke('voice-agent:simulateUserSpeech', text),
+    getConversationHistory: () => ipcRenderer.invoke('voice-agent:getConversationHistory'),
+    
+    // Action execution
+    getActionHistory: () => ipcRenderer.invoke('voice-agent:action:getHistory'),
+    
+    // Sub-service status
+    getWakeWordStatus: () => ipcRenderer.invoke('voice-agent:wakeWord:getStatus'),
+    getTTSStatus: () => ipcRenderer.invoke('voice-agent:tts:getStatus'),
+    getConversationStatus: () => ipcRenderer.invoke('voice-agent:conversation:getStatus'),
+    getActionStatus: () => ipcRenderer.invoke('voice-agent:action:getStatus'),
+    getScreenStatus: () => ipcRenderer.invoke('voice-agent:screen:getStatus'),
+    
+    // Testing
+    testWakeWord: () => ipcRenderer.invoke('voice-agent:test:wakeWord'),
+    testTTS: () => ipcRenderer.invoke('voice-agent:test:tts'),
+    testScreenAnalysis: () => ipcRenderer.invoke('voice-agent:test:screenAnalysis'),
+    testActionExecution: () => ipcRenderer.invoke('voice-agent:test:actionExecution'),
+    testFullSystem: () => ipcRenderer.invoke('voice-agent:test:fullSystem'),
+    
+    // Voice enrollment - Siri-like voice training
+    startVoiceEnrollment: () => ipcRenderer.invoke('voice-agent:enrollment:start'),
+    recordEnrollmentSample: () => ipcRenderer.invoke('voice-agent:enrollment:recordSample'),
+    cancelVoiceEnrollment: () => ipcRenderer.invoke('voice-agent:enrollment:cancel'),
+    resetVoiceTemplate: () => ipcRenderer.invoke('voice-agent:enrollment:reset'),
+    getVoiceEnrollmentStatus: () => ipcRenderer.invoke('voice-agent:enrollment:getStatus'),
+    
+    // Event listeners
+    onEnabled: (callback) => ipcRenderer.on('voice-agent:enabled', callback),
+    onDisabled: (callback) => ipcRenderer.on('voice-agent:disabled', callback),
+    onConversationStarted: (callback) => ipcRenderer.on('voice-agent:conversation-started', callback),
+    onConversationEnded: (callback) => ipcRenderer.on('voice-agent:conversation-ended', callback),
+    onWakeWordDetected: (callback) => ipcRenderer.on('voice-agent:wake-word-detected', callback),
+    onSpeechRecognized: (callback) => ipcRenderer.on('voice-agent:speech-recognized', callback),
+    onActionCompleted: (callback) => ipcRenderer.on('voice-agent:action-completed', callback),
+    onActionFailed: (callback) => ipcRenderer.on('voice-agent:action-failed', callback),
+    onSpeechCompleted: (callback) => ipcRenderer.on('voice-agent:speech-completed', callback),
+    onSpeechFailed: (callback) => ipcRenderer.on('voice-agent:speech-failed', callback),
+    onUIAnalysisUpdated: (callback) => ipcRenderer.on('voice-agent:ui-analysis-updated', callback),
+    onConfigUpdated: (callback) => ipcRenderer.on('voice-agent:config-updated', callback),
+    onListeningStarted: (callback) => ipcRenderer.on('voice-agent:listening-started', callback),
+    onListeningStopped: (callback) => ipcRenderer.on('voice-agent:listening-stopped', callback),
+    onConversationTimeout: (callback) => ipcRenderer.on('voice-agent:conversation-timeout', callback),
+    onSilenceTimeout: (callback) => ipcRenderer.on('voice-agent:silence-timeout', callback),
+    
+    // Voice enrollment event listeners
+    onVoiceEnrollmentStarted: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-started', callback),
+    onVoiceSampleRecordingStarted: (callback) => ipcRenderer.on('voice-agent:voice-sample-recording-started', callback),
+    onVoiceSampleRecorded: (callback) => ipcRenderer.on('voice-agent:voice-sample-recorded', callback),
+    onVoiceSampleRejected: (callback) => ipcRenderer.on('voice-agent:voice-sample-rejected', callback),
+    onVoiceEnrollmentCompleted: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-completed', callback),
+    onVoiceEnrollmentCancelled: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-cancelled', callback)
   }
 });
