@@ -916,6 +916,19 @@ Return JSON with:
                 return;
             }
             
+            // NEW: Handle MCP-enhanced question answering
+            if (commandAnalysis.intent === 'invisibility' || 
+                (commandAnalysis.suggestedActions && commandAnalysis.suggestedActions.includes('answer_questions'))) {
+                await this.handleMCPQuestionAnswering(commandAnalysis);
+                return;
+            }
+            
+            // NEW: Handle general knowledge questions with MCP
+            if (commandAnalysis.intent === 'conversation' && this.isQuestionAboutKnowledge(commandAnalysis.originalText)) {
+                await this.handleMCPKnowledgeQuestion(commandAnalysis);
+                return;
+            }
+            
             // Use action executor to perform the command
             const result = await this.actionExecutor.executeCommand(
                 commandAnalysis, 
@@ -1356,6 +1369,161 @@ Avoid technical jargon and make it sound natural for voice interaction.`;
             requiresScreenInteraction: true
         };
         return await this.actionExecutor.executeCommand(testCommand, this.lastUIAnalysis);
+    }
+
+    // NEW: Handle MCP-powered question answering on screen
+    async handleMCPQuestionAnswering(commandAnalysis) {
+        try {
+            console.log('[VoiceAgent] 🧠 Using MCP for intelligent question answering...');
+            
+            // Get the invisibility service which has MCP integration
+            if (!global.invisibilityService) {
+                await this.ttsService.speak("Question answering service is not available.");
+                return;
+            }
+            
+            await this.ttsService.speak("Looking for questions on screen and generating answers...");
+            
+            // Use the invisibility service's voice-triggered method
+            await global.invisibilityService.processQuestionAndAnswerVoiceTriggered();
+            
+            await this.ttsService.speak("Completed answering questions on screen.");
+            
+            // Add to conversation
+            this.currentConversation.turns.push({
+                type: 'assistant',
+                text: 'I analyzed the screen and answered any questions I found using my research capabilities.',
+                timestamp: new Date(),
+                action: commandAnalysis,
+                result: { success: true, action: 'mcp_question_answering' }
+            });
+            
+        } catch (error) {
+            console.error('[VoiceAgent] Error in MCP question answering:', error);
+            await this.ttsService.speak("Sorry, I couldn't process the questions on screen.");
+        }
+    }
+
+    // NEW: Handle general knowledge questions with MCP enhanced research
+    async handleMCPKnowledgeQuestion(commandAnalysis) {
+        try {
+            console.log('[VoiceAgent] 🔍 Using MCP for knowledge question:', commandAnalysis.originalText);
+            
+            // Get MCP client
+            const mcpClient = global.invisibilityService?.mcpClient;
+            if (!mcpClient) {
+                // Fallback to regular conversation
+                console.log('[VoiceAgent] MCP not available, using regular response');
+                return;
+            }
+            
+            await this.ttsService.speak("Let me research that for you...");
+            
+            // Classify and prepare question for MCP
+            const questionType = this.classifyQuestionForMCP(commandAnalysis.originalText);
+            const question = {
+                text: commandAnalysis.originalText,
+                type: questionType,
+                context: this.getConversationContext(),
+                confidence: 90
+            };
+            
+            // Get screen context for visual questions
+            let screenshotBase64 = null;
+            if (this.lastScreenshot) {
+                screenshotBase64 = this.lastScreenshot.base64;
+            }
+            
+            // Get enhanced answer from MCP
+            const answer = await mcpClient.getEnhancedAnswer(question, screenshotBase64);
+            
+            if (answer) {
+                console.log('[VoiceAgent] ✅ Got MCP enhanced answer');
+                
+                // Speak the answer (truncate if too long for speech)
+                const spokenAnswer = this.prepareSpeechAnswer(answer);
+                await this.ttsService.speak(spokenAnswer);
+                
+                // Add to conversation
+                this.currentConversation.turns.push({
+                    type: 'assistant',
+                    text: answer,
+                    timestamp: new Date(),
+                    action: commandAnalysis,
+                    result: { success: true, action: 'mcp_knowledge_answer', type: questionType }
+                });
+            } else {
+                await this.ttsService.speak("I couldn't find a good answer to that question right now.");
+            }
+            
+        } catch (error) {
+            console.error('[VoiceAgent] Error in MCP knowledge question:', error);
+            await this.ttsService.speak("Sorry, I encountered an error while researching that question.");
+        }
+    }
+
+    // NEW: Check if text is asking a knowledge question
+    isQuestionAboutKnowledge(text) {
+        const lowerText = text.toLowerCase();
+        const questionWords = ['what', 'how', 'why', 'when', 'where', 'who', 'which'];
+        const knowledgeIndicators = [
+            'explain', 'tell me', 'describe', 'define', 'mean', 'difference between',
+            'help me understand', 'can you', 'do you know', 'have you heard'
+        ];
+        
+        return questionWords.some(word => lowerText.startsWith(word)) ||
+               knowledgeIndicators.some(phrase => lowerText.includes(phrase));
+    }
+
+    // NEW: Classify question type for MCP
+    classifyQuestionForMCP(text) {
+        const lowerText = text.toLowerCase();
+        
+        if (lowerText.match(/\b(code|programming|algorithm|function|debug|syntax|javascript|python|java|react|css|html|sql|api)\b/)) {
+            return 'coding';
+        }
+        
+        if (lowerText.match(/\b(calculate|solve|equation|formula|math|statistics|probability)\b/)) {
+            return 'math';
+        }
+        
+        if (lowerText.match(/\b(architecture|system|design|database|security|performance|technical|how does|works)\b/)) {
+            return 'technical';
+        }
+        
+        return 'general';
+    }
+
+    // NEW: Prepare answer for speech (truncate if needed)
+    prepareSpeechAnswer(answer) {
+        if (answer.length <= 300) {
+            return answer;
+        }
+        
+        // Find a good breaking point (end of sentence)
+        const sentences = answer.split(/[.!?]+/);
+        let spokenPart = '';
+        
+        for (const sentence of sentences) {
+            if ((spokenPart + sentence).length > 300) {
+                break;
+            }
+            spokenPart += sentence + '. ';
+        }
+        
+        return spokenPart.trim() || answer.substring(0, 300) + '...';
+    }
+
+    // NEW: Get conversation context for MCP
+    getConversationContext() {
+        if (!this.currentConversation || !this.currentConversation.turns) {
+            return '';
+        }
+        
+        return this.currentConversation.turns
+            .slice(-5) // Last 5 turns
+            .map(turn => `${turn.type}: ${turn.text}`)
+            .join('\n');
     }
 }
 

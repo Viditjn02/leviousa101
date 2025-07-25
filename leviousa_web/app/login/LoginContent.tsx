@@ -579,6 +579,9 @@ function LoginContent() {
     try {
       const provider = new GoogleAuthProvider()
       
+      // Add Google Drive scope for MCP integration
+      provider.addScope('https://www.googleapis.com/auth/drive.file')
+      
       // Detect mode from current URL and other sources
       const urlParams = new URLSearchParams(window.location.search)
       const hashParams = new URLSearchParams(window.location.hash.substring(1))

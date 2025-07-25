@@ -30,7 +30,7 @@ function SessionDetailsContent() {
   const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get('sessionId');
+  const sessionId = searchParams ? searchParams.get('sessionId') : null;
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
 
@@ -186,7 +186,7 @@ function SessionDetailsContent() {
   );
 }
 
-export default function SessionDetailsPage() {
+export default function DetailPageWrapper() {
   return (
     <AuthenticatedLayout>
       <Suspense fallback={

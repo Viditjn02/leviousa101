@@ -14,6 +14,8 @@ export class AskView extends LitElement {
         headerText: { type: String },
         headerAnimating: { type: Boolean },
         isStreaming: { type: Boolean },
+        conversationHistory: { type: Array }, // New property for conversation history
+        isConversationMode: { type: Boolean }, // New property to track conversation state
     };
 
     static styles = css`
@@ -709,6 +711,159 @@ export class AskView extends LitElement {
         .header-clear-btn:hover .icon-box {
             background-color: rgba(255,255,255,0.18);
         }
+
+        /* Conversation History Styles */
+        .conversation-history {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversation-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .conversation-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .new-conversation-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .new-conversation-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .history-list {
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+
+        .history-exchange {
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .history-exchange:last-child {
+            margin-bottom: 0;
+        }
+
+        .history-question,
+        .history-response {
+            display: flex;
+            margin-bottom: 4px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .history-response {
+            margin-bottom: 0;
+        }
+
+        .history-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 600;
+            margin-right: 6px;
+            min-width: 16px;
+        }
+
+        .history-text {
+            color: rgba(255, 255, 255, 0.8);
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .history-question .history-label {
+            color: rgba(100, 200, 255, 0.8);
+        }
+
+        .history-response .history-label {
+            color: rgba(100, 255, 150, 0.8);
+        }
+
+        /* Response Container Scrolling Improvements */
+        .response-container {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+            scroll-behavior: smooth;
+        }
+
+        .response-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .response-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .response-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .response-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
     `;
 
     constructor() {
@@ -721,6 +876,8 @@ export class AskView extends LitElement {
         this.headerText = 'AI Response';
         this.headerAnimating = false;
         this.isStreaming = false;
+        this.conversationHistory = [];
+        this.isConversationMode = false;
 
         this.marked = null;
         this.hljs = null;
@@ -740,11 +897,57 @@ export class AskView extends LitElement {
         this.handleScroll = this.handleScroll.bind(this);
         this.handleCloseAskWindow = this.handleCloseAskWindow.bind(this);
         this.handleCloseIfNoContent = this.handleCloseIfNoContent.bind(this);
+        this.startNewConversation = this.startNewConversation.bind(this);
+        this.addToConversationHistory = this.addToConversationHistory.bind(this);
 
         this.loadLibraries();
 
         // --- Resize helpers ---
         this.isThrottled = false;
+    }
+
+    /**
+     * Add a message exchange to the conversation history
+     * @param {string} question - User question
+     * @param {string} response - AI response
+     */
+    addToConversationHistory(question, response) {
+        if (question && response) {
+            this.conversationHistory.push({
+                question: question.trim(),
+                response: response.trim(),
+                timestamp: new Date().toISOString()
+            });
+            this.isConversationMode = true;
+            console.log(`[AskView] Added to conversation history. Total exchanges: ${this.conversationHistory.length}`);
+        }
+    }
+
+    /**
+     * Start a new conversation by clearing history
+     */
+    startNewConversation() {
+        this.conversationHistory = [];
+        this.isConversationMode = false;
+        this.currentResponse = '';
+        this.currentQuestion = '';
+        this.showTextInput = true;
+        console.log('[AskView] Started new conversation');
+        this.requestUpdate();
+        this.focusTextInput();
+    }
+
+    /**
+     * Get conversation history formatted for API
+     * @returns {string[]} Array of conversation texts
+     */
+    getConversationHistoryForAPI() {
+        const history = [];
+        this.conversationHistory.forEach(exchange => {
+            history.push(exchange.question);
+            history.push(exchange.response);
+        });
+        return history;
     }
 
     connectedCallback() {
@@ -787,6 +990,13 @@ export class AskView extends LitElement {
             window.api.askView.onScrollResponseUp(() => this.handleScroll('up'));
             window.api.askView.onScrollResponseDown(() => this.handleScroll('down'));
             window.api.askView.onAskStateUpdate((event, newState) => {
+                // Check if we just completed a response (was streaming, now not streaming with response)
+                const justCompletedResponse = this.isStreaming && !newState.isStreaming && 
+                                            newState.currentResponse && !newState.isLoading;
+                
+                const previousQuestion = this.currentQuestion;
+                const previousResponse = this.currentResponse;
+                
                 this.currentResponse = newState.currentResponse;
                 this.currentQuestion = newState.currentQuestion;
                 this.isLoading       = newState.isLoading;
@@ -794,6 +1004,13 @@ export class AskView extends LitElement {
               
                 const wasHidden = !this.showTextInput;
                 this.showTextInput = newState.showTextInput;
+                
+                // Add completed exchange to conversation history
+                if (justCompletedResponse && previousQuestion && newState.currentResponse) {
+                    this.addToConversationHistory(previousQuestion, newState.currentResponse);
+                    // Keep input available for follow-up questions
+                    this.showTextInput = true;
+                }
               
                 if (newState.showTextInput) {
                   if (wasHidden) {
@@ -1015,6 +1232,11 @@ export class AskView extends LitElement {
         
         // Set streaming markdown parser
         this.renderStreamingMarkdown(responseContainer);
+
+        // Auto-scroll to bottom when content is updated during streaming
+        if (this.isStreaming && responseContainer.style.overflowY === 'auto') {
+            responseContainer.scrollTop = responseContainer.scrollHeight;
+        }
 
         // After updating content, recalculate window height
         this.adjustWindowHeightThrottled();
@@ -1272,12 +1494,17 @@ export class AskView extends LitElement {
     async handleSendText(e, overridingText = '') {
         const textInput = this.shadowRoot?.getElementById('textInput');
         const text = (overridingText || textInput?.value || '').trim();
-        // if (!text) return;
+        if (!text) return;
 
         textInput.value = '';
 
         if (window.api) {
-            window.api.askView.sendMessage(text).catch(error => {
+            // Get conversation history for context
+            const conversationHistory = this.getConversationHistoryForAPI();
+            
+            console.log(`[AskView] Sending message with ${conversationHistory.length} history items`);
+            
+            window.api.askView.sendMessage(text, conversationHistory).catch(error => {
                 console.error('Error sending text:', error);
             });
         }
@@ -1306,12 +1533,18 @@ export class AskView extends LitElement {
             this.renderContent();
         }
     
-        if (changedProperties.has('showTextInput') || changedProperties.has('isLoading') || changedProperties.has('currentResponse')) {
+        if (changedProperties.has('showTextInput') || changedProperties.has('isLoading') || 
+            changedProperties.has('currentResponse') || changedProperties.has('conversationHistory')) {
             this.adjustWindowHeightThrottled();
         }
     
         if (changedProperties.has('showTextInput') && this.showTextInput) {
             this.focusTextInput();
+        }
+
+        // Handle conversation history changes
+        if (changedProperties.has('conversationHistory')) {
+            console.log(`[AskView] Conversation history updated: ${this.conversationHistory.length} exchanges`);
         }
     }
 
@@ -1330,10 +1563,43 @@ export class AskView extends LitElement {
 
     render() {
         const hasResponse = this.isLoading || this.currentResponse || this.isStreaming;
+        const hasConversationHistory = this.conversationHistory.length > 0;
         const headerText = this.isLoading ? 'Thinking...' : 'AI Response';
+        const placeholderText = hasConversationHistory ? 
+            "Continue the conversation..." : 
+            "Ask about your screen or audio";
 
         return html`
             <div class="ask-container">
+                <!-- Conversation History -->
+                ${hasConversationHistory ? html`
+                    <div class="conversation-history">
+                        <div class="conversation-header">
+                            <span class="conversation-label">Conversation History</span>
+                            <button class="new-conversation-btn" @click=${this.startNewConversation} title="Start New Conversation">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14m-7-7h14" />
+                                </svg>
+                                New
+                            </button>
+                        </div>
+                        <div class="history-list">
+                            ${this.conversationHistory.map((exchange, index) => html`
+                                <div class="history-exchange">
+                                    <div class="history-question">
+                                        <span class="history-label">Q:</span>
+                                        <span class="history-text">${exchange.question}</span>
+                                    </div>
+                                    <div class="history-response">
+                                        <span class="history-label">A:</span>
+                                        <span class="history-text">${this.getTruncatedQuestion(exchange.response, 100)}</span>
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                ` : ''}
+
                 <!-- Response Header -->
                 <div class="response-header ${!hasResponse ? 'hidden' : ''}">
                     <div class="header-left">
@@ -1348,6 +1614,13 @@ export class AskView extends LitElement {
                     <div class="header-right">
                         <span class="question-text">${this.getTruncatedQuestion(this.currentQuestion)}</span>
                         <div class="header-controls">
+                            ${hasConversationHistory ? html`
+                                <button class="new-conversation-btn" @click=${this.startNewConversation} title="Start New Conversation">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 5v14m-7-7h14" />
+                                    </svg>
+                                </button>
+                            ` : ''}
                             <button class="copy-button ${this.copyState === 'copied' ? 'copied' : ''}" @click=${this.handleCopy}>
                                 <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -1385,7 +1658,7 @@ export class AskView extends LitElement {
                     <input
                         type="text"
                         id="textInput"
-                        placeholder="Ask about your screen or audio"
+                        placeholder="${placeholderText}"
                         @keydown=${this.handleTextKeydown}
                         @focus=${this.handleInputFocus}
                     />
@@ -1411,16 +1684,33 @@ export class AskView extends LitElement {
             const headerEl = this.shadowRoot.querySelector('.response-header');
             const responseEl = this.shadowRoot.querySelector('.response-container');
             const inputEl = this.shadowRoot.querySelector('.text-input-container');
+            const historyEl = this.shadowRoot.querySelector('.conversation-history'); // Include conversation history
 
             if (!headerEl || !responseEl) return;
 
             const headerHeight = headerEl.classList.contains('hidden') ? 0 : headerEl.offsetHeight;
             const responseHeight = responseEl.scrollHeight;
             const inputHeight = (inputEl && !inputEl.classList.contains('hidden')) ? inputEl.offsetHeight : 0;
+            const historyHeight = (historyEl && !historyEl.classList.contains('hidden')) ? historyEl.offsetHeight : 0;
 
-            const idealHeight = headerHeight + responseHeight + inputHeight;
+            const idealHeight = headerHeight + responseHeight + inputHeight + historyHeight;
+            const maxHeight = 700; // Maximum window height
+            const targetHeight = Math.min(maxHeight, idealHeight);
 
-            const targetHeight = Math.min(700, idealHeight);
+            // If content exceeds max height, enable scrolling in response container
+            if (idealHeight > maxHeight) {
+                const availableResponseHeight = maxHeight - headerHeight - inputHeight - historyHeight;
+                responseEl.style.maxHeight = `${availableResponseHeight}px`;
+                responseEl.style.overflowY = 'auto';
+                console.log(`[AskView] Content exceeds max height. Enabling scroll. Available response height: ${availableResponseHeight}px`);
+            } else {
+                responseEl.style.maxHeight = 'none';
+                responseEl.style.overflowY = 'visible';
+            }
+
+            console.log(
+                `[AskView Height Debug] Header: ${headerHeight}px, Response: ${responseHeight}px, Input: ${inputHeight}px, History: ${historyHeight}px, Ideal: ${idealHeight}px, Target: ${targetHeight}px`
+            );
 
             window.api.askView.adjustWindowHeight("ask", targetHeight);
 

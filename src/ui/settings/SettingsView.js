@@ -1,6 +1,7 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
 import './InvisibilitySettings.js';
 import './VoiceAgentSettings.js';
+import './MCPSettingsComponent.js';
 
 // import { getOllamaProgressTracker } from '../../features/common/services/localProgressTracker.js'; // 제거됨
 
@@ -1204,6 +1205,9 @@ export class SettingsView extends LitElement {
                         
                         <!-- Voice Agent -->
                         <voice-agent-settings></voice-agent-settings>
+                        
+                        <!-- MCP Server Connections -->
+                        <mcp-settings></mcp-settings>
                         
                         <button class="settings-button full-width" @click=${this.handleToggleInvisibility}>
                             <span>${this.isContentProtectionOn ? 'Disable Invisibility' : 'Enable Invisibility'}</span>

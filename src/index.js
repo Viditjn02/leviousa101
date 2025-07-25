@@ -78,9 +78,35 @@ function setupProtocolHandling() {
         console.error('[Protocol] Error during protocol registration:', error);
     }
 
-    // Handle protocol URLs on Windows/Linux
+    // Handle protocol URLs on macOS
+    app.on('open-url', (event, url) => {
+        event.preventDefault();
+        console.log('🔗 [Protocol] MACOS OPEN-URL TRIGGERED! Received URL:', url);
+        console.log('🔗 [Protocol] Event details:', {
+            defaultPrevented: event.defaultPrevented,
+            url: url,
+            timestamp: new Date().toISOString()
+        });
+        
+        if (!url || !url.startsWith('leviousa://')) {
+            console.warn('[Protocol] Invalid URL format:', url);
+            return;
+        }
+
+        if (app.isReady()) {
+            console.log('[Protocol] App is ready, processing URL immediately');
+            handleCustomUrl(url);
+        } else {
+            pendingDeepLinkUrl = url;
+            console.log('[Protocol] App not ready, storing URL for later:', url);
+        }
+    });
+
+    // Handle protocol URLs on Windows/Linux  
     app.on('second-instance', (event, commandLine, workingDirectory) => {
         console.log('🔗 [Protocol] SECOND INSTANCE TRIGGERED! Command line:', commandLine);
+        console.log('🔗 [Protocol] Working directory:', workingDirectory);
+        console.log('🔗 [Protocol] Full commandLine array:', JSON.stringify(commandLine));
         
         focusMainWindow();
         
@@ -111,25 +137,7 @@ function setupProtocolHandling() {
             handleCustomUrl(protocolUrl);
         } else {
             console.log('[Protocol] No valid protocol URL found in command line arguments');
-            console.log('[Protocol] Command line args:', commandLine);
-        }
-    });
-
-    // Handle protocol URLs on macOS
-    app.on('open-url', (event, url) => {
-        event.preventDefault();
-        console.log('🔗 [Protocol] MACOS OPEN-URL TRIGGERED! Received URL:', url);
-        
-        if (!url || !url.startsWith('leviousa://')) {
-            console.warn('[Protocol] Invalid URL format:', url);
-            return;
-        }
-
-        if (app.isReady()) {
-            handleCustomUrl(url);
-        } else {
-            pendingDeepLinkUrl = url;
-            console.log('[Protocol] App not ready, storing URL for later');
+            console.log('[Protocol] All command line args:', commandLine.map((arg, i) => `${i}: ${arg}`));
         }
     });
 }
@@ -502,6 +510,8 @@ function setupWebDataHandlers() {
 async function handleCustomUrl(url) {
     try {
         console.log('🔗 [Custom URL] DEEP LINK RECEIVED! Processing URL:', url);
+        console.log('🔗 [Custom URL] URL type:', typeof url);
+        console.log('🔗 [Custom URL] URL length:', url?.length);
         
         // Validate and clean URL
         if (!url || typeof url !== 'string' || !url.startsWith('leviousa://')) {
@@ -523,8 +533,25 @@ async function handleCustomUrl(url) {
         const params = Object.fromEntries(urlObj.searchParams);
         
         console.log('[Custom URL] Action:', action, 'Params:', params);
+        console.log('[Custom URL] Full pathname:', urlObj.pathname);
+        console.log('[Custom URL] Search params:', urlObj.search);
 
         switch (action) {
+            case 'test':
+                console.log('🧪 [Custom URL] Test protocol URL received successfully!');
+                console.log('🧪 [Custom URL] Test params:', params);
+                
+                // Send test result to UI
+                const { windowPool: testWindowPool } = require('./window/windowManager.js');
+                const testHeader = testWindowPool.get('header');
+                if (testHeader) {
+                    testHeader.webContents.send('mcp:protocol-test-result', {
+                        success: true,
+                        message: 'Protocol handling is working correctly!',
+                        params
+                    });
+                }
+                break;
             case 'login':
             case 'auth-success':
                 await handleFirebaseAuthCallback(params);
@@ -535,9 +562,16 @@ async function handleCustomUrl(url) {
             case 'personalize':
                 handlePersonalizeFromUrl(params);
                 break;
+            case 'oauth':
+                console.log('🔗 [Custom URL] OAuth callback received!');
+                console.log('🔗 [Custom URL] OAuth pathname:', urlObj.pathname);
+                console.log('🔗 [Custom URL] OAuth params:', params);
+                await handleOAuthCallback(urlObj.pathname, params);
+                break;
             default:
-                const { windowPool } = require('./window/windowManager.js');
-                const header = windowPool.get('header');
+                console.log('[Custom URL] Unknown action:', action);
+                const { windowPool: defaultWindowPool } = require('./window/windowManager.js');
+                const header = defaultWindowPool.get('header');
                 if (header) {
                     if (header.isMinimized()) header.restore();
                     header.focus();
@@ -551,6 +585,7 @@ async function handleCustomUrl(url) {
 
     } catch (error) {
         console.error('[Custom URL] Error parsing URL:', error);
+        console.error('[Custom URL] Error stack:', error.stack);
     }
 }
 
@@ -595,8 +630,8 @@ async function handleFirebaseAuthCallback(params) {
         console.log('[Auth] Main process sign-in initiated. Waiting for onAuthStateChanged...');
 
         // 5. Focus the app window
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: authWindowPool } = require('./window/windowManager.js');
+        const header = authWindowPool.get('header');
         if (header) {
             if (header.isMinimized()) header.restore();
             header.focus();
@@ -608,8 +643,8 @@ async function handleFirebaseAuthCallback(params) {
         console.error('[Auth] Error during custom token exchange or sign-in:', error);
         // The UI will not change, and the user can try again.
         // Optionally, send a generic error event to the renderer.
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: errorWindowPool } = require('./window/windowManager.js');
+        const header = errorWindowPool.get('header');
         if (header) {
             header.webContents.send('auth-failed', { message: error.message });
         }
@@ -649,8 +684,8 @@ async function handleServerSideAuthCallback(params) {
         }
 
         // 3. Focus the app window
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: serverAuthWindowPool } = require('./window/windowManager.js');
+        const header = serverAuthWindowPool.get('header');
         if (header) {
             if (header.isMinimized()) header.restore();
             header.focus();
@@ -661,8 +696,8 @@ async function handleServerSideAuthCallback(params) {
     } catch (error) {
         console.error('[Auth] Error during server-side authentication:', error);
         // Send error event to the renderer
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: serverErrorWindowPool } = require('./window/windowManager.js');
+        const header = serverErrorWindowPool.get('header');
         if (header) {
             header.webContents.send('auth-failed', { message: error.message });
         }
@@ -672,8 +707,8 @@ async function handleServerSideAuthCallback(params) {
 function handlePersonalizeFromUrl(params) {
     console.log('[Custom URL] Personalize params:', params);
     
-    const { windowPool } = require('./window/windowManager.js');
-    const header = windowPool.get('header');
+    const { windowPool: personalizeWindowPool } = require('./window/windowManager.js');
+    const header = personalizeWindowPool.get('header');
     
     if (header) {
         if (header.isMinimized()) header.restore();
@@ -691,6 +726,106 @@ function handlePersonalizeFromUrl(params) {
         });
     } else {
         console.error('[Custom URL] Header window not found for personalize');
+    }
+}
+
+async function handleOAuthCallback(pathname, params) {
+    console.log('[OAuth] Processing OAuth callback - pathname:', pathname, 'params:', params);
+    
+    try {
+        // Extract the OAuth path (e.g., "/callback")
+        const { code, state, error, error_description } = params;
+        
+        // Handle OAuth errors
+        if (error) {
+            console.error('[OAuth] OAuth error received:', error, error_description);
+            
+            // Send error notification to UI
+            const { windowPool: oauthErrorWindowPool } = require('./window/windowManager.js');
+            const header = oauthErrorWindowPool.get('header');
+            if (header) {
+                header.webContents.send('mcp:auth-status-updated', {
+                    success: false,
+                    error: `OAuth Error: ${error} - ${error_description || 'Unknown error'}`
+                });
+            }
+            return;
+        }
+        
+        // Validate required parameters
+        if (!code || !state) {
+            console.error('[OAuth] Missing required OAuth parameters:', { code: !!code, state: !!state });
+            
+            const { windowPool: oauthValidationWindowPool } = require('./window/windowManager.js');
+            const header = oauthValidationWindowPool.get('header');
+            if (header) {
+                header.webContents.send('mcp:auth-status-updated', {
+                    success: false,
+                    error: 'Missing required OAuth parameters (code or state)'
+                });
+            }
+            return;
+        }
+        
+        console.log('[OAuth] Processing OAuth callback with code and state');
+        
+        // Ensure invisibility service is initialized - Claude's fix
+        if (!global.invisibilityService) {
+            console.log('[OAuth] Invisibility service not initialized, initializing now...');
+            try {
+                const InvisibilityService = require('./features/invisibility/invisibilityService');
+                global.invisibilityService = new InvisibilityService();
+                await global.invisibilityService.initialize();
+                console.log('[OAuth] Invisibility service initialized successfully for OAuth');
+            } catch (initError) {
+                console.error('[OAuth] Failed to initialize invisibility service:', initError);
+                throw new Error(`Failed to initialize MCP service: ${initError.message}`);
+            }
+        }
+        
+        // Verify MCP client is available
+        if (!global.invisibilityService.mcpClient) {
+            console.error('[OAuth] MCP client not available in invisibility service');
+            throw new Error('MCP client not available - service initialization may have failed');
+        }
+        
+        // Get the invisibility service and MCP client
+        console.log('[OAuth] Using initialized invisibility service for OAuth processing');
+        const result = await global.invisibilityService.mcpClient.handleOAuthCallback(code, state);
+        
+        if (result.success) {
+            console.log('[OAuth] OAuth callback processed successfully');
+            
+            // Send success notification to UI
+            const { windowPool: oauthSuccessWindowPool } = require('./window/windowManager.js');
+            const header = oauthSuccessWindowPool.get('header');
+            if (header) {
+                header.webContents.send('mcp:auth-status-updated', {
+                    success: true,
+                    message: 'Authentication completed successfully!'
+                });
+            }
+            
+            // Focus the app window
+            if (header.isMinimized()) header.restore();
+            header.focus();
+            
+        } else {
+            throw new Error(result.error || 'OAuth callback processing failed');
+        }
+        
+    } catch (error) {
+        console.error('[OAuth] Error processing OAuth callback:', error);
+        
+        // Send error notification to UI
+        const { windowPool: oauthCatchWindowPool } = require('./window/windowManager.js');
+        const header = oauthCatchWindowPool.get('header');
+        if (header) {
+            header.webContents.send('mcp:auth-status-updated', {
+                success: false,
+                error: `OAuth processing failed: ${error.message}`
+            });
+        }
     }
 }
 

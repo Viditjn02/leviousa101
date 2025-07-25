@@ -10,7 +10,47 @@ contextBridge.exposeInMainWorld('api', {
     platform: process.platform
   },
 
-
+  // MCP (Model Context Protocol) Integration API
+  mcp: {
+    // Server management
+    getServerStatus: () => ipcRenderer.invoke('mcp:getServerStatus'),
+    startServer: (serverName, config) => ipcRenderer.invoke('mcp:startServer', serverName, config),
+    stopServer: (serverName) => ipcRenderer.invoke('mcp:stopServer', serverName),
+    removeServer: (serverName) => ipcRenderer.invoke('mcp:removeServer', serverName),
+    testConnection: (serviceName) => ipcRenderer.invoke('mcp:testConnection', serviceName),
+    
+    // External service setup
+    setupExternalService: (serviceName, authType) => ipcRenderer.invoke('mcp:setupExternalService', serviceName, authType),
+    disconnectService: (serviceName) => ipcRenderer.invoke('mcp:disconnectService', serviceName),
+    getSupportedServices: () => ipcRenderer.invoke('mcp:getSupportedServices'),
+    
+    // Authentication
+    openOAuthWindow: (authUrl, provider, service) => ipcRenderer.invoke('mcp:openOAuthWindow', authUrl, provider, service),
+    handleOAuthCallback: (code, state) => ipcRenderer.invoke('mcp:handleOAuthCallback', code, state),
+    getAuthenticationStatus: () => ipcRenderer.invoke('mcp:getAuthenticationStatus'),
+    setCredential: (key, value) => ipcRenderer.invoke('mcp:setCredential', key, value),
+    validateConfiguration: () => ipcRenderer.invoke('mcp:validateConfiguration'),
+    
+    // Protocol and connectivity testing
+    testProtocolHandling: () => ipcRenderer.invoke('mcp:testProtocolHandling'),
+    processOAuthManually: (code, state) => ipcRenderer.invoke('mcp:processOAuthManually', code, state),
+    
+    // Tool operations
+    callTool: (toolName, args) => ipcRenderer.invoke('mcp:callTool', toolName, args),
+    getAvailableTools: () => ipcRenderer.invoke('mcp:getAvailableTools'),
+    
+    // Event listeners
+    onServersUpdated: (callback) => ipcRenderer.on('mcp:servers-updated', callback),
+    onAuthStatusUpdated: (callback) => ipcRenderer.on('mcp:auth-status-updated', callback),
+    onCredentialUpdated: (callback) => ipcRenderer.on('mcp:credential-updated', callback),
+    onServerAdded: (callback) => ipcRenderer.on('mcp:server-added', callback),
+    
+    // Remove listeners
+    removeServersUpdated: (callback) => ipcRenderer.removeListener('mcp:servers-updated', callback),
+    removeAuthStatusUpdated: (callback) => ipcRenderer.removeListener('mcp:auth-status-updated', callback),
+    removeCredentialUpdated: (callback) => ipcRenderer.removeListener('mcp:credential-updated', callback),
+    removeServerAdded: (callback) => ipcRenderer.removeListener('mcp:server-added', callback)
+  },
 
   // Complete Invisibility Mode API
   invisibility: {
@@ -194,7 +234,7 @@ leviousaApp: {
     adjustWindowHeight: (winName, height) => ipcRenderer.invoke('adjust-window-height', { winName, height }),
     
     // Message Handling
-    sendMessage: (text) => ipcRenderer.invoke('ask:sendQuestionFromAsk', text),
+    sendMessage: (text, conversationHistory = []) => ipcRenderer.invoke('ask:sendQuestionFromAsk', text, conversationHistory),
 
     // Listeners
     onAskStateUpdate: (callback) => ipcRenderer.on('ask:stateUpdate', callback),
@@ -347,27 +387,6 @@ leviousaApp: {
     removeOnChangeListenCaptureState: (callback) => ipcRenderer.removeListener('change-listen-capture-state', callback)
   },
 
-  // Complete Invisibility Mode API
-  invisibility: {
-    enable: () => ipcRenderer.invoke('invisibility:enable'),
-    disable: () => ipcRenderer.invoke('invisibility:disable'),
-    getStatus: () => ipcRenderer.invoke('invisibility:getStatus'),
-    updateConfig: (config) => ipcRenderer.invoke('invisibility:updateConfig', config),
-    processQuestion: () => ipcRenderer.invoke('invisibility:processQuestion'),
-    testQuestionDetection: () => ipcRenderer.invoke('invisibility:testQuestionDetection'),
-    testFieldDetection: () => ipcRenderer.invoke('invisibility:testFieldDetection'),
-    testTyping: () => ipcRenderer.invoke('invisibility:testTyping'),
-    testAnswerGeneration: () => ipcRenderer.invoke('invisibility:testAnswerGeneration'),
-    testRemoteAccessDetection: () => ipcRenderer.invoke('invisibility:testRemoteAccessDetection'),
-    onModeEnabled: (callback) => ipcRenderer.on('invisibility:mode-enabled', callback),
-    onModeDisabled: (callback) => ipcRenderer.on('invisibility:mode-disabled', callback),
-    onRemoteAccessDetected: (callback) => ipcRenderer.on('invisibility:remote-access-detected', callback),
-    onRemoteAccessEnded: (callback) => ipcRenderer.on('invisibility:remote-access-ended', callback),
-    onOverlayHidden: (callback) => ipcRenderer.on('invisibility:overlay-hidden', callback),
-    onOverlayShown: (callback) => ipcRenderer.on('invisibility:overlay-shown', callback),
-    onConfigUpdated: (callback) => ipcRenderer.on('invisibility:config-updated', callback)
-  },
-
   // Voice Agent API - "Hey Leviousa" Assistant
   voiceAgent: {
     // Main control
@@ -448,3 +467,8 @@ leviousaApp: {
     onVoiceEnrollmentCancelled: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-cancelled', callback)
   }
 });
+
+// OAuth server management for MCP
+ipcRenderer.handle('mcp:startOAuthServer', () => ipcRenderer.invoke('mcp:startOAuthServer'));
+ipcRenderer.handle('mcp:stopOAuthServer', () => ipcRenderer.invoke('mcp:stopOAuthServer'));
+ipcRenderer.handle('mcp:generateOAuthUrl', (params) => ipcRenderer.invoke('mcp:generateOAuthUrl', params));
