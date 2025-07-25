@@ -1,0 +1,477 @@
+/**
+ * OAuth Manager
+ * Handles OAuth authentication flows independently from MCP server lifecycle
+ * Manages token storage, refresh, and validation
+ */
+
+const { EventEmitter } = require('events');
+const crypto = require('crypto');
+const http = require('http');
+const url = require('url');
+const winston = require('winston');
+const MCPConfigManager = require('../../../config/mcpConfig');
+
+// Configure logger
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            return `[OAuthManager] ${timestamp} ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`;
+        })
+    ),
+    transports: [
+        new winston.transports.Console()
+    ]
+});
+
+// OAuth provider configurations
+const OAUTH_PROVIDERS = {
+    notion: {
+        authUrl: 'https://api.notion.com/v1/oauth/authorize',
+        tokenUrl: 'https://api.notion.com/v1/oauth/token',
+        scopes: []
+    },
+    github: {
+        authUrl: 'https://github.com/login/oauth/authorize',
+        tokenUrl: 'https://github.com/login/oauth/access_token',
+        scopes: ['repo', 'user:email']
+    },
+    slack: {
+        authUrl: 'https://slack.com/oauth/v2/authorize',
+        tokenUrl: 'https://slack.com/api/oauth.v2.access',
+        scopes: [
+            'channels:read',
+            'channels:history',
+            'chat:write',
+            'files:read',
+            'users:read'
+        ]
+    },
+    'google-drive': {
+        authUrl: 'https://accounts.google.com/o/oauth2/auth',
+        tokenUrl: 'https://oauth2.googleapis.com/token',
+        scopes: ['https://www.googleapis.com/auth/drive.readonly']
+    }
+};
+
+class OAuthManager extends EventEmitter {
+    constructor() {
+        super();
+        this.configManager = new MCPConfigManager();
+        this.authStates = new Map(); // Track ongoing auth flows
+        this.oauthServer = null;
+        this.oauthPort = null;
+        
+        logger.info('OAuthManager initialized');
+    }
+
+    /**
+     * Initialize the OAuth manager
+     */
+    async initialize() {
+        try {
+            await this.configManager.initialize();
+            logger.info('OAuth Manager initialized successfully');
+        } catch (error) {
+            logger.error('Failed to initialize OAuth Manager', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Start OAuth flow for a provider
+     */
+    async authenticate(provider) {
+        if (!OAUTH_PROVIDERS[provider]) {
+            throw new Error(`Unknown OAuth provider: ${provider}`);
+        }
+
+        logger.info('Starting OAuth flow', { provider });
+
+        try {
+            // Check if we already have a valid token
+            const existingToken = await this.getValidToken(provider);
+            if (existingToken) {
+                logger.info('Using existing valid token', { provider });
+                return {
+                    accessToken: existingToken,
+                    provider,
+                    isNewAuth: false
+                };
+            }
+
+            // Check if we have client credentials
+            if (!this.hasClientCredentials(provider)) {
+                throw new Error(`No client credentials configured for ${provider}`);
+            }
+
+            // Start OAuth flow
+            const authResult = await this.startOAuthFlow(provider);
+            
+            logger.info('OAuth flow completed successfully', { provider });
+            this.emit('authenticated', { provider, isNewAuth: true });
+            
+            return {
+                accessToken: authResult.accessToken,
+                refreshToken: authResult.refreshToken,
+                provider,
+                isNewAuth: true
+            };
+
+        } catch (error) {
+            logger.error('OAuth authentication failed', { provider, error: error.message });
+            this.emit('authenticationFailed', { provider, error });
+            throw error;
+        }
+    }
+
+    /**
+     * Check if we have client credentials for a provider
+     */
+    hasClientCredentials(provider) {
+        return this.configManager.hasOAuthClientCredentials(provider);
+    }
+
+    /**
+     * Get a valid access token (refresh if needed)
+     */
+    async getValidToken(provider) {
+        const oauthService = this.getOAuthServiceIdentifier(provider);
+        return await this.configManager.getValidAccessToken(provider, oauthService);
+    }
+
+    /**
+     * Start the OAuth authorization flow
+     */
+    async startOAuthFlow(provider) {
+        // Generate state for CSRF protection
+        const state = crypto.randomBytes(32).toString('hex');
+        this.authStates.set(state, {
+            provider,
+            timestamp: Date.now()
+        });
+
+        // Start local callback server
+        const callbackUrl = await this.startCallbackServer();
+        
+        // Build authorization URL
+        const authUrl = this.buildAuthorizationUrl(provider, state, callbackUrl);
+        
+        logger.info('Opening authorization URL', { provider, authUrl });
+        
+        // Open the URL in the user's browser
+        const { shell } = require('electron');
+        shell.openExternal(authUrl);
+
+        // Wait for callback
+        return await this.waitForCallback(state);
+    }
+
+    /**
+     * Build the authorization URL
+     */
+    buildAuthorizationUrl(provider, state, callbackUrl) {
+        const config = OAUTH_PROVIDERS[provider];
+        const clientId = this.configManager.getClientId(provider);
+        
+        const params = new URLSearchParams({
+            client_id: clientId,
+            redirect_uri: callbackUrl,
+            state: state,
+            response_type: 'code'
+        });
+
+        // Add scopes if configured
+        if (config.scopes && config.scopes.length > 0) {
+            params.append('scope', config.scopes.join(' '));
+        }
+
+        // Provider-specific parameters
+        if (provider === 'notion') {
+            params.append('owner', 'user');
+        }
+
+        return `${config.authUrl}?${params.toString()}`;
+    }
+
+    /**
+     * Start the OAuth callback server
+     */
+    async startCallbackServer() {
+        return new Promise((resolve, reject) => {
+            this.oauthServer = http.createServer();
+            
+            this.oauthServer.on('error', (error) => {
+                logger.error('OAuth callback server error', { error: error.message });
+                reject(error);
+            });
+
+            // Try to find an available port
+            const tryPort = (port) => {
+                this.oauthServer.listen(port, '127.0.0.1', () => {
+                    this.oauthPort = port;
+                    const callbackUrl = `http://localhost:${port}/oauth/callback`;
+                    logger.info('OAuth callback server started', { port, callbackUrl });
+                    resolve(callbackUrl);
+                });
+            };
+
+            // Try ports starting from 43210
+            tryPort(43210);
+        });
+    }
+
+    /**
+     * Wait for OAuth callback
+     */
+    async waitForCallback(expectedState) {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.cleanupCallbackServer();
+                reject(new Error('OAuth callback timeout'));
+            }, 300000); // 5 minutes timeout
+
+            this.oauthServer.on('request', async (req, res) => {
+                const parsedUrl = url.parse(req.url, true);
+                
+                if (parsedUrl.pathname === '/oauth/callback') {
+                    clearTimeout(timeout);
+                    
+                    const { code, state, error } = parsedUrl.query;
+                    
+                    // Validate state
+                    if (state !== expectedState) {
+                        logger.error('Invalid OAuth state');
+                        res.writeHead(400);
+                        res.end('Invalid state parameter');
+                        reject(new Error('Invalid OAuth state'));
+                        return;
+                    }
+
+                    // Check for errors
+                    if (error) {
+                        logger.error('OAuth authorization error', { error });
+                        res.writeHead(400);
+                        res.end(`Authorization error: ${error}`);
+                        reject(new Error(`Authorization error: ${error}`));
+                        return;
+                    }
+
+                    // Exchange code for token
+                    try {
+                        const authState = this.authStates.get(state);
+                        const tokenResult = await this.exchangeCodeForToken(
+                            authState.provider,
+                            code,
+                            `http://localhost:${this.oauthPort}/oauth/callback`
+                        );
+
+                        // Send success response
+                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        res.end(`
+                            <html>
+                                <body>
+                                    <h1>Authentication successful!</h1>
+                                    <p>You can close this window and return to the application.</p>
+                                    <script>window.close();</script>
+                                </body>
+                            </html>
+                        `);
+
+                        this.cleanupCallbackServer();
+                        resolve(tokenResult);
+                    } catch (error) {
+                        logger.error('Token exchange failed', { error: error.message });
+                        res.writeHead(500);
+                        res.end('Token exchange failed');
+                        reject(error);
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Exchange authorization code for access token
+     */
+    async exchangeCodeForToken(provider, code, redirectUri) {
+        const config = OAUTH_PROVIDERS[provider];
+        const clientId = this.configManager.getClientId(provider);
+        const clientSecret = this.configManager.getClientSecret(provider);
+
+        const tokenData = {
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: redirectUri,
+            client_id: clientId,
+            client_secret: clientSecret
+        };
+
+        logger.info('Exchanging code for token', { provider });
+
+        try {
+            const response = await fetch(config.tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(tokenData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.error) {
+                throw new Error(result.error || `Token exchange failed: ${response.status}`);
+            }
+
+            // Store the tokens
+            await this.configManager.saveTokens(provider, {
+                accessToken: result.access_token,
+                refreshToken: result.refresh_token,
+                expiresIn: result.expires_in
+            });
+
+            return {
+                accessToken: result.access_token,
+                refreshToken: result.refresh_token
+            };
+
+        } catch (error) {
+            logger.error('Token exchange request failed', { provider, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Refresh an access token
+     */
+    async refreshToken(provider) {
+        const config = OAUTH_PROVIDERS[provider];
+        const refreshToken = await this.configManager.getRefreshToken(provider);
+        
+        if (!refreshToken) {
+            throw new Error(`No refresh token available for ${provider}`);
+        }
+
+        const clientId = this.configManager.getClientId(provider);
+        const clientSecret = this.configManager.getClientSecret(provider);
+
+        const tokenData = {
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            client_id: clientId,
+            client_secret: clientSecret
+        };
+
+        logger.info('Refreshing access token', { provider });
+
+        try {
+            const response = await fetch(config.tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(tokenData)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || result.error) {
+                throw new Error(result.error || `Token refresh failed: ${response.status}`);
+            }
+
+            // Update stored tokens
+            await this.configManager.saveTokens(provider, {
+                accessToken: result.access_token,
+                refreshToken: result.refresh_token || refreshToken,
+                expiresIn: result.expires_in
+            });
+
+            logger.info('Token refreshed successfully', { provider });
+            this.emit('tokenRefreshed', { provider });
+
+            return result.access_token;
+
+        } catch (error) {
+            logger.error('Token refresh failed', { provider, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Revoke tokens for a provider
+     */
+    async revokeToken(provider) {
+        logger.info('Revoking tokens', { provider });
+        
+        try {
+            await this.configManager.revokeTokens(provider);
+            this.emit('tokenRevoked', { provider });
+            logger.info('Tokens revoked successfully', { provider });
+        } catch (error) {
+            logger.error('Failed to revoke tokens', { provider, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Get OAuth service identifier for a provider
+     */
+    getOAuthServiceIdentifier(provider) {
+        // Map provider names to OAuth service identifiers
+        const serviceMap = {
+            'notion': 'notion',
+            'github': 'github',
+            'slack': 'slack',
+            'google-drive': 'google'
+        };
+        
+        return serviceMap[provider] || provider;
+    }
+
+    /**
+     * Clean up callback server
+     */
+    cleanupCallbackServer() {
+        if (this.oauthServer) {
+            this.oauthServer.close();
+            this.oauthServer = null;
+            this.oauthPort = null;
+            logger.info('OAuth callback server cleaned up');
+        }
+        
+        // Clean up old auth states
+        const now = Date.now();
+        for (const [state, data] of this.authStates.entries()) {
+            if (now - data.timestamp > 600000) { // 10 minutes
+                this.authStates.delete(state);
+            }
+        }
+    }
+
+    /**
+     * Get authentication status for all providers
+     */
+    async getAuthenticationStatus() {
+        const status = {};
+        
+        for (const provider of Object.keys(OAUTH_PROVIDERS)) {
+            const hasCredentials = this.hasClientCredentials(provider);
+            const hasToken = !!(await this.getValidToken(provider));
+            
+            status[provider] = {
+                hasClientCredentials: hasCredentials,
+                isAuthenticated: hasToken,
+                canAuthenticate: hasCredentials && !hasToken,
+                needsSetup: !hasCredentials
+            };
+        }
+        
+        return status;
+    }
+}
+
+module.exports = OAuthManager; 

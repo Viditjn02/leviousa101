@@ -42,7 +42,7 @@
         "@deepgram/sdk": "^4.9.1",
         "@google/genai": "^1.8.0",
         "@google/generative-ai": "^0.24.1",
-
+        "@modelcontextprotocol/sdk": "^1.17.0",
         "axios": "^1.10.0",
         "better-sqlite3": "^12.2.0",
         "cors": "^2.8.5",
@@ -57,13 +57,16 @@
         "keytar": "^7.9.0",
         "node-fetch": "^3.3.2",
         "openai": "^5.10.1",
+        "p-queue": "^8.1.0",
         "portkey-ai": "^1.10.1",
         "react-hot-toast": "^2.5.2",
         "sharp": "^0.34.2",
         "temp": "^0.9.4",
         "validator": "^13.11.0",
         "wait-on": "^8.0.3",
-        "ws": "^8.18.0"
+        "winston": "^3.17.0",
+        "ws": "^8.18.0",
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@electron/fuses": "^1.8.0",
