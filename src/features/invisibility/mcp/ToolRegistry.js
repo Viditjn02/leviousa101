@@ -175,18 +175,18 @@ class ToolRegistry extends EventEmitter {
      * This is a placeholder - actual implementation would use MCP client
      */
     async invokeToolThroughMCP(adapter, toolName, args) {
-        // In the real implementation, we would:
-        // 1. Use the MCP client protocol to send a tool invocation request
-        // 2. Wait for the response
-        // 3. Return the result
+        // Use the MCP client's callTool method
+        if (!adapter || !adapter.callTool) {
+            throw new Error('MCP adapter not properly initialized or missing callTool method');
+        }
         
-        // For now, return a placeholder
-        return {
-            content: [{
-                type: 'text',
-                text: `Tool ${toolName} invoked with args: ${JSON.stringify(args)}`
-            }]
-        };
+        try {
+            const result = await adapter.callTool(toolName, args);
+            return result;
+        } catch (error) {
+            logger.error('MCP tool invocation failed', { toolName, error: error.message });
+            throw error;
+        }
     }
 
     /**
@@ -240,6 +240,13 @@ class ToolRegistry extends EventEmitter {
         }
 
         return results;
+    }
+
+    /**
+     * Get all tools
+     */
+    getAllTools() {
+        return Array.from(this.tools.values());
     }
 
     /**
@@ -303,6 +310,48 @@ class ToolRegistry extends EventEmitter {
         this.serverTools.clear();
         logger.info('Tool registry cleared');
         this.emit('cleared');
+    }
+
+    /**
+     * Register a tool manually (for testing)
+     */
+    registerTool(serverName, tool) {
+        const toolName = tool.name;
+        const toolWithServer = {
+            ...tool,
+            serverName
+        };
+        
+        this.tools.set(toolName, toolWithServer);
+        
+        if (!this.serverTools.has(serverName)) {
+            this.serverTools.set(serverName, new Set());
+        }
+        this.serverTools.get(serverName).add(toolName);
+        
+        logger.info('Tool registered manually', { serverName, toolName });
+        this.emit('toolRegistered', { serverName, toolName, tool: toolWithServer });
+    }
+
+    /**
+     * Remove tools for a server
+     */
+    removeServerTools(serverName) {
+        const tools = this.serverTools.get(serverName);
+        if (tools) {
+            for (const toolName of tools) {
+                this.tools.delete(toolName);
+            }
+            this.serverTools.delete(serverName);
+            logger.info('Removed tools for server', { serverName, count: tools.size });
+        }
+    }
+
+    /**
+     * Get status of the tool registry
+     */
+    getStatus() {
+        return this.getStatistics();
     }
 }
 

@@ -39,12 +39,12 @@ class InvisibilityService extends EventEmitter {
             const QuestionDetector = require('./questionDetector');
             const FieldFinder = require('./fieldFinder');
             const HumanTyper = require('./humanTyper');
-            const MCPClient = require('./mcpClient');
+            const { MCPMigrationBridge } = require('./mcp/MCPMigrationBridge');
 
             this.questionDetector = new QuestionDetector();
             this.fieldFinder = new FieldFinder();
             this.humanTyper = new HumanTyper();
-            this.mcpClient = new MCPClient();
+            this.mcpClient = new MCPMigrationBridge();
 
             console.log('[InvisibilityService] Initializing QuestionDetector...');
             await this.questionDetector.initialize();

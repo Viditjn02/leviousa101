@@ -271,20 +271,20 @@ class MCPConfigManager extends EventEmitter {
         generateOAuthUrl(provider, service, scopes = [], redirectUri = null) {
         console.log(`[MCPConfig] 🔧 Generating OAuth URL for ${provider}:${service}`);
         
-        // Use localhost callback if available (most reliable)
+        // Use localhost callback if available (most reliable for all providers)
         if (!redirectUri) {
-            // First check if this provider requires web callback (HTTPS)
-            const webCallbackProviders = ['notion', 'slack'];
-            
-            if (webCallbackProviders.includes(provider.toLowerCase())) {
-                redirectUri = 'https://leviousa-101.web.app/api/oauth/callback';
-                console.log(`[MCPConfig] 🌐 Using API route for ${provider}: ${redirectUri}`);
+            // First, try to use localhost OAuth server for ALL providers (preferred method)
+            const mcpClient = global.invisibilityService?.mcpClient;
+            if (mcpClient && mcpClient.oauthPort) {
+                redirectUri = `http://localhost:${mcpClient.oauthPort}/callback`;
+                console.log(`[MCPConfig] 🏠 Using localhost callback server for ${provider}: ${redirectUri}`);
             } else {
-                // Check if localhost OAuth server is running for other providers
-                const mcpClient = global.invisibilityService?.mcpClient;
-                if (mcpClient && mcpClient.oauthPort) {
-                    redirectUri = `http://localhost:${mcpClient.oauthPort}/callback`;
-                    console.log(`[MCPConfig] 🏠 Using localhost callback server: ${redirectUri}`);
+                // Fallback to web callback for providers that require HTTPS
+                const webCallbackProviders = ['notion', 'slack'];
+                
+                if (webCallbackProviders.includes(provider.toLowerCase())) {
+                    redirectUri = 'https://leviousa-101.web.app/api/oauth/callback';
+                    console.log(`[MCPConfig] 🌐 Using API route fallback for ${provider}: ${redirectUri}`);
                 } else {
                     // Direct to Electron for providers that support custom protocols
                     redirectUri = 'leviousa://oauth/callback';
@@ -682,6 +682,62 @@ class MCPConfigManager extends EventEmitter {
         const hasCredentials = !!(clientId && clientSecret);
         console.log(`[MCPConfig] ${serviceName} OAuth client credentials available:`, hasCredentials);
         return hasCredentials;
+    }
+
+    // OAuth credential access methods (for OAuthManager compatibility)
+    getClientId(provider) {
+        return this.getCredential(`${provider}_client_id`);
+    }
+
+    getClientSecret(provider) {
+        return this.getCredential(`${provider}_client_secret`);
+    }
+
+    getRefreshToken(provider) {
+        // Try service-specific token first, then general token
+        const serviceToken = this.getCredential(`${provider}_token`);
+        if (serviceToken) {
+            try {
+                const tokenData = JSON.parse(serviceToken);
+                return tokenData.refresh_token;
+            } catch (error) {
+                console.warn(`[MCPConfig] Error parsing token data for ${provider}:`, error.message);
+            }
+        }
+        
+        // Fallback to direct refresh token credential
+        return this.getCredential(`${provider}_refresh_token`);
+    }
+
+    // Save OAuth tokens (for OAuthManager compatibility)
+    async saveTokens(provider, tokenData) {
+        const tokenKey = `${provider}_token`;
+        const tokenValue = JSON.stringify({
+            access_token: tokenData.accessToken,
+            refresh_token: tokenData.refreshToken,
+            expires_at: tokenData.expiresIn ? Date.now() + (tokenData.expiresIn * 1000) : null
+        });
+        
+        this.setCredential(tokenKey, tokenValue);
+        await this.saveConfiguration();
+        
+        console.log(`[MCPConfig] Saved tokens for ${provider}`);
+        this.emit('tokens-saved', { provider });
+    }
+
+    // Revoke tokens (for OAuthManager compatibility)
+    async revokeTokens(provider) {
+        const tokenKey = `${provider}_token`;
+        this.removeCredential(tokenKey);
+        
+        // Also remove any refresh token
+        const refreshTokenKey = `${provider}_refresh_token`;
+        this.removeCredential(refreshTokenKey);
+        
+        await this.saveConfiguration();
+        
+        console.log(`[MCPConfig] Revoked tokens for ${provider}`);
+        this.emit('tokens-revoked', { provider });
     }
 
     // API Key rotation management

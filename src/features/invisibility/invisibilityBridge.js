@@ -723,6 +723,16 @@ function initializeInvisibilityBridge() {
                     }
                 });
             });
+
+            // OAuth authentication events
+            service.mcpClient.on('authSuccess', (authResult) => {
+                console.log('[InvisibilityBridge] OAuth authentication successful, notifying UI:', authResult);
+                BrowserWindow.getAllWindows().forEach(window => {
+                    if (!window.isDestroyed()) {
+                        window.webContents.send('mcp:auth-status-updated', authResult);
+                    }
+                });
+            });
         }
     }
 

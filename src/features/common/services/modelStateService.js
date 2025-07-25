@@ -18,10 +18,51 @@ class ModelStateService extends EventEmitter {
         this.authService = authService;
         // electron-store는 오직 레거시 데이터 마이그레이션 용도로만 사용됩니다.
         this.store = null;
+        
+        // Add EPIPE error protection
+        this._setupEPipeProtection();
+        
         this._initializeStore().catch(error => {
             console.error('[ModelStateService] Store initialization failed:', error);
             // Store will remain null, which is handled gracefully in other methods
         });
+    }
+
+    /**
+     * Set up EPIPE error protection for console methods
+     */
+    _setupEPipeProtection() {
+        if (global._modelStateEPipeProtected) {
+            return; // Already protected
+        }
+        
+        const originalMethods = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn,
+            info: console.info
+        };
+        
+        const createSafeMethod = (original) => {
+            return (...args) => {
+                try {
+                    original.apply(console, args);
+                } catch (error) {
+                    if (error.code === 'EPIPE' || error.errno === -32) {
+                        // Silently ignore EPIPE errors to prevent crashes
+                        return;
+                    }
+                    throw error;
+                }
+            };
+        };
+        
+        console.log = createSafeMethod(originalMethods.log);
+        console.error = createSafeMethod(originalMethods.error);
+        console.warn = createSafeMethod(originalMethods.warn);
+        console.info = createSafeMethod(originalMethods.info);
+        
+        global._modelStateEPipeProtected = true;
     }
 
     async _initializeStore() {

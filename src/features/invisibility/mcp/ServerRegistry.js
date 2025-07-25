@@ -119,7 +119,6 @@ class ServerRegistry extends EventEmitter {
             name,
             config: serverConfig,
             status: ServerStatus.STOPPED,
-            process: null,
             adapter: null,
             error: null,
             startTime: null,
@@ -176,22 +175,22 @@ class ServerRegistry extends EventEmitter {
             // Set up adapter event handlers
             this.setupAdapterHandlers(name, adapter);
 
-            // Initialize adapter
-            await adapter.initialize();
-
-            // Start the server process
-            const serverProcess = await this.startServerProcess(name, serverState.config, env);
-            
-            // Connect adapter to process
-            // For stdio transport, we need to connect the adapter to the process streams
-            // This is a simplified version - in reality we'd need to handle the stdio connection
-            await adapter.connect();
+            // Connect adapter to the server using command and args
+            await adapter.connectWithRetry(
+                serverState.config.command, 
+                serverState.config.args,
+                { env, cwd: serverState.config.cwd }
+            );
 
             // Update server state
-            serverState.process = serverProcess;
             serverState.adapter = adapter;
             serverState.status = ServerStatus.RUNNING;
             serverState.startTime = new Date();
+
+            // Get capabilities from the adapter
+            serverState.tools = adapter.getTools();
+            serverState.resources = adapter.getResources();
+            serverState.prompts = adapter.getPrompts();
 
             logger.info('Server started successfully', { name });
             this.emit('serverStarted', { name });
@@ -234,13 +233,7 @@ class ServerRegistry extends EventEmitter {
                 await serverState.adapter.disconnect();
             }
 
-            // Stop server process
-            if (serverState.process) {
-                await this.stopServerProcess(serverState.process);
-            }
-
             // Update server state
-            serverState.process = null;
             serverState.adapter = null;
             serverState.status = ServerStatus.STOPPED;
             serverState.startTime = null;
@@ -318,15 +311,22 @@ class ServerRegistry extends EventEmitter {
         if (config.requiresAuth && config.authProvider) {
             const token = await this.oauthManager.getValidToken(config.authProvider);
             
-            // Map provider to environment variable
-            const tokenEnvMap = {
-                'notion': 'NOTION_API_TOKEN',
-                'github': 'GITHUB_PERSONAL_ACCESS_TOKEN',
-                'slack': 'SLACK_BOT_TOKEN',
-                'google-drive': 'GOOGLE_OAUTH_TOKEN'
-            };
+            // Check if server config specifies a custom environment variable name
+            let envVar;
+            if (config.tokenEnvVar) {
+                // Use server-specific environment variable name
+                envVar = config.tokenEnvVar;
+            } else {
+                // Fall back to default mapping
+                const tokenEnvMap = {
+                    'notion': 'NOTION_API_TOKEN',
+                    'github': 'GITHUB_PERSONAL_ACCESS_TOKEN',
+                    'slack': 'SLACK_BOT_TOKEN',
+                    'google-drive': 'GOOGLE_OAUTH_TOKEN'
+                };
+                envVar = tokenEnvMap[config.authProvider];
+            }
 
-            const envVar = tokenEnvMap[config.authProvider];
             if (envVar && token) {
                 env[envVar] = token;
                 logger.info('Added authentication token to environment', { serverName, envVar: envVar });
@@ -339,69 +339,6 @@ class ServerRegistry extends EventEmitter {
         }
 
         return env;
-    }
-
-    /**
-     * Start a server process
-     */
-    async startServerProcess(serverName, config, env) {
-        return new Promise((resolve, reject) => {
-            logger.info('Spawning server process', { 
-                serverName, 
-                command: config.command, 
-                args: config.args 
-            });
-
-            const serverProcess = spawn(config.command, config.args, {
-                env,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
-
-            // Handle process events
-            serverProcess.on('error', (error) => {
-                logger.error('Server process error', { serverName, error: error.message });
-                reject(error);
-            });
-
-            serverProcess.on('exit', (code, signal) => {
-                logger.info('Server process exited', { serverName, code, signal });
-            });
-
-            // Give the process a moment to start
-            setTimeout(() => {
-                if (!serverProcess.killed) {
-                    resolve(serverProcess);
-                } else {
-                    reject(new Error('Server process failed to start'));
-                }
-            }, 1000);
-        });
-    }
-
-    /**
-     * Stop a server process
-     */
-    async stopServerProcess(serverProcess) {
-        return new Promise((resolve) => {
-            if (!serverProcess || serverProcess.killed) {
-                resolve();
-                return;
-            }
-
-            serverProcess.on('exit', () => {
-                resolve();
-            });
-
-            // Try graceful shutdown first
-            serverProcess.kill('SIGTERM');
-
-            // Force kill after timeout
-            setTimeout(() => {
-                if (!serverProcess.killed) {
-                    serverProcess.kill('SIGKILL');
-                }
-            }, 5000);
-        });
     }
 
     /**
@@ -483,6 +420,76 @@ class ServerRegistry extends EventEmitter {
      */
     getServerDefinition(name) {
         return SERVER_DEFINITIONS[name];
+    }
+
+    /**
+     * Add a new server configuration
+     */
+    async addServer(config) {
+        const serverConfig = {
+            name: config.name,
+            command: config.command,
+            args: config.args || [],
+            env: config.env || {},
+            type: config.type || 'custom',
+            requiresAuth: config.requiresAuth || false,
+            status: 'stopped',
+            tools: [],
+            resources: [],
+            prompts: []
+        };
+        
+        this.servers.set(config.name, serverConfig);
+        logger.info('Server added', { name: config.name });
+        this.emit('serverAdded', { serverName: config.name, config: serverConfig });
+        
+        return serverConfig;
+    }
+
+    /**
+     * Remove a server configuration
+     */
+    async removeServer(serverName) {
+        if (this.servers.has(serverName)) {
+            // Stop server if running
+            const serverState = this.servers.get(serverName);
+            if (serverState && serverState.adapter) { // Changed from serverState.process to serverState.adapter
+                await this.stop(serverName);
+            }
+            
+            this.servers.delete(serverName);
+            logger.info('Server removed', { serverName });
+            this.emit('serverRemoved', { serverName });
+        }
+    }
+
+    /**
+     * Get server status
+     */
+    getServerStatus(serverName) {
+        const server = this.servers.get(serverName);
+        return server ? server.status : 'stopped';
+    }
+
+    /**
+     * Get all configured servers
+     */
+    getConfiguredServers() {
+        return Array.from(this.servers.values());
+    }
+
+    /**
+     * Check if server exists
+     */
+    hasServer(serverName) {
+        return this.servers.has(serverName);
+    }
+
+    /**
+     * Get server configuration
+     */
+    getServerConfig(serverName) {
+        return this.servers.get(serverName);
     }
 }
 

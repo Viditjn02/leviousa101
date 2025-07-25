@@ -488,13 +488,7 @@ export class MCPSettingsComponent extends LitElement {
             
             console.log(`[MCPSettings] Setup result for ${serviceName}:`, result);
             
-            if (result.success) {
-                this.showSuccess(`${serviceName} connected successfully!`);
-                this.connectingServices.delete(serviceName);
-                this.connectingTimeouts.delete(serviceName);
-                // Reload server status to get the latest state
-                await this.loadServerStatus();
-            } else if (result.requiresAuth) {
+            if (result.requiresAuth) {
                 // Service needs authentication - open auth URL
                 if (result.authUrl) {
                     console.log(`[MCPSettings] Opening auth URL for ${serviceName}:`, result.authUrl);
@@ -505,6 +499,12 @@ export class MCPSettingsComponent extends LitElement {
                     this.connectingServices.delete(serviceName);
                     this.connectingTimeouts.delete(serviceName);
                 }
+            } else if (result.success) {
+                this.showSuccess(`${serviceName} connected successfully!`);
+                this.connectingServices.delete(serviceName);
+                this.connectingTimeouts.delete(serviceName);
+                // Reload server status to get the latest state
+                await this.loadServerStatus();
             } else {
                 this.showError(`Failed to connect ${serviceName}: ${result.error}`);
                 this.connectingServices.delete(serviceName);

@@ -7,6 +7,23 @@
 
 require('dotenv').config();
 
+// Add global EPIPE error protection immediately
+process.on('uncaughtException', (error) => {
+    if (error.code === 'EPIPE' || error.errno === -32) {
+        console.warn('[GlobalEPipeHandler] Caught EPIPE error, handling gracefully:', error.message);
+        return; // Prevent crash
+    }
+    
+    // Log other uncaught exceptions but don't re-throw to prevent crash loops
+    console.error('[GlobalErrorHandler] Uncaught exception:', error);
+    console.error('[GlobalErrorHandler] Stack:', error.stack);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[GlobalErrorHandler] Unhandled promise rejection at:', promise, 'reason:', reason);
+});
+
 if (require('electron-squirrel-startup')) {
     process.exit(0);
 }

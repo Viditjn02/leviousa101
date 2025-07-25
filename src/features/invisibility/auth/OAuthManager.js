@@ -60,6 +60,7 @@ class OAuthManager extends EventEmitter {
         super();
         this.configManager = new MCPConfigManager();
         this.authStates = new Map(); // Track ongoing auth flows
+        this.tokens = new Map(); // Store OAuth tokens
         this.oauthServer = null;
         this.oauthPort = null;
         
@@ -160,12 +161,60 @@ class OAuthManager extends EventEmitter {
         
         logger.info('Opening authorization URL', { provider, authUrl });
         
-        // Open the URL in the user's browser
+        // Open the URL in the user's browser with proper error handling
         const { shell } = require('electron');
-        shell.openExternal(authUrl);
+        try {
+            logger.info('Calling shell.openExternal to open browser...', { provider });
+            const openResult = await shell.openExternal(authUrl);
+            logger.info('shell.openExternal result:', { openResult, provider });
+            logger.info('OAuth URL opened successfully in browser', { provider });
+        } catch (error) {
+            logger.error('Failed to open browser for OAuth URL', { provider, error: error.message });
+            throw new Error(`Failed to open browser for authentication: ${error.message}`);
+        }
 
         // Wait for callback
         return await this.waitForCallback(state);
+    }
+
+    /**
+     * Prepare OAuth flow (start callback server, generate state)
+     * @param {string} provider - OAuth provider name
+     * @returns {string} callback URL
+     */
+    async prepareOAuthFlow(provider) {
+        if (!OAUTH_PROVIDERS[provider]) {
+            throw new Error(`Unknown OAuth provider: ${provider}`);
+        }
+
+        logger.info('Preparing OAuth flow', { provider });
+
+        // Start local callback server
+        const callbackUrl = await this.startCallbackServer();
+        
+        logger.info('OAuth flow prepared', { provider, callbackUrl });
+        return callbackUrl;
+    }
+
+    /**
+     * Generate OAuth URL without starting full flow
+     * @param {string} provider - OAuth provider name
+     * @param {string} callbackUrl - Callback URL from prepareOAuthFlow
+     * @returns {string} OAuth authorization URL
+     */
+    generateOAuthUrl(provider, callbackUrl) {
+        // Generate state for CSRF protection
+        const state = crypto.randomBytes(32).toString('hex');
+        this.authStates.set(state, {
+            provider,
+            timestamp: Date.now()
+        });
+
+        // Build authorization URL
+        const authUrl = this.buildAuthorizationUrl(provider, state, callbackUrl);
+        
+        logger.info('OAuth URL generated', { provider, authUrl });
+        return authUrl;
     }
 
     /**
@@ -196,34 +245,242 @@ class OAuthManager extends EventEmitter {
     }
 
     /**
+     * Handle OAuth callback requests
+     */
+    handleOAuthRequest(req, res) {
+        const url = require('url');
+        const parsedUrl = url.parse(req.url, true);
+        
+        logger.info('OAuth callback request received', { 
+            pathname: parsedUrl.pathname, 
+            query: parsedUrl.query 
+        });
+        
+        if (parsedUrl.pathname === '/callback') {
+            const { code, state, error } = parsedUrl.query;
+            
+            // Check for errors
+            if (error) {
+                logger.error('OAuth authorization error', { error });
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <html>
+                        <body>
+                            <h1>❌ Authorization Error</h1>
+                            <p>Error: ${error}</p>
+                            <p>You can close this window and try again.</p>
+                        </body>
+                    </html>
+                `);
+                return;
+            }
+
+            if (!code || !state) {
+                logger.error('Missing OAuth parameters', { code: !!code, state: !!state });
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <html>
+                        <body>
+                            <h1>⚠️ Invalid Callback</h1>
+                            <p>Missing required OAuth parameters.</p>
+                            <p>You can close this window and try again.</p>
+                        </body>
+                    </html>
+                `);
+                return;
+            }
+
+            // Validate state
+            const authState = this.authStates.get(state);
+            if (!authState) {
+                logger.error('Invalid OAuth state', { state });
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <html>
+                        <body>
+                            <h1>🔒 Security Error</h1>
+                            <p>Invalid or expired state parameter.</p>
+                            <p>You can close this window and try again.</p>
+                        </body>
+                    </html>
+                `);
+                return;
+            }
+
+            // Exchange code for token asynchronously
+            this.exchangeCodeForToken(authState.provider, code, `http://localhost:${this.oauthPort}/callback`)
+                .then(tokenResult => {
+                    logger.info('OAuth token exchange successful', { provider: authState.provider });
+                    
+                    // Send success response
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(`
+                        <html>
+                            <body>
+                                <h1>✅ Authentication Successful!</h1>
+                                <p>You have been successfully authenticated.</p>
+                                <p>You can close this window and return to the application.</p>
+                                <script>
+                                    setTimeout(() => { 
+                                        try { window.close(); } catch(e) {} 
+                                    }, 2000);
+                                </script>
+                            </body>
+                        </html>
+                    `);
+                    
+                    // Notify UI of successful authentication
+                    this.emit('authSuccess', { 
+                        provider: authState.provider, 
+                        success: true,
+                        message: 'Authentication completed successfully'
+                    });
+                    
+                    // Clean up state
+                    this.authStates.delete(state);
+                })
+                .catch(error => {
+                    logger.error('Token exchange failed', { error: error.message });
+                    res.writeHead(500, { 'Content-Type': 'text/html' });
+                    res.end(`
+                        <html>
+                            <body>
+                                <h1>🔧 Token Exchange Failed</h1>
+                                <p>There was an error processing your authentication.</p>
+                                <p>You can close this window and try again.</p>
+                            </body>
+                        </html>
+                    `);
+                });
+        } else {
+            // Handle other paths
+            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.end(`
+                <html>
+                    <body>
+                        <h1>404 Not Found</h1>
+                        <p>Invalid callback path. Expected /callback</p>
+                    </body>
+                </html>
+            `);
+        }
+    }
+
+    /**
      * Start the OAuth callback server
      */
     async startCallbackServer() {
         return new Promise((resolve, reject) => {
-            this.oauthServer = http.createServer();
+            // Check if server is already running
+            if (this.oauthServer && this.oauthPort) {
+                logger.info('OAuth callback server already running', { port: this.oauthPort });
+                const callbackUrl = `http://localhost:${this.oauthPort}/callback`;
+                resolve(callbackUrl);
+                return;
+            }
+            
+            // Create server with request handler immediately
+            this.oauthServer = http.createServer((req, res) => {
+                this.handleOAuthRequest(req, res);
+            });
             
             this.oauthServer.on('error', (error) => {
                 logger.error('OAuth callback server error', { error: error.message });
-                reject(error);
+                
+                // If port is in use, try to clean up and retry
+                if (error.code === 'EADDRINUSE') {
+                    logger.warn('Port in use, attempting cleanup and retry', { port: this.oauthPort });
+                    this.cleanupCallbackServer();
+                    
+                    // Try a different port
+                    setTimeout(() => {
+                        this.tryAlternativePort(resolve, reject);
+                    }, 1000);
+                } else {
+                    reject(error);
+                }
             });
 
-            // Try to find an available port
+            // Try to find an available port (use same ports as Notion OAuth app config)
+            const preferredPorts = [3000, 3001, 3002, 3003, 3004];
+            let portIndex = 0;
+            
             const tryPort = (port) => {
                 this.oauthServer.listen(port, '127.0.0.1', () => {
                     this.oauthPort = port;
-                    const callbackUrl = `http://localhost:${port}/oauth/callback`;
+                    const callbackUrl = `http://localhost:${port}/callback`;
                     logger.info('OAuth callback server started', { port, callbackUrl });
                     resolve(callbackUrl);
                 });
             };
 
-            // Try ports starting from 43210
-            tryPort(43210);
+            const tryNextPort = () => {
+                if (portIndex >= preferredPorts.length) {
+                    // If all preferred ports are taken, use random port as fallback
+                    tryPort(0);
+                    return;
+                }
+                
+                const port = preferredPorts[portIndex++];
+                this.oauthServer.on('error', (error) => {
+                    if (error.code === 'EADDRINUSE') {
+                        logger.info('Port unavailable, trying next', { port });
+                        this.oauthServer = http.createServer();
+                        tryNextPort();
+                    } else {
+                        reject(error);
+                    }
+                });
+                
+                tryPort(port);
+            };
+
+            tryNextPort();
         });
     }
 
     /**
-     * Wait for OAuth callback
+     * Try alternative ports if primary port is in use
+     */
+    tryAlternativePort(resolve, reject) {
+        // Use same fallback ports as preferred ports
+        const ports = [3001, 3002, 3003, 3004, 3005];
+        
+        let portIndex = 0;
+        const tryNext = () => {
+            if (portIndex >= ports.length) {
+                reject(new Error('No available ports for OAuth callback server'));
+                return;
+            }
+            
+            const port = ports[portIndex++];
+            this.oauthServer = http.createServer((req, res) => {
+                this.handleOAuthRequest(req, res);
+            });
+            
+            this.oauthServer.on('error', (error) => {
+                if (error.code === 'EADDRINUSE') {
+                    logger.warn('Port in use, trying next', { port });
+                    tryNext();
+                } else {
+                    reject(error);
+                }
+            });
+            
+            this.oauthServer.listen(port, '127.0.0.1', () => {
+                this.oauthPort = port;
+                const callbackUrl = `http://localhost:${port}/callback`;
+                logger.info('OAuth callback server started on alternative port', { port, callbackUrl });
+                resolve(callbackUrl);
+            });
+        };
+        
+        tryNext();
+    }
+
+    /**
+     * Wait for OAuth callback (now handled by handleOAuthRequest)
+     * This method is kept for compatibility but callback handling is automatic
      */
     async waitForCallback(expectedState) {
         return new Promise((resolve, reject) => {
@@ -232,63 +489,16 @@ class OAuthManager extends EventEmitter {
                 reject(new Error('OAuth callback timeout'));
             }, 300000); // 5 minutes timeout
 
-            this.oauthServer.on('request', async (req, res) => {
-                const parsedUrl = url.parse(req.url, true);
-                
-                if (parsedUrl.pathname === '/oauth/callback') {
+            // Note: Request handling is now done automatically by handleOAuthRequest
+            // We just need to wait for the state to be processed
+            const checkInterval = setInterval(() => {
+                if (!this.authStates.has(expectedState)) {
+                    // State was processed (removed), authentication completed
                     clearTimeout(timeout);
-                    
-                    const { code, state, error } = parsedUrl.query;
-                    
-                    // Validate state
-                    if (state !== expectedState) {
-                        logger.error('Invalid OAuth state');
-                        res.writeHead(400);
-                        res.end('Invalid state parameter');
-                        reject(new Error('Invalid OAuth state'));
-                        return;
-                    }
-
-                    // Check for errors
-                    if (error) {
-                        logger.error('OAuth authorization error', { error });
-                        res.writeHead(400);
-                        res.end(`Authorization error: ${error}`);
-                        reject(new Error(`Authorization error: ${error}`));
-                        return;
-                    }
-
-                    // Exchange code for token
-                    try {
-                        const authState = this.authStates.get(state);
-                        const tokenResult = await this.exchangeCodeForToken(
-                            authState.provider,
-                            code,
-                            `http://localhost:${this.oauthPort}/oauth/callback`
-                        );
-
-                        // Send success response
-                        res.writeHead(200, { 'Content-Type': 'text/html' });
-                        res.end(`
-                            <html>
-                                <body>
-                                    <h1>Authentication successful!</h1>
-                                    <p>You can close this window and return to the application.</p>
-                                    <script>window.close();</script>
-                                </body>
-                            </html>
-                        `);
-
-                        this.cleanupCallbackServer();
-                        resolve(tokenResult);
-                    } catch (error) {
-                        logger.error('Token exchange failed', { error: error.message });
-                        res.writeHead(500);
-                        res.end('Token exchange failed');
-                        reject(error);
-                    }
+                    clearInterval(checkInterval);
+                    resolve({ success: true, message: 'OAuth completed' });
                 }
-            });
+            }, 500);
         });
     }
 
@@ -300,24 +510,27 @@ class OAuthManager extends EventEmitter {
         const clientId = this.configManager.getClientId(provider);
         const clientSecret = this.configManager.getClientSecret(provider);
 
-        const tokenData = {
+        logger.info('Exchanging code for token', { provider });
+
+        // Prepare form data for token exchange
+        const tokenData = new URLSearchParams({
             grant_type: 'authorization_code',
             code: code,
-            redirect_uri: redirectUri,
-            client_id: clientId,
-            client_secret: clientSecret
-        };
+            redirect_uri: redirectUri
+        });
 
-        logger.info('Exchanging code for token', { provider });
+        // Use Basic Authentication for client credentials (OAuth 2.0 standard)
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
         try {
             const response = await fetch(config.tokenUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'Authorization': `Basic ${credentials}`
                 },
-                body: JSON.stringify(tokenData)
+                body: tokenData.toString()
             });
 
             const result = await response.json();
@@ -358,12 +571,14 @@ class OAuthManager extends EventEmitter {
         const clientId = this.configManager.getClientId(provider);
         const clientSecret = this.configManager.getClientSecret(provider);
 
-        const tokenData = {
+        // Prepare form data for token refresh
+        const tokenData = new URLSearchParams({
             grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-            client_id: clientId,
-            client_secret: clientSecret
-        };
+            refresh_token: refreshToken
+        });
+
+        // Use Basic Authentication for client credentials
+        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
         logger.info('Refreshing access token', { provider });
 
@@ -371,10 +586,11 @@ class OAuthManager extends EventEmitter {
             const response = await fetch(config.tokenUrl, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'Authorization': `Basic ${credentials}`
                 },
-                body: JSON.stringify(tokenData)
+                body: tokenData.toString()
             });
 
             const result = await response.json();
@@ -471,6 +687,68 @@ class OAuthManager extends EventEmitter {
         }
         
         return status;
+    }
+
+    /**
+     * Get list of supported services
+     */
+    getSupportedServices() {
+        return Object.keys(OAUTH_PROVIDERS);
+    }
+
+    /**
+     * Get authorization URL for a service (for testing)
+     */
+    async getAuthorizationUrl(serviceName) {
+        const provider = OAUTH_PROVIDERS[serviceName];
+        if (!provider) {
+            throw new Error(`Unsupported OAuth provider: ${serviceName}`);
+        }
+        
+        // Generate state for CSRF protection
+        const state = crypto.randomBytes(32).toString('hex');
+        
+        // Build authorization URL
+        const params = new URLSearchParams({
+            client_id: 'test-client-id', // For testing
+            redirect_uri: 'http://localhost:3000/callback',
+            response_type: 'code',
+            state: state
+        });
+        
+        // Add scopes if configured
+        if (provider.scopes && provider.scopes.length > 0) {
+            params.append('scope', provider.scopes.join(' '));
+        }
+        
+        const authUrl = `${provider.authUrl}?${params.toString()}`;
+        
+        return authUrl;
+    }
+
+    /**
+     * Get OAuth status for all services
+     */
+    getStatus() {
+        const status = {};
+        
+        for (const provider of Object.keys(OAUTH_PROVIDERS)) {
+            const token = this.tokens.get(provider);
+            status[provider] = {
+                hasValidToken: !!token && !this.isTokenExpired(token),
+                expiresAt: token ? token.expires_at : null
+            };
+        }
+        
+        return status;
+    }
+
+    /**
+     * Check if a valid token exists for a service
+     */
+    async hasValidToken(serviceName) {
+        const token = this.tokens.get(serviceName);
+        return !!token && !this.isTokenExpired(token);
     }
 }
 
