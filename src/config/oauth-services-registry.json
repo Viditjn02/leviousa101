@@ -1,0 +1,506 @@
+{
+  "version": "1.0.0",
+  "services": {
+    "notion": {
+      "name": "Notion",
+      "description": "Connect to Notion workspace for managing pages, databases, and content",
+      "enabled": true,
+      "priority": 1,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-notion"
+        ],
+        "envMapping": {
+          "apiKey": "NOTION_API_KEY"
+        }
+      },
+      "oauth": {
+        "provider": "notion",
+        "authUrl": "https://api.notion.com/v1/oauth/authorize",
+        "tokenUrl": "https://api.notion.com/v1/oauth/token",
+        "scopes": {
+          "required": [],
+          "default": []
+        },
+        "pkce": true,
+        "customParams": {
+          "owner": "user"
+        }
+      },
+      "capabilities": [
+        "pages",
+        "databases",
+        "search",
+        "content"
+      ],
+      "documentation": "https://developers.notion.com/docs/getting-started",
+      "icon": "https://www.notion.so/images/favicon.ico"
+    },
+    "slack": {
+      "name": "Slack",
+      "description": "Connect to Slack workspaces for messaging, channels, and file sharing",
+      "enabled": true,
+      "priority": 2,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-slack"
+        ],
+        "envMapping": {
+          "token": "SLACK_USER_TOKEN",
+          "teamId": "SLACK_TEAM_ID"
+        }
+      },
+      "oauth": {
+        "provider": "slack",
+        "authUrl": "https://slack.com/oauth/v2/authorize",
+        "tokenUrl": "https://slack.com/api/oauth.v2.access",
+        "scopes": {
+          "required": [
+            "channels:history",
+            "channels:read",
+            "chat:write",
+            "files:read",
+            "users:read"
+          ],
+          "default": [
+            "channels:history",
+            "channels:read",
+            "chat:write",
+            "files:read",
+            "users:read",
+            "groups:read",
+            "im:read",
+            "mpim:read"
+          ]
+        },
+        "pkce": false,
+        "customParams": {}
+      },
+      "capabilities": [
+        "messaging",
+        "channels",
+        "files",
+        "search"
+      ],
+      "documentation": "https://api.slack.com/authentication/oauth-v2",
+      "icon": "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+    },
+    "github": {
+      "name": "GitHub",
+      "description": "Connect to GitHub for repository management, issues, and pull requests",
+      "enabled": true,
+      "priority": 3,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-github"
+        ],
+        "envMapping": {
+          "token": "GITHUB_PERSONAL_ACCESS_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "github",
+        "authUrl": "https://github.com/login/oauth/authorize",
+        "tokenUrl": "https://github.com/login/oauth/access_token",
+        "scopes": {
+          "required": [
+            "repo",
+            "read:org"
+          ],
+          "default": [
+            "repo",
+            "read:org",
+            "read:user",
+            "user:email"
+          ]
+        },
+        "pkce": false,
+        "customParams": {}
+      },
+      "capabilities": [
+        "repositories",
+        "issues",
+        "pull-requests",
+        "actions"
+      ],
+      "documentation": "https://docs.github.com/en/developers/apps/building-oauth-apps",
+      "icon": "https://github.githubassets.com/favicon.ico"
+    },
+    "google-drive": {
+      "name": "Google Drive",
+      "description": "Access and manage Google Drive files and folders",
+      "enabled": true,
+      "priority": 4,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-gdrive"
+        ],
+        "envMapping": {
+          "credentialsPath": "GDRIVE_CREDENTIALS_PATH"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/drive.readonly"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "files",
+        "folders",
+        "search",
+        "sharing"
+      ],
+      "documentation": "https://developers.google.com/drive/api/v3/about-auth",
+      "icon": "https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png"
+    },
+    "google-docs": {
+      "name": "Google Docs",
+      "description": "Create and edit Google Docs with formatting capabilities",
+      "enabled": false,
+      "priority": 5,
+      "serverConfig": {
+        "command": "node",
+        "args": [
+          "./dist/server.js"
+        ],
+        "requiresManualSetup": true,
+        "envMapping": {
+          "credentialsPath": "GDOCS_CREDENTIALS_PATH",
+          "tokenPath": "GDOCS_TOKEN_PATH"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.file"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "documents",
+        "formatting",
+        "collaboration"
+      ],
+      "documentation": "https://developers.google.com/docs/api/how-tos/authorizing",
+      "icon": "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico"
+    },
+    "dropbox": {
+      "name": "Dropbox",
+      "description": "Access and manage Dropbox files and folders",
+      "enabled": false,
+      "priority": 6,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-dropbox"
+        ],
+        "envMapping": {
+          "token": "DROPBOX_ACCESS_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "dropbox",
+        "authUrl": "https://www.dropbox.com/oauth2/authorize",
+        "tokenUrl": "https://api.dropboxapi.com/oauth2/token",
+        "scopes": {
+          "required": [
+            "files.content.read",
+            "files.content.write"
+          ],
+          "default": [
+            "files.content.read",
+            "files.content.write",
+            "files.metadata.read",
+            "files.metadata.write",
+            "sharing.read"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "token_access_type": "offline"
+        }
+      },
+      "capabilities": [
+        "files",
+        "folders",
+        "sharing",
+        "sync"
+      ],
+      "documentation": "https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize",
+      "icon": "https://cfl.dropboxstatic.com/static/images/favicon-vflk5FiAC.ico"
+    },
+    "microsoft-graph": {
+      "name": "Microsoft Graph",
+      "description": "Access Microsoft 365 services including OneDrive, Outlook, and Teams",
+      "enabled": false,
+      "priority": 7,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-microsoft-graph"
+        ],
+        "envMapping": {
+          "clientId": "MICROSOFT_CLIENT_ID",
+          "clientSecret": "MICROSOFT_CLIENT_SECRET",
+          "tenantId": "MICROSOFT_TENANT_ID"
+        }
+      },
+      "oauth": {
+        "provider": "microsoft",
+        "authUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "scopes": {
+          "required": [
+            "User.Read",
+            "Files.Read"
+          ],
+          "default": [
+            "User.Read",
+            "Files.Read",
+            "Files.ReadWrite",
+            "Mail.Read",
+            "Calendar.Read"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "response_mode": "query"
+        },
+        "tenantPlaceholder": "{tenant}",
+        "requiresTenant": true
+      },
+      "capabilities": [
+        "onedrive",
+        "outlook",
+        "teams",
+        "calendar"
+      ],
+      "documentation": "https://docs.microsoft.com/en-us/graph/auth-overview",
+      "icon": "https://c.s-microsoft.com/favicon.ico"
+    },
+    "salesforce": {
+      "name": "Salesforce",
+      "description": "Connect to Salesforce CRM for managing contacts, leads, and opportunities",
+      "enabled": false,
+      "priority": 8,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-salesforce"
+        ],
+        "envMapping": {
+          "instanceUrl": "SALESFORCE_INSTANCE_URL",
+          "accessToken": "SALESFORCE_ACCESS_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "salesforce",
+        "authUrl": "https://login.salesforce.com/services/oauth2/authorize",
+        "tokenUrl": "https://login.salesforce.com/services/oauth2/token",
+        "scopes": {
+          "required": [
+            "api",
+            "refresh_token"
+          ],
+          "default": [
+            "api",
+            "refresh_token",
+            "full"
+          ]
+        },
+        "pkce": true,
+        "customParams": {},
+        "instanceUrlPlaceholder": "{instanceUrl}",
+        "requiresInstanceUrl": true
+      },
+      "capabilities": [
+        "crm",
+        "contacts",
+        "leads",
+        "opportunities"
+      ],
+      "documentation": "https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_web_server_flow.htm",
+      "icon": "https://c1.sfdcstatic.com/content/dam/web/en_us/www/images/favicon.ico"
+    },
+    "discord": {
+      "name": "Discord",
+      "description": "Connect to Discord for managing servers, channels, and messages",
+      "enabled": false,
+      "priority": 9,
+      "serverConfig": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "-e",
+          "DISCORD_TOKEN",
+          "mcp/mcp-discord"
+        ],
+        "envMapping": {
+          "token": "DISCORD_TOKEN"
+        },
+        "requiresDocker": true
+      },
+      "oauth": {
+        "provider": "discord",
+        "authUrl": "https://discord.com/api/oauth2/authorize",
+        "tokenUrl": "https://discord.com/api/oauth2/token",
+        "scopes": {
+          "required": [
+            "bot",
+            "guilds"
+          ],
+          "default": [
+            "bot",
+            "guilds",
+            "messages.read",
+            "guilds.members.read"
+          ]
+        },
+        "pkce": false,
+        "customParams": {}
+      },
+      "capabilities": [
+        "messaging",
+        "voice",
+        "servers",
+        "channels"
+      ],
+      "documentation": "https://discord.com/developers/docs/topics/oauth2",
+      "icon": "https://discord.com/assets/favicon.ico"
+    },
+    "linkedin": {
+      "name": "LinkedIn",
+      "description": "Connect to LinkedIn for professional networking and content sharing",
+      "enabled": false,
+      "priority": 10,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-linkedin"
+        ],
+        "envMapping": {
+          "accessToken": "LINKEDIN_ACCESS_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "linkedin",
+        "authUrl": "https://www.linkedin.com/oauth/v2/authorization",
+        "tokenUrl": "https://www.linkedin.com/oauth/v2/accessToken",
+        "scopes": {
+          "required": [
+            "r_liteprofile",
+            "r_emailaddress"
+          ],
+          "default": [
+            "r_liteprofile",
+            "r_emailaddress",
+            "w_member_social"
+          ]
+        },
+        "pkce": true,
+        "customParams": {}
+      },
+      "capabilities": [
+        "profile",
+        "posts",
+        "connections",
+        "messaging"
+      ],
+      "documentation": "https://docs.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow",
+      "icon": "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca"
+    },
+    "trello": {
+      "name": "Trello",
+      "description": "Connect to Trello for board management, cards, and lists",
+      "enabled": false,
+      "priority": 11,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-trello"
+        ],
+        "envMapping": {
+          "apiKey": "TRELLO_API_KEY",
+          "token": "TRELLO_OAUTH_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "trello",
+        "authUrl": "https://trello.com/1/authorize",
+        "tokenUrl": "https://trello.com/1/OAuthGetAccessToken",
+        "scopes": {
+          "required": [
+            "read",
+            "write"
+          ],
+          "default": [
+            "read",
+            "write",
+            "account"
+          ]
+        },
+        "pkce": false,
+        "customParams": {
+          "expiration": "never",
+          "name": "MCP Trello Integration"
+        }
+      },
+      "capabilities": [
+        "boards",
+        "cards",
+        "lists",
+        "members",
+        "organizations"
+      ],
+      "documentation": "https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/",
+      "icon": "https://trello.com/favicon.ico"
+    }
+  },
+  "metadata": {
+    "lastUpdated": "2025-07-25",
+    "totalServices": 11,
+    "enabledServices": 4,
+    "version": "1.0.0"
+  }
+}

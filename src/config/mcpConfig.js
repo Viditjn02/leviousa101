@@ -27,8 +27,67 @@ class MCPConfigManager extends EventEmitter {
         
         this.encryptionKey = this.getOrCreateEncryptionKey();
         
-        // Supported OAuth providers configuration
-        this.oauthProviders = {
+        // OAuth providers will be loaded dynamically from registry
+        this.oauthProviders = {};
+        this.oauthServicesRegistry = null;
+    }
+
+    /**
+     * Load OAuth services registry
+     */
+    async loadOAuthServicesRegistry() {
+        try {
+            const registryPath = path.join(__dirname, 'oauth-services-registry.json');
+            const registryContent = await fs.readFile(registryPath, 'utf-8');
+            this.oauthServicesRegistry = JSON.parse(registryContent);
+            
+            // Convert OAuth services to provider configurations
+            this.oauthProviders = {};
+            
+            for (const [serviceKey, service] of Object.entries(this.oauthServicesRegistry.services)) {
+                if (service.oauth) {
+                    const provider = service.oauth.provider;
+                    
+                    // Initialize provider if not exists
+                    if (!this.oauthProviders[provider]) {
+                        this.oauthProviders[provider] = {
+                            authUrl: service.oauth.authUrl,
+                            tokenUrl: service.oauth.tokenUrl,
+                            scopes: {}
+                        };
+                    }
+                    
+                    // Add service-specific scopes
+                    const scopes = service.oauth.scopes.default || service.oauth.scopes.required || [];
+                    this.oauthProviders[provider].scopes[serviceKey] = scopes;
+                    
+                    // Update URLs if they're more specific (e.g., different for different services)
+                    if (service.oauth.authUrl && !service.oauth.authUrl.includes('{')) {
+                        this.oauthProviders[provider].authUrl = service.oauth.authUrl;
+                    }
+                    if (service.oauth.tokenUrl && !service.oauth.tokenUrl.includes('{')) {
+                        this.oauthProviders[provider].tokenUrl = service.oauth.tokenUrl;
+                    }
+                }
+            }
+            
+            // Add legacy providers as fallback
+            this.addLegacyProviders();
+            
+            console.log('[MCPConfig] OAuth services registry loaded successfully');
+        } catch (error) {
+            console.error('[MCPConfig] Failed to load OAuth services registry:', error.message);
+            // Fall back to legacy providers
+            this.addLegacyProviders();
+        }
+    }
+
+    /**
+     * Add legacy OAuth providers as fallback
+     */
+    addLegacyProviders() {
+        // Legacy providers for backward compatibility
+        const legacyProviders = {
             google: {
                 authUrl: 'https://accounts.google.com/o/oauth2/auth',
                 tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -68,33 +127,74 @@ class MCPConfigManager extends EventEmitter {
                         'im:read',
                         'im:history',
                         'mpim:read',
-                        'mpim:history',
-                        'chat:write',
-                        'files:read',
-                        'users:read',
-                        'users:read.email',
-                        'users.profile:read',
-                        'team:read',
-                        'search:read',
-                        'reactions:read',
-                        'pins:read'
-                    ]
+                        'mpim:history'
+                    ],
+                    messaging: ['chat:write']
                 }
             }
         };
-    }
-
-            async initialize() {
-            try {
-                await this.ensureConfigDirectory();
-                await this.loadConfiguration();
-                await this.loadEnvironmentCredentials();
-                console.log('[MCPConfig] Configuration manager initialized');
-            } catch (error) {
-                console.error('[MCPConfig] Failed to initialize:', error.message);
-                throw error;
+        
+        // Merge legacy providers with loaded providers
+        for (const [provider, config] of Object.entries(legacyProviders)) {
+            if (!this.oauthProviders[provider]) {
+                this.oauthProviders[provider] = config;
+            } else {
+                // Merge scopes
+                this.oauthProviders[provider].scopes = {
+                    ...config.scopes,
+                    ...this.oauthProviders[provider].scopes
+                };
             }
         }
+    }
+
+    /**
+     * Get OAuth provider configuration
+     */
+    getOAuthProviderConfig(provider) {
+        return this.oauthProviders[provider];
+    }
+
+    /**
+     * Get available OAuth services from registry
+     */
+    getAvailableOAuthServices() {
+        if (!this.oauthServicesRegistry) {
+            return [];
+        }
+        
+        return Object.entries(this.oauthServicesRegistry.services)
+            .filter(([_, service]) => service.enabled && service.oauth)
+            .map(([key, service]) => ({
+                key,
+                name: service.name,
+                description: service.description,
+                provider: service.oauth.provider,
+                priority: service.priority
+            }))
+            .sort((a, b) => a.priority - b.priority);
+    }
+
+                async initialize() {
+        try {
+            // Ensure config directory exists
+            await this.ensureConfigDirectory();
+            
+            // Load OAuth services registry first
+            await this.loadOAuthServicesRegistry();
+            
+            // Load existing configuration
+            await this.loadConfiguration();
+            
+            // Load environment credentials
+            await this.loadEnvironmentCredentials();
+            
+            console.log('[MCPConfig] Configuration manager initialized');
+        } catch (error) {
+            console.error('[MCPConfig] Failed to initialize:', error.message);
+            throw error;
+        }
+    }
 
     async ensureConfigDirectory() {
         try {

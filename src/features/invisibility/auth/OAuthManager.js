@@ -9,6 +9,8 @@ const crypto = require('crypto');
 const http = require('http');
 const url = require('url');
 const winston = require('winston');
+const path = require('path');
+const fs = require('fs').promises;
 const MCPConfigManager = require('../../../config/mcpConfig');
 
 // Configure logger
@@ -25,8 +27,11 @@ const logger = winston.createLogger({
     ]
 });
 
-// OAuth provider configurations
-const OAUTH_PROVIDERS = {
+// OAuth services registry
+let OAUTH_SERVICES_REGISTRY = null;
+
+// Legacy OAuth provider configurations (fallback)
+const LEGACY_OAUTH_PROVIDERS = {
     notion: {
         authUrl: 'https://api.notion.com/v1/oauth/authorize',
         tokenUrl: 'https://api.notion.com/v1/oauth/token',
@@ -63,8 +68,54 @@ class OAuthManager extends EventEmitter {
         this.tokens = new Map(); // Store OAuth tokens
         this.oauthServer = null;
         this.oauthPort = null;
+        this.oauthProviders = { ...LEGACY_OAUTH_PROVIDERS };
         
         logger.info('OAuthManager initialized');
+    }
+
+    /**
+     * Load OAuth services registry
+     */
+    async loadOAuthServicesRegistry() {
+        try {
+            const registryPath = path.join(__dirname, '../../..', 'config', 'oauth-services-registry.json');
+            const registryContent = await fs.readFile(registryPath, 'utf-8');
+            OAUTH_SERVICES_REGISTRY = JSON.parse(registryContent);
+            
+            // Convert OAuth services to provider configurations
+            for (const [serviceKey, service] of Object.entries(OAUTH_SERVICES_REGISTRY.services)) {
+                if (service.enabled && service.oauth) {
+                    // Handle provider mapping (e.g., 'google-drive' uses 'google' provider)
+                    const providerKey = serviceKey === 'google-drive' ? 'google-drive' : serviceKey;
+                    
+                    this.oauthProviders[providerKey] = {
+                        authUrl: service.oauth.authUrl,
+                        tokenUrl: service.oauth.tokenUrl,
+                        scopes: service.oauth.scopes.default || service.oauth.scopes.required || [],
+                        pkce: service.oauth.pkce || false,
+                        customParams: service.oauth.customParams || {},
+                        name: service.name,
+                        description: service.description,
+                        documentation: service.documentation
+                    };
+                    
+                    logger.info('Loaded OAuth provider configuration', { 
+                        provider: providerKey,
+                        name: service.name,
+                        authProvider: service.oauth.provider
+                    });
+                }
+            }
+            
+            logger.info('OAuth services registry loaded successfully', {
+                totalProviders: Object.keys(this.oauthProviders).length,
+                registryServices: OAUTH_SERVICES_REGISTRY.metadata.enabledServices
+            });
+            
+        } catch (error) {
+            logger.error('Failed to load OAuth services registry', { error: error.message });
+            // Continue with legacy providers only
+        }
     }
 
     /**
@@ -72,57 +123,17 @@ class OAuthManager extends EventEmitter {
      */
     async initialize() {
         try {
+            // Load OAuth services registry first
+            await this.loadOAuthServicesRegistry();
+            
+            // Initialize config manager
             await this.configManager.initialize();
-            logger.info('OAuth Manager initialized successfully');
+            
+            logger.info('OAuth Manager initialized successfully', {
+                providers: Object.keys(this.oauthProviders)
+            });
         } catch (error) {
             logger.error('Failed to initialize OAuth Manager', { error: error.message });
-            throw error;
-        }
-    }
-
-    /**
-     * Start OAuth flow for a provider
-     */
-    async authenticate(provider) {
-        if (!OAUTH_PROVIDERS[provider]) {
-            throw new Error(`Unknown OAuth provider: ${provider}`);
-        }
-
-        logger.info('Starting OAuth flow', { provider });
-
-        try {
-            // Check if we already have a valid token
-            const existingToken = await this.getValidToken(provider);
-            if (existingToken) {
-                logger.info('Using existing valid token', { provider });
-                return {
-                    accessToken: existingToken,
-                    provider,
-                    isNewAuth: false
-                };
-            }
-
-            // Check if we have client credentials
-            if (!this.hasClientCredentials(provider)) {
-                throw new Error(`No client credentials configured for ${provider}`);
-            }
-
-            // Start OAuth flow
-            const authResult = await this.startOAuthFlow(provider);
-            
-            logger.info('OAuth flow completed successfully', { provider });
-            this.emit('authenticated', { provider, isNewAuth: true });
-            
-            return {
-                accessToken: authResult.accessToken,
-                refreshToken: authResult.refreshToken,
-                provider,
-                isNewAuth: true
-            };
-
-        } catch (error) {
-            logger.error('OAuth authentication failed', { provider, error: error.message });
-            this.emit('authenticationFailed', { provider, error });
             throw error;
         }
     }
@@ -183,7 +194,7 @@ class OAuthManager extends EventEmitter {
      * @returns {string} callback URL
      */
     async prepareOAuthFlow(provider) {
-        if (!OAUTH_PROVIDERS[provider]) {
+        if (!this.isProviderSupported(provider)) {
             throw new Error(`Unknown OAuth provider: ${provider}`);
         }
 
@@ -221,7 +232,11 @@ class OAuthManager extends EventEmitter {
      * Build the authorization URL
      */
     buildAuthorizationUrl(provider, state, callbackUrl) {
-        const config = OAUTH_PROVIDERS[provider];
+        const config = this.getProviderConfig(provider);
+        if (!config) {
+            throw new Error(`Provider ${provider} not configured`);
+        }
+        
         const clientId = this.configManager.getClientId(provider);
         
         const params = new URLSearchParams({
@@ -236,7 +251,14 @@ class OAuthManager extends EventEmitter {
             params.append('scope', config.scopes.join(' '));
         }
 
-        // Provider-specific parameters
+        // Add custom parameters from registry
+        if (config.customParams) {
+            for (const [key, value] of Object.entries(config.customParams)) {
+                params.append(key, value);
+            }
+        }
+
+        // Provider-specific parameters (legacy support)
         if (provider === 'notion') {
             params.append('owner', 'user');
         }
@@ -506,7 +528,11 @@ class OAuthManager extends EventEmitter {
      * Exchange authorization code for access token
      */
     async exchangeCodeForToken(provider, code, redirectUri) {
-        const config = OAUTH_PROVIDERS[provider];
+        const config = this.getProviderConfig(provider);
+        if (!config) {
+            throw new Error(`Provider ${provider} not configured`);
+        }
+        
         const clientId = this.configManager.getClientId(provider);
         const clientSecret = this.configManager.getClientSecret(provider);
 
@@ -561,7 +587,11 @@ class OAuthManager extends EventEmitter {
      * Refresh an access token
      */
     async refreshToken(provider) {
-        const config = OAUTH_PROVIDERS[provider];
+        const config = this.getProviderConfig(provider);
+        if (!config) {
+            throw new Error(`Provider ${provider} not configured`);
+        }
+        
         const refreshToken = await this.configManager.getRefreshToken(provider);
         
         if (!refreshToken) {
@@ -669,20 +699,103 @@ class OAuthManager extends EventEmitter {
     }
 
     /**
+     * Get OAuth provider configuration
+     */
+    getProviderConfig(provider) {
+        return this.oauthProviders[provider];
+    }
+
+    /**
+     * Check if provider is supported
+     */
+    isProviderSupported(provider) {
+        return !!this.oauthProviders[provider];
+    }
+
+    /**
+     * Get list of supported OAuth providers
+     */
+    getSupportedProviders() {
+        const providers = {};
+        
+        for (const [key, config] of Object.entries(this.oauthProviders)) {
+            providers[key] = {
+                name: config.name || key,
+                description: config.description,
+                hasScopes: config.scopes && config.scopes.length > 0,
+                scopes: config.scopes,
+                documentation: config.documentation
+            };
+        }
+        
+        return providers;
+    }
+
+    /**
+     * Start OAuth flow for a provider
+     */
+    async authenticate(provider) {
+        if (!this.isProviderSupported(provider)) {
+            throw new Error(`Unknown OAuth provider: ${provider}`);
+        }
+
+        logger.info('Starting OAuth flow', { provider });
+
+        try {
+            // Check if we already have a valid token
+            const existingToken = await this.getValidToken(provider);
+            if (existingToken) {
+                logger.info('Using existing valid token', { provider });
+                return {
+                    accessToken: existingToken,
+                    provider,
+                    isNewAuth: false
+                };
+            }
+
+            // Check if we have client credentials
+            if (!this.hasClientCredentials(provider)) {
+                throw new Error(`No client credentials configured for ${provider}`);
+            }
+
+            // Start OAuth flow
+            const authResult = await this.startOAuthFlow(provider);
+            
+            logger.info('OAuth flow completed successfully', { provider });
+            this.emit('authenticated', { provider, isNewAuth: true });
+            
+            return {
+                accessToken: authResult.accessToken,
+                refreshToken: authResult.refreshToken,
+                provider,
+                isNewAuth: true
+            };
+
+        } catch (error) {
+            logger.error('OAuth authentication failed', { provider, error: error.message });
+            this.emit('authenticationFailed', { provider, error });
+            throw error;
+        }
+    }
+
+    /**
      * Get authentication status for all providers
      */
     async getAuthenticationStatus() {
         const status = {};
         
-        for (const provider of Object.keys(OAUTH_PROVIDERS)) {
+        for (const provider of Object.keys(this.oauthProviders)) {
             const hasCredentials = this.hasClientCredentials(provider);
             const hasToken = !!(await this.getValidToken(provider));
+            const config = this.getProviderConfig(provider);
             
             status[provider] = {
                 hasClientCredentials: hasCredentials,
                 isAuthenticated: hasToken,
                 canAuthenticate: hasCredentials && !hasToken,
-                needsSetup: !hasCredentials
+                needsSetup: !hasCredentials,
+                name: config?.name || provider,
+                description: config?.description
             };
         }
         
@@ -693,14 +806,14 @@ class OAuthManager extends EventEmitter {
      * Get list of supported services
      */
     getSupportedServices() {
-        return Object.keys(OAUTH_PROVIDERS);
+        return Object.keys(this.oauthProviders);
     }
 
     /**
      * Get authorization URL for a service (for testing)
      */
     async getAuthorizationUrl(serviceName) {
-        const provider = OAUTH_PROVIDERS[serviceName];
+        const provider = this.getProviderConfig(serviceName);
         if (!provider) {
             throw new Error(`Unsupported OAuth provider: ${serviceName}`);
         }
@@ -732,7 +845,7 @@ class OAuthManager extends EventEmitter {
     getStatus() {
         const status = {};
         
-        for (const provider of Object.keys(OAUTH_PROVIDERS)) {
+        for (const provider of Object.keys(this.oauthProviders)) {
             const token = this.tokens.get(provider);
             status[provider] = {
                 hasValidToken: !!token && !this.isTokenExpired(token),

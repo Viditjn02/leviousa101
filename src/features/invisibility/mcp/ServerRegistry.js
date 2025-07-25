@@ -7,6 +7,8 @@
 const { EventEmitter } = require('events');
 const { spawn } = require('child_process');
 const winston = require('winston');
+const path = require('path');
+const fs = require('fs').promises;
 const MCPAdapter = require('./MCPAdapter');
 const OAuthManager = require('../auth/OAuthManager');
 
@@ -33,8 +35,11 @@ const ServerStatus = {
     ERROR: 'error'
 };
 
-// Pre-configured server definitions
-const SERVER_DEFINITIONS = {
+// Load OAuth services registry
+let OAUTH_SERVICES_REGISTRY = null;
+
+// Keep legacy server definitions for non-OAuth servers
+const LEGACY_SERVER_DEFINITIONS = {
     everything: {
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-everything'],
@@ -46,30 +51,6 @@ const SERVER_DEFINITIONS = {
         args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
         description: 'Secure file operations with configurable access controls',
         capabilities: ['read_file', 'write_file', 'create_directory', 'list_directory', 'move_file', 'search_files']
-    },
-    github: {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-github'],
-        description: 'Repository management, file operations, and GitHub API integration',
-        capabilities: ['create_repository', 'search_repositories', 'create_issue', 'get_file', 'push_files'],
-        requiresAuth: true,
-        authProvider: 'github'
-    },
-    notion: {
-        command: 'npx',
-        args: ['-y', '@suekou/mcp-notion-server'],
-        description: 'Community Notion MCP server that works with integration tokens',
-        capabilities: ['notion_search', 'notion_retrieve_page', 'notion_retrieve_block', 'notion_query_database'],
-        requiresAuth: true,
-        authProvider: 'notion'
-    },
-    slack: {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-slack'],
-        description: 'Slack workspace integration',
-        capabilities: ['slack_list_channels', 'slack_post_message', 'slack_reply_to_thread'],
-        requiresAuth: true,
-        authProvider: 'slack'
     },
     sqlite: {
         command: 'npx',
@@ -84,8 +65,56 @@ class ServerRegistry extends EventEmitter {
         super();
         this.servers = new Map(); // serverName -> ServerState
         this.oauthManager = new OAuthManager();
+        this.serverDefinitions = { ...LEGACY_SERVER_DEFINITIONS };
         
         logger.info('ServerRegistry initialized');
+    }
+
+    /**
+     * Load OAuth services registry
+     */
+    async loadOAuthServicesRegistry() {
+        try {
+            const registryPath = path.join(__dirname, '../../..', 'config', 'oauth-services-registry.json');
+            const registryContent = await fs.readFile(registryPath, 'utf-8');
+            OAUTH_SERVICES_REGISTRY = JSON.parse(registryContent);
+            
+            // Convert OAuth services to server definitions
+            for (const [serviceKey, service] of Object.entries(OAUTH_SERVICES_REGISTRY.services)) {
+                if (service.enabled) {
+                    this.serverDefinitions[serviceKey] = {
+                        command: service.serverConfig.command,
+                        args: service.serverConfig.args,
+                        description: service.description,
+                        capabilities: service.capabilities,
+                        requiresAuth: true,
+                        authProvider: service.oauth.provider,
+                        tokenEnvVar: service.serverConfig.envMapping ? 
+                            Object.values(service.serverConfig.envMapping)[0] : null,
+                        oauthConfig: service.oauth,
+                        priority: service.priority,
+                        icon: service.icon,
+                        documentation: service.documentation,
+                        requiresDocker: service.serverConfig.requiresDocker || false,
+                        requiresManualSetup: service.serverConfig.requiresManualSetup || false
+                    };
+                    logger.info('Loaded OAuth service', { 
+                        service: serviceKey, 
+                        name: service.name,
+                        enabled: service.enabled 
+                    });
+                }
+            }
+            
+            logger.info('OAuth services registry loaded successfully', {
+                totalServices: OAUTH_SERVICES_REGISTRY.metadata.totalServices,
+                enabledServices: OAUTH_SERVICES_REGISTRY.metadata.enabledServices
+            });
+            
+        } catch (error) {
+            logger.error('Failed to load OAuth services registry', { error: error.message });
+            // Continue with legacy definitions only
+        }
     }
 
     /**
@@ -93,8 +122,18 @@ class ServerRegistry extends EventEmitter {
      */
     async initialize() {
         try {
+            // Load OAuth services registry first
+            await this.loadOAuthServicesRegistry();
+            
+            // Initialize OAuth manager
             await this.oauthManager.initialize();
-            logger.info('ServerRegistry initialized successfully');
+            
+            logger.info('ServerRegistry initialized successfully', {
+                totalServers: Object.keys(this.serverDefinitions).length,
+                oauthServers: Object.keys(this.serverDefinitions).filter(key => 
+                    this.serverDefinitions[key].requiresAuth
+                ).length
+            });
         } catch (error) {
             logger.error('Failed to initialize ServerRegistry', { error: error.message });
             throw error;
@@ -110,7 +149,7 @@ class ServerRegistry extends EventEmitter {
         }
 
         const serverConfig = {
-            ...SERVER_DEFINITIONS[name],
+            ...this.serverDefinitions[name],
             ...config,
             name
         };
@@ -322,7 +361,13 @@ class ServerRegistry extends EventEmitter {
                     'notion': 'NOTION_API_TOKEN',
                     'github': 'GITHUB_PERSONAL_ACCESS_TOKEN',
                     'slack': 'SLACK_BOT_TOKEN',
-                    'google-drive': 'GOOGLE_OAUTH_TOKEN'
+                    'google-drive': 'GOOGLE_OAUTH_TOKEN',
+                    'google': 'GOOGLE_OAUTH_TOKEN',
+                    'microsoft': 'MICROSOFT_ACCESS_TOKEN',
+                    'dropbox': 'DROPBOX_ACCESS_TOKEN',
+                    'salesforce': 'SALESFORCE_ACCESS_TOKEN',
+                    'discord': 'DISCORD_TOKEN',
+                    'linkedin': 'LINKEDIN_ACCESS_TOKEN'
                 };
                 envVar = tokenEnvMap[config.authProvider];
             }
@@ -409,17 +454,70 @@ class ServerRegistry extends EventEmitter {
     }
 
     /**
+     * Get available servers with metadata
+     */
+    getAvailableServersWithMetadata() {
+        const servers = {};
+        
+        for (const [key, definition] of Object.entries(this.serverDefinitions)) {
+            servers[key] = {
+                name: definition.name || key,
+                description: definition.description,
+                requiresAuth: definition.requiresAuth || false,
+                authProvider: definition.authProvider,
+                capabilities: definition.capabilities || [],
+                priority: definition.priority || 999,
+                icon: definition.icon,
+                documentation: definition.documentation,
+                requiresDocker: definition.requiresDocker || false,
+                requiresManualSetup: definition.requiresManualSetup || false
+            };
+        }
+        
+        // Sort by priority
+        return Object.fromEntries(
+            Object.entries(servers).sort(([,a], [,b]) => a.priority - b.priority)
+        );
+    }
+
+    /**
+     * Get OAuth services registry metadata
+     */
+    getOAuthServicesMetadata() {
+        return OAUTH_SERVICES_REGISTRY ? OAUTH_SERVICES_REGISTRY.metadata : null;
+    }
+
+    /**
+     * Check if a server is OAuth-based
+     */
+    isOAuthServer(serverName) {
+        const definition = this.serverDefinitions[serverName];
+        return definition && definition.requiresAuth && definition.authProvider;
+    }
+
+    /**
+     * Get OAuth configuration for a server
+     */
+    getOAuthConfig(serverName) {
+        const definition = this.serverDefinitions[serverName];
+        if (!definition || !definition.oauthConfig) {
+            return null;
+        }
+        return definition.oauthConfig;
+    }
+
+    /**
      * Get all available servers
      */
     getAvailableServers() {
-        return Object.keys(SERVER_DEFINITIONS);
+        return Object.keys(this.serverDefinitions);
     }
 
     /**
      * Get server definition
      */
     getServerDefinition(name) {
-        return SERVER_DEFINITIONS[name];
+        return this.serverDefinitions[name];
     }
 
     /**
