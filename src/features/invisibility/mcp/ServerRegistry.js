@@ -121,10 +121,21 @@ class ServerRegistry extends EventEmitter {
      * Initialize the registry
      */
     async initialize() {
+        let registryLoaded = false;
+        
         try {
-            // Load OAuth services registry first
+            // Try to load OAuth services registry first
             await this.loadOAuthServicesRegistry();
-            
+            registryLoaded = true;
+        } catch (error) {
+            logger.warn('Failed to load OAuth services registry, continuing with legacy servers only', { 
+                error: error.message 
+            });
+            // Ensure legacy servers are available even if registry fails
+            Object.assign(this.serverDefinitions, LEGACY_SERVER_DEFINITIONS);
+        }
+        
+        try {
             // Initialize OAuth manager
             await this.oauthManager.initialize();
             
@@ -132,7 +143,8 @@ class ServerRegistry extends EventEmitter {
                 totalServers: Object.keys(this.serverDefinitions).length,
                 oauthServers: Object.keys(this.serverDefinitions).filter(key => 
                     this.serverDefinitions[key].requiresAuth
-                ).length
+                ).length,
+                registryLoaded
             });
         } catch (error) {
             logger.error('Failed to initialize ServerRegistry', { error: error.message });
