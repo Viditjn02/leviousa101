@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
     setupExternalService: (serviceName, authType) => ipcRenderer.invoke('mcp:setupExternalService', serviceName, authType),
     disconnectService: (serviceName) => ipcRenderer.invoke('mcp:disconnectService', serviceName),
     getSupportedServices: () => ipcRenderer.invoke('mcp:getSupportedServices'),
+    getRegistryServices: () => ipcRenderer.invoke('mcp:getRegistryServices'),
     
     // Authentication
     openOAuthWindow: (authUrl, provider, service) => ipcRenderer.invoke('mcp:openOAuthWindow', authUrl, provider, service),

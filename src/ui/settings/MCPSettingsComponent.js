@@ -316,6 +316,69 @@ export class MCPSettingsComponent extends LitElement {
         .stuck-btn:hover:not(:disabled) {
             background: var(--warning-color-hover, #f57c00) !important;
         }
+        
+        .more-services {
+            margin-top: 20px;
+            background: var(--background-secondary, #2a2a2a);
+            border: 1px solid var(--border-color, #333);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .more-services summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-primary, #ffffff);
+            margin-bottom: 12px;
+            user-select: none;
+        }
+        
+        .more-services[open] summary {
+            margin-bottom: 16px;
+        }
+        
+        .service-card.coming-soon {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .service-card.coming-soon .toggle-switch {
+            cursor: not-allowed;
+        }
+        
+        .coming-soon-badge {
+            background: var(--accent-color, #4a90e2);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .add-custom-btn {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--background-secondary, #2a2a2a);
+            border: 2px dashed var(--border-color, #555);
+            border-radius: 8px;
+            color: var(--text-primary, #ffffff);
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .add-custom-btn:hover {
+            background: var(--background-hover, #353535);
+            border-color: var(--accent-color, #4a90e2);
+            transform: translateY(-1px);
+        }
     `;
 
     static properties = {
@@ -324,6 +387,7 @@ export class MCPSettingsComponent extends LitElement {
         servers: { type: Object },
         availableTools: { type: Array },
         supportedServices: { type: Object },
+        disabledServices: { type: Object },
         authenticationStatus: { type: Object },
         errorMessage: { type: String },
         successMessage: { type: String },
@@ -338,6 +402,7 @@ export class MCPSettingsComponent extends LitElement {
         this.servers = {};
         this.availableTools = [];
         this.supportedServices = {};
+        this.disabledServices = {}; // Initialize disabledServices
         this.authenticationStatus = {
             pendingAuthentications: [],
             configurationIssues: [],
@@ -441,11 +506,54 @@ export class MCPSettingsComponent extends LitElement {
 
     async loadSupportedServices() {
         try {
-            const services = await window.api?.mcp?.getSupportedServices();
-            this.supportedServices = services || {};
+            // Load services from the registry
+            const registry = await window.api?.mcp?.getRegistryServices();
+            
+            if (registry && registry.services) {
+                // Separate enabled and disabled services
+                const allServices = Object.entries(registry.services);
+                
+                // Filter enabled services and sort by priority
+                this.supportedServices = allServices
+                    .filter(([key, service]) => service.enabled)
+                    .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
+                    .reduce((acc, [key, service]) => {
+                        acc[key] = {
+                            ...service,
+                            key: key  // Include the service key for reference
+                        };
+                        return acc;
+                    }, {});
+                    
+                // Filter disabled services and sort by priority
+                this.disabledServices = allServices
+                    .filter(([key, service]) => !service.enabled)
+                    .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
+                    .reduce((acc, [key, service]) => {
+                        acc[key] = {
+                            ...service,
+                            key: key  // Include the service key for reference
+                        };
+                        return acc;
+                    }, {});
+            } else {
+                // Fallback to legacy method if registry not available
+                const services = await window.api?.mcp?.getSupportedServices();
+                this.supportedServices = services || {};
+                this.disabledServices = {};
+            }
+            
             this.requestUpdate();
         } catch (error) {
             console.error('Failed to load supported services:', error);
+            // Fallback to default services
+            this.supportedServices = {
+                'google-drive': { name: 'Google Drive', enabled: true, priority: 4 },
+                'github': { name: 'GitHub', enabled: true, priority: 3 },
+                'notion': { name: 'Notion', enabled: true, priority: 1 },
+                'slack': { name: 'Slack', enabled: true, priority: 2 }
+            };
+            this.disabledServices = {};
         }
     }
 
@@ -713,22 +821,30 @@ export class MCPSettingsComponent extends LitElement {
         return names[serviceName] || serviceName;
     }
 
-    renderServiceCard(serviceName) {
+    renderServiceCard(serviceName, service) {
         const status = this.getServiceStatus(serviceName);
         const statusText = this.getServiceStatusText(status);
-        const logo = this.getServiceLogo(serviceName);
+        
+        // Use data from registry if available, fallback to helper methods
+        const displayName = service?.name || this.getServiceDisplayName(serviceName);
+        const description = service?.description || '';
+        const icon = service?.icon;
+        
+        // If no icon from registry, use the existing logo method
+        const logo = icon ? 
+            html`<img src="${icon}" alt="${displayName}" style="width: 16px; height: 16px;" />` : 
+            this.getServiceLogo(serviceName);
         const brandColor = this.getServiceBrandColor(serviceName);
-        const displayName = this.getServiceDisplayName(serviceName);
         
         const isConnected = status === 'connected' || status === 'authenticated';
         const isConnecting = status === 'connecting';
         const needsAuth = status === 'needs_auth';
 
         return html`
-            <div class="service-card">
+            <div class="service-card" title="${description}">
                 <div class="service-info">
                     <div class="service-logo" style="background-color: ${brandColor}20; color: ${brandColor};">
-                        <div .innerHTML=${logo}></div>
+                        ${icon ? logo : html`<div .innerHTML=${logo}></div>`}
                     </div>
                     <div class="service-details">
                         <h4>${displayName}</h4>
@@ -742,6 +858,41 @@ export class MCPSettingsComponent extends LitElement {
                         .checked=${isConnected}
                         .disabled=${isConnecting}
                         @change=${() => this.toggleService(serviceName)}
+                    />
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        `;
+    }
+
+    renderComingSoonCard(serviceName, service) {
+        const displayName = service?.name || this.getServiceDisplayName(serviceName);
+        const description = service?.description || '';
+        const icon = service?.icon;
+        
+        // If no icon from registry, use the existing logo method
+        const logo = icon ? 
+            html`<img src="${icon}" alt="${displayName}" style="width: 16px; height: 16px;" />` : 
+            this.getServiceLogo(serviceName);
+        const brandColor = this.getServiceBrandColor(serviceName);
+
+        return html`
+            <div class="service-card coming-soon" title="${description}">
+                <div class="service-info">
+                    <div class="service-logo" style="background-color: ${brandColor}20; color: ${brandColor};">
+                        ${icon ? logo : html`<div .innerHTML=${logo}></div>`}
+                    </div>
+                    <div class="service-details">
+                        <h4>${displayName}</h4>
+                        <div class="coming-soon-badge">Coming Soon</div>
+                    </div>
+                </div>
+                
+                <label class="toggle-switch" style="opacity: 0.5;">
+                    <input 
+                        type="checkbox" 
+                        .checked=${false}
+                        .disabled=${true}
                     />
                     <span class="toggle-slider"></span>
                 </label>
@@ -920,15 +1071,54 @@ export class MCPSettingsComponent extends LitElement {
                         </div>
 
                         <div class="services-grid">
-                            ${this.renderServiceCard('google-drive')}
-                            ${this.renderServiceCard('github')}
-                            ${this.renderServiceCard('notion')}
-                            ${this.renderServiceCard('slack')}
+                            ${Object.entries(this.supportedServices).map(([key, service]) => 
+                                this.renderServiceCard(key, service)
+                            )}
                         </div>
+                        
+                        ${Object.keys(this.disabledServices).length > 0 ? html`
+                            <details class="more-services">
+                                <summary>More Services (${Object.keys(this.disabledServices).length} available)</summary>
+                                <div class="services-grid">
+                                    ${Object.entries(this.disabledServices).map(([key, service]) => 
+                                        this.renderComingSoonCard(key, service)
+                                    )}
+                                </div>
+                            </details>
+                        ` : ''}
+                        
+                        <button class="add-custom-btn" @click=${this.showAddCustomServerDialog}>
+                            <span style="font-size: 1.2em;">+</span>
+                            <span>Add Custom MCP Server</span>
+                        </button>
                     </div>
                 `}
             </div>
         `;
+    }
+    
+    async showAddCustomServerDialog() {
+        // For now, show a simple alert with instructions
+        // In a full implementation, this would open a modal dialog
+        const message = `To add a custom MCP server:
+
+1. The server must implement the Model Context Protocol (MCP)
+2. You'll need to provide:
+   - Server name
+   - Command to run the server
+   - Any required environment variables
+   - OAuth configuration (if applicable)
+
+This feature is coming soon! For now, you can manually add servers by editing the configuration.`;
+        
+        alert(message);
+        
+        // TODO: In the future, this would open a proper dialog to collect:
+        // - Server name
+        // - Command and arguments
+        // - Environment variables
+        // - OAuth settings (if needed)
+        // Then call an API to add the custom server
     }
 }
 

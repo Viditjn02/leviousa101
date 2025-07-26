@@ -425,6 +425,28 @@ function initializeInvisibilityBridge() {
         }
     });
 
+    ipcMain.handle('mcp:getRegistryServices', async () => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpClient || !service.mcpClient.mcpConfigManager) {
+                return null;
+            }
+            
+            // Get the full OAuth services registry
+            const registry = service.mcpClient.mcpConfigManager.getOAuthServicesRegistry();
+            
+            if (!registry) {
+                console.log('[InvisibilityBridge] OAuth services registry not loaded');
+                return null;
+            }
+            
+            return registry;
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting registry services:', error.message);
+            return null;
+        }
+    });
+
     ipcMain.handle('mcp:getAuthenticationStatus', async () => {
         try {
             const service = getInvisibilityService();

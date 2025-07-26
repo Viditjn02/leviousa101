@@ -175,6 +175,16 @@ class MCPConfigManager extends EventEmitter {
             .sort((a, b) => a.priority - b.priority);
     }
 
+    /**
+     * Get the full OAuth services registry
+     */
+    getOAuthServicesRegistry() {
+        if (!this.oauthServicesRegistry) {
+            return null;
+        }
+        return this.oauthServicesRegistry;
+    }
+
                 async initialize() {
         try {
             // Ensure config directory exists

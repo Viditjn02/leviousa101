@@ -806,7 +806,25 @@ class OAuthManager extends EventEmitter {
      * Get list of supported services
      */
     getSupportedServices() {
-        return Object.keys(this.oauthProviders);
+        if (!OAUTH_SERVICES_REGISTRY || !OAUTH_SERVICES_REGISTRY.services) {
+            // Fallback to just provider keys
+            return Object.keys(this.oauthProviders).map(key => ({
+                id: key,
+                name: key,
+                enabled: true
+            }));
+        }
+        
+        // Return services from registry
+        return Object.entries(OAUTH_SERVICES_REGISTRY.services)
+            .filter(([key, service]) => this.oauthProviders[key])
+            .map(([key, service]) => ({
+                id: key,
+                name: service.name,
+                enabled: service.enabled,
+                description: service.description,
+                priority: service.priority
+            }));
     }
 
     /**
