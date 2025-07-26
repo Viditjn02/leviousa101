@@ -177,7 +177,7 @@
     "google-docs": {
       "name": "Google Docs",
       "description": "Create and edit Google Docs with formatting capabilities",
-      "enabled": false,
+      "enabled": true,
       "priority": 5,
       "serverConfig": {
         "command": "node",
@@ -362,7 +362,7 @@
     "discord": {
       "name": "Discord",
       "description": "Connect to Discord for managing servers, channels, and messages",
-      "enabled": false,
+      "enabled": true,
       "priority": 9,
       "serverConfig": {
         "command": "docker",
@@ -410,7 +410,7 @@
     "linkedin": {
       "name": "LinkedIn",
       "description": "Connect to LinkedIn for professional networking and content sharing",
-      "enabled": false,
+      "enabled": true,
       "priority": 10,
       "serverConfig": {
         "command": "npx",
@@ -500,7 +500,7 @@
   "metadata": {
     "lastUpdated": "2025-07-25",
     "totalServices": 11,
-    "enabledServices": 4,
+    "enabledServices": 7,
     "version": "1.0.0"
   }
 }
