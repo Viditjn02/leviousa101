@@ -218,11 +218,192 @@
       "documentation": "https://developers.google.com/docs/api/how-tos/authorizing",
       "icon": "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico"
     },
+    "gmail": {
+      "name": "Gmail",
+      "description": "Send, receive, and manage Gmail messages and threads",
+      "enabled": true,
+      "priority": 6,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@bastienchabal/gmail-mcp"
+        ],
+        "envMapping": {
+          "clientId": "GOOGLE_CLIENT_ID",
+          "clientSecret": "GOOGLE_CLIENT_SECRET",
+          "refreshToken": "GMAIL_REFRESH_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "email",
+        "send",
+        "receive",
+        "search",
+        "labels",
+        "threads"
+      ],
+      "documentation": "https://developers.google.com/gmail/api/auth/scopes",
+      "icon": "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"
+    },
+    "google-calendar": {
+      "name": "Google Calendar",
+      "description": "Manage calendar events, schedules, and appointments",
+      "enabled": true,
+      "priority": 7,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@epaproditus/google-workspace-mcp-server"
+        ],
+        "envMapping": {
+          "clientId": "GOOGLE_CLIENT_ID",
+          "clientSecret": "GOOGLE_CLIENT_SECRET",
+          "refreshToken": "GOOGLE_REFRESH_TOKEN"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/calendar"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "events",
+        "schedules",
+        "appointments",
+        "reminders",
+        "invitations"
+      ],
+      "documentation": "https://developers.google.com/calendar/api/auth",
+      "icon": "https://calendar.google.com/googlecalendar/images/favicons_2020q4/calendar_31.ico"
+    },
+    "google-sheets": {
+      "name": "Google Sheets",
+      "description": "Read and write data in Google Sheets spreadsheets",
+      "enabled": true,
+      "priority": 8,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "google-sheets-mcp"
+        ],
+        "envMapping": {
+          "credentialsPath": "GOOGLE_SHEETS_CREDENTIALS_PATH"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/spreadsheets"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/spreadsheets.readonly"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "spreadsheets",
+        "data-analysis",
+        "formulas",
+        "charts",
+        "collaboration"
+      ],
+      "documentation": "https://developers.google.com/sheets/api/guides/authorizing",
+      "icon": "https://ssl.gstatic.com/docs/spreadsheets/favicon_jfk2.png"
+    },
+    "google-tasks": {
+      "name": "Google Tasks",
+      "description": "Manage Google Tasks and to-do lists",
+      "enabled": true,
+      "priority": 9,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "google-tasks-mcp"
+        ],
+        "envMapping": {
+          "credentialsPath": "GOOGLE_TASKS_CREDENTIALS_PATH"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/tasks"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "tasks",
+        "todo-lists",
+        "reminders",
+        "completion-tracking"
+      ],
+      "documentation": "https://developers.google.com/tasks/auth",
+      "icon": "https://ssl.gstatic.com/tasks/favicon.ico"
+    },
     "dropbox": {
       "name": "Dropbox",
       "description": "Access and manage Dropbox files and folders",
       "enabled": false,
-      "priority": 6,
+      "priority": 14,
       "serverConfig": {
         "command": "npx",
         "args": [
@@ -268,7 +449,7 @@
       "name": "Microsoft Graph",
       "description": "Access Microsoft 365 services including OneDrive, Outlook, and Teams",
       "enabled": false,
-      "priority": 7,
+      "priority": 12,
       "serverConfig": {
         "command": "npx",
         "args": [
@@ -318,7 +499,7 @@
       "name": "Salesforce",
       "description": "Connect to Salesforce CRM for managing contacts, leads, and opportunities",
       "enabled": false,
-      "priority": 8,
+      "priority": 13,
       "serverConfig": {
         "command": "npx",
         "args": [
@@ -363,7 +544,7 @@
       "name": "Discord",
       "description": "Connect to Discord for managing servers, channels, and messages",
       "enabled": true,
-      "priority": 9,
+      "priority": 10,
       "serverConfig": {
         "command": "docker",
         "args": [
@@ -411,7 +592,7 @@
       "name": "LinkedIn",
       "description": "Connect to LinkedIn for professional networking and content sharing",
       "enabled": true,
-      "priority": 10,
+      "priority": 11,
       "serverConfig": {
         "command": "npx",
         "args": [
@@ -453,7 +634,7 @@
       "name": "Trello",
       "description": "Connect to Trello for board management, cards, and lists",
       "enabled": false,
-      "priority": 11,
+      "priority": 15,
       "serverConfig": {
         "command": "npx",
         "args": [
