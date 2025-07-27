@@ -756,7 +756,113 @@ function initializeInvisibilityBridge() {
                 });
             });
         }
+        
+        // Initialize MCP UI Bridge
+        const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+        
+        // Connect MCPUIBridge to MCP client
+        if (service.mcpClient) {
+            mcpUIBridge.initialize(service.mcpClient);
+            console.log('[InvisibilityBridge] MCP UI Bridge initialized');
+            
+            // Listen for UI resource events from MCP client
+            service.mcpClient.on('ui-resource-received', (event) => {
+                const { toolName, result } = event;
+                
+                // Register the resource with the UI bridge
+                if (result && result.resource) {
+                    const resourceId = mcpUIBridge.registerUIResource(
+                        toolName.split('.')[0], // Extract server name
+                        toolName,
+                        result.resource
+                    );
+                    
+                    // Notify all windows about new UI resource
+                    BrowserWindow.getAllWindows().forEach(window => {
+                        if (!window.isDestroyed()) {
+                            window.webContents.send('mcp:ui-resource-available', {
+                                resourceId,
+                                toolName,
+                                resource: result.resource
+                            });
+                        }
+                    });
+                }
+            });
+        }
     }
+
+    // MCP UI IPC handlers
+    ipcMain.handle('mcp:ui:getActiveResources', async () => {
+        try {
+            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            const resources = mcpUIBridge.getActiveUIResources();
+            return { success: true, resources };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting UI resources:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:ui:invokeAction', async (event, actionData) => {
+        try {
+            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            const { serverId, tool, params } = actionData;
+            
+            // Invoke the tool through MCP
+            const result = await mcpUIBridge.invokeMCPTool(serverId, tool, params);
+            
+            return { success: true, result };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error invoking UI action:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:ui:removeResource', async (event, resourceId) => {
+        try {
+            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            mcpUIBridge.removeUIResource(resourceId);
+            
+            // Notify all windows about resource removal
+            BrowserWindow.getAllWindows().forEach(window => {
+                if (!window.isDestroyed()) {
+                    window.webContents.send('mcp:ui-resource-removed', { resourceId });
+                }
+            });
+            
+            return { success: true };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error removing UI resource:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:ui:getToolUICapabilities', async (event, toolName) => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpClient) {
+                throw new Error('MCP client not available');
+            }
+            
+            const toolRegistry = service.mcpClient.toolRegistry;
+            if (!toolRegistry) {
+                throw new Error('Tool registry not available');
+            }
+            
+            const capabilities = toolRegistry.getToolUICapabilities(toolName);
+            const supportsUI = toolRegistry.toolSupportsUI(toolName);
+            
+            return { 
+                success: true, 
+                supportsUI,
+                capabilities 
+            };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting tool UI capabilities:', error);
+            return { success: false, error: error.message };
+        }
+    });
 
     console.log('[InvisibilityBridge] IPC handlers initialized');
 }

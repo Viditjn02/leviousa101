@@ -1,4 +1,5 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
+import '../mcp-ui/MCPUIIntegration.js';
 
 export class InvisibilitySettings extends LitElement {
     static styles = css`
@@ -460,6 +461,9 @@ export class InvisibilitySettings extends LitElement {
                     🧠 Trigger Answer Detection (CMD+L)
                 </button>
             </div>
+
+            <!-- MCP UI Integration -->
+            <mcp-ui-integration></mcp-ui-integration>
 
             <div class="section">
                 <div class="section-title">ℹ️ Usage Notes</div>

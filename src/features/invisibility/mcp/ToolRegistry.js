@@ -71,7 +71,12 @@ class ToolRegistry extends EventEmitter {
             title: config.title || toolName,
             description: config.description,
             inputSchema: config.inputSchema,
-            registeredAt: new Date()
+            registeredAt: new Date(),
+            // UI capability information
+            supportsUI: config.supportsUI || false,
+            uiCapabilities: config.uiCapabilities || [],
+            responseType: config.responseType || 'text',
+            uiResourceType: config.uiResourceType || null
         };
 
         // Store in main registry
@@ -83,7 +88,13 @@ class ToolRegistry extends EventEmitter {
         }
         this.serverTools.get(serverName).add(toolName);
 
-        logger.info('Tool registered', { fullName, serverName, toolName });
+        logger.info('Tool registered', { 
+            fullName, 
+            serverName, 
+            toolName,
+            supportsUI: toolInfo.supportsUI,
+            uiCapabilities: toolInfo.uiCapabilities
+        });
         this.emit('toolRegistered', toolInfo);
     }
 
@@ -347,6 +358,99 @@ class ToolRegistry extends EventEmitter {
         }
     }
 
+    /**
+     * Get tools that support UI responses
+     * @returns {Array} Array of UI-capable tools
+     */
+    getUICapableTools() {
+        const uiTools = [];
+        
+        for (const [fullName, toolInfo] of this.tools) {
+            if (toolInfo.supportsUI) {
+                uiTools.push(toolInfo);
+            }
+        }
+        
+        return uiTools;
+    }
+
+    /**
+     * Get tools by UI capability
+     * @param {string} capability - The UI capability to filter by
+     * @returns {Array} Array of tools with the specified capability
+     */
+    getToolsByUICapability(capability) {
+        const tools = [];
+        
+        for (const [fullName, toolInfo] of this.tools) {
+            if (toolInfo.uiCapabilities && toolInfo.uiCapabilities.includes(capability)) {
+                tools.push(toolInfo);
+            }
+        }
+        
+        return tools;
+    }
+
+    /**
+     * Check if a tool supports UI responses
+     * @param {string} fullName - The full tool name
+     * @returns {boolean} Whether the tool supports UI
+     */
+    toolSupportsUI(fullName) {
+        const toolInfo = this.tools.get(fullName);
+        return toolInfo ? toolInfo.supportsUI : false;
+    }
+
+    /**
+     * Get UI capabilities for a tool
+     * @param {string} fullName - The full tool name
+     * @returns {Array} Array of UI capabilities
+     */
+    getToolUICapabilities(fullName) {
+        const toolInfo = this.tools.get(fullName);
+        return toolInfo ? (toolInfo.uiCapabilities || []) : [];
+    }
+
+    /**
+     * Register UI capability for a tool
+     * @param {string} fullName - The full tool name
+     * @param {string} capability - The UI capability to add
+     */
+    registerUICapability(fullName, capability) {
+        const toolInfo = this.tools.get(fullName);
+        if (toolInfo) {
+            if (!toolInfo.uiCapabilities) {
+                toolInfo.uiCapabilities = [];
+            }
+            if (!toolInfo.uiCapabilities.includes(capability)) {
+                toolInfo.uiCapabilities.push(capability);
+                toolInfo.supportsUI = true;
+                logger.info('UI capability registered', { fullName, capability });
+                this.emit('uiCapabilityAdded', { fullName, capability });
+            }
+        }
+    }
+
+    /**
+     * Get UI capabilities for a tool
+     * @param {string} toolName - Full tool name
+     * @returns {Array} Array of UI capabilities
+     */
+    getToolUICapabilities(toolName) {
+        const tool = this.tools.get(toolName);
+        return tool ? (tool.uiCapabilities || []) : [];
+    }
+    
+    /**
+     * Check if a tool supports UI responses
+     * @param {string} toolName - Full tool name
+     * @returns {boolean} True if tool supports UI
+     */
+    toolSupportsUI(toolName) {
+        const tool = this.tools.get(toolName);
+        return tool ? (tool.supportsUI || false) : false;
+    }
+    
     /**
      * Get status of the tool registry
      */

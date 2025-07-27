@@ -338,6 +338,18 @@ class MCPClient extends EventEmitter {
             }
             
             logger.info('Tool invocation successful', { toolName, duration });
+            
+            // Check if result contains UI resources
+            if (result && this._containsUIResource(result)) {
+                logger.info('Tool returned UI resource', { toolName });
+                
+                // Emit event for UI handling
+                this.emit('ui-resource-received', {
+                    toolName,
+                    result: this._processUIResource(result)
+                });
+            }
+            
             return result;
             
         } catch (error) {
@@ -353,6 +365,66 @@ class MCPClient extends EventEmitter {
             });
             throw error;
         }
+    }
+
+    /**
+     * Check if result contains UI resources
+     * @private
+     */
+    _containsUIResource(result) {
+        if (!result) return false;
+        
+        // Check for direct UI resource response
+        if (result.type === 'ui_resource' || result.type === 'resource') {
+            return true;
+        }
+        
+        // Check for UI resources in content array
+        if (result.content && Array.isArray(result.content)) {
+            return result.content.some(item => 
+                item.type === 'resource' || 
+                item.type === 'ui_resource' ||
+                (item.resource && (item.resource.mimeType === 'text/html' || 
+                                 item.resource.uri?.startsWith('ui://')))
+            );
+        }
+        
+        return false;
+    }
+
+    /**
+     * Process UI resources in the result
+     * @private
+     */
+    _processUIResource(result) {
+        // Handle direct UI resource
+        if (result.type === 'ui_resource' || result.type === 'resource') {
+            return {
+                type: 'ui_resource',
+                resource: result.resource || result
+            };
+        }
+        
+        // Handle UI resources in content array
+        if (result.content && Array.isArray(result.content)) {
+            // Transform content to include UI resources
+            const processedContent = result.content.map(item => {
+                if (item.type === 'resource' || item.type === 'ui_resource') {
+                    return {
+                        ...item,
+                        type: 'ui_resource'
+                    };
+                }
+                return item;
+            });
+            
+            return {
+                ...result,
+                content: processedContent
+            };
+        }
+        
+        return result;
     }
 
     /**

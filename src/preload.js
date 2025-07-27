@@ -50,7 +50,30 @@ contextBridge.exposeInMainWorld('api', {
     removeServersUpdated: (callback) => ipcRenderer.removeListener('mcp:servers-updated', callback),
     removeAuthStatusUpdated: (callback) => ipcRenderer.removeListener('mcp:auth-status-updated', callback),
     removeCredentialUpdated: (callback) => ipcRenderer.removeListener('mcp:credential-updated', callback),
-    removeServerAdded: (callback) => ipcRenderer.removeListener('mcp:server-added', callback)
+    removeServerAdded: (callback) => ipcRenderer.removeListener('mcp:server-added', callback),
+    
+    // MCP UI methods
+    ui: {
+      // Get active UI resources
+      getActiveResources: () => ipcRenderer.invoke('mcp:ui:getActiveResources'),
+      
+      // Invoke UI action
+      invokeAction: (actionData) => ipcRenderer.invoke('mcp:ui:invokeAction', actionData),
+      
+      // Remove UI resource
+      removeResource: (resourceId) => ipcRenderer.invoke('mcp:ui:removeResource', resourceId),
+      
+      // Get tool UI capabilities
+      getToolUICapabilities: (toolName) => ipcRenderer.invoke('mcp:ui:getToolUICapabilities', toolName),
+      
+      // Event listeners for UI resources
+      onResourceAvailable: (callback) => ipcRenderer.on('mcp:ui-resource-available', callback),
+      onResourceRemoved: (callback) => ipcRenderer.on('mcp:ui-resource-removed', callback),
+      
+      // Remove UI event listeners
+      removeResourceAvailable: (callback) => ipcRenderer.removeListener('mcp:ui-resource-available', callback),
+      removeResourceRemoved: (callback) => ipcRenderer.removeListener('mcp:ui-resource-removed', callback)
+    }
   },
 
   // Complete Invisibility Mode API
