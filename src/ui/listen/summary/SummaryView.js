@@ -1,6 +1,6 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 
-import '../ask/MCPActionBar.js';
+import '../../ask/MCPActionBar.js';
 
 export class SummaryView extends LitElement {
     static styles = css`
