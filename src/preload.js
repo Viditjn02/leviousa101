@@ -66,6 +66,12 @@ contextBridge.exposeInMainWorld('api', {
       // Get tool UI capabilities
       getToolUICapabilities: (toolName) => ipcRenderer.invoke('mcp:ui:getToolUICapabilities', toolName),
       
+      // Get contextual actions
+      getContextualActions: (context) => ipcRenderer.invoke('mcp:ui:getContextualActions', context),
+      
+      // Execute an action
+      executeAction: (actionId, context) => ipcRenderer.invoke('mcp:ui:executeAction', actionId, context),
+      
       // Event listeners for UI resources
       onResourceAvailable: (callback) => ipcRenderer.on('mcp:ui-resource-available', callback),
       onResourceRemoved: (callback) => ipcRenderer.on('mcp:ui-resource-removed', callback),

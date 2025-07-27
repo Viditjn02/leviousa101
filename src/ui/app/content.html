@@ -110,6 +110,15 @@
 
         <leviousa-app id="leviousa-app"></leviousa-app>
         
+        <!-- MCP UI Resource Handler -->
+        <script type="module">
+            import '../mcp-ui/MCPUIResourceHandler.js';
+            
+            // Add resource handler to the page
+            const handler = document.createElement('mcp-ui-resource-handler');
+            document.body.appendChild(handler);
+        </script>
+        
         <script>
             window.addEventListener('DOMContentLoaded', () => {
                 const app = document.getElementById('leviousa-app');

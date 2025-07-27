@@ -462,8 +462,8 @@ export class InvisibilitySettings extends LitElement {
                 </button>
             </div>
 
-            <!-- MCP UI Integration -->
-            <mcp-ui-integration></mcp-ui-integration>
+            <!-- MCP UI Integration - Now integrated throughout the app -->
+            <!-- <mcp-ui-integration></mcp-ui-integration> -->
 
             <div class="section">
                 <div class="section-title">ℹ️ Usage Notes</div>

@@ -40,11 +40,13 @@ class InvisibilityService extends EventEmitter {
             const FieldFinder = require('./fieldFinder');
             const HumanTyper = require('./humanTyper');
             const { MCPMigrationBridge } = require('./mcp/MCPMigrationBridge');
+            const { mcpUIIntegrationService } = require('../mcp-integration/MCPUIIntegrationService');
 
             this.questionDetector = new QuestionDetector();
             this.fieldFinder = new FieldFinder();
             this.humanTyper = new HumanTyper();
             this.mcpClient = new MCPMigrationBridge();
+            this.mcpUIIntegration = mcpUIIntegrationService;
 
             console.log('[InvisibilityService] Initializing QuestionDetector...');
             await this.questionDetector.initialize();
@@ -61,6 +63,11 @@ class InvisibilityService extends EventEmitter {
             console.log('[InvisibilityService] Initializing MCPClient...');
             await this.mcpClient.initialize();
             console.log('[InvisibilityService] ✅ MCPClient initialized');
+            
+            // Connect MCP UI Integration to MCP Client
+            console.log('[InvisibilityService] Connecting MCP UI Integration...');
+            this.mcpUIIntegration.setMCPClient(this.mcpClient);
+            console.log('[InvisibilityService] ✅ MCP UI Integration connected');
 
             console.log('[InvisibilityService] All dependent services initialized successfully');
             

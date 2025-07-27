@@ -1,5 +1,6 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
+import './MCPActionBar.js';
 
 export class AskView extends LitElement {
     static properties = {
@@ -1510,6 +1511,40 @@ export class AskView extends LitElement {
         }
     }
 
+    async handleMCPAction(event) {
+        const { action } = event.detail;
+        console.log('[AskView] MCP action triggered:', action);
+
+        if (!window.api?.mcp?.ui) {
+            console.error('[AskView] MCP UI API not available');
+            return;
+        }
+
+        try {
+            // Execute the action through MCP UI Integration
+            const result = await window.api.mcp.ui.executeAction(action.id, {
+                ...action.metadata,
+                currentQuestion: this.currentQuestion,
+                currentResponse: this.currentResponse,
+                conversationHistory: this.conversationHistory
+            });
+
+            if (result.success) {
+                console.log('[AskView] MCP action executed successfully:', result);
+                
+                // Handle UI resource if returned
+                if (result.result?.resourceId) {
+                    // The UI resource will be handled by the global UI resource handler
+                    console.log('[AskView] UI resource created:', result.result.resourceId);
+                }
+            } else {
+                console.error('[AskView] MCP action failed:', result.error);
+            }
+        } catch (error) {
+            console.error('[AskView] Error executing MCP action:', error);
+        }
+    }
+
     handleTextKeydown(e) {
         // Fix for IME composition issue: Ignore Enter key presses while composing.
         if (e.isComposing) {
@@ -1652,6 +1687,19 @@ export class AskView extends LitElement {
                 <div class="response-container ${!hasResponse ? 'hidden' : ''}" id="responseContainer">
                     <!-- Content is dynamically generated in updateResponseContent() -->
                 </div>
+
+                <!-- MCP Action Bar -->
+                ${this.showTextInput && hasResponse ? html`
+                    <mcp-action-bar
+                        .context=${{
+                            type: 'ask',
+                            message: this.currentQuestion,
+                            response: this.currentResponse,
+                            history: this.conversationHistory
+                        }}
+                        @mcp-action=${this.handleMCPAction}
+                    ></mcp-action-bar>
+                ` : ''}
 
                 <!-- Text Input Container -->
                 <div class="text-input-container ${!hasResponse ? 'no-response' : ''} ${!this.showTextInput ? 'hidden' : ''}">

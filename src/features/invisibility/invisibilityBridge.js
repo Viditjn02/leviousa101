@@ -673,6 +673,37 @@ function initializeInvisibilityBridge() {
             throw error;
         }
     });
+    
+    // Tool operations
+    ipcMain.handle('mcp:callTool', async (event, toolName, args) => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpClient) {
+                throw new Error('MCP client not available');
+            }
+            
+            const result = await service.mcpClient.invokeTool(toolName, args);
+            return { success: true, result };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error calling tool:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:getAvailableTools', async () => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpClient) {
+                throw new Error('MCP client not available');
+            }
+            
+            const tools = service.mcpClient.toolRegistry.getAllTools();
+            return { success: true, tools };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting available tools:', error);
+            return { success: false, error: error.message };
+        }
+    });
 
     // Events forwarding (from service to renderer)
     const service = getInvisibilityService();
@@ -793,6 +824,20 @@ function initializeInvisibilityBridge() {
                     }
                 });
             }
+            
+            // Listen for UI resource events from MCP UI Integration Service
+            if (service.mcpUIIntegration) {
+                service.mcpUIIntegration.on('ui-resource-ready', (data) => {
+                    console.log('[InvisibilityBridge] UI resource ready:', data);
+                    
+                    // Forward to all windows
+                    BrowserWindow.getAllWindows().forEach(window => {
+                        if (!window.isDestroyed()) {
+                            window.webContents.send('mcp:ui-resource-available', data);
+                        }
+                    });
+                });
+            }
         } catch (error) {
             console.warn('[InvisibilityBridge] MCP UI Bridge initialization failed:', error.message);
             console.log('[InvisibilityBridge] MCP UI features will be disabled');
@@ -885,6 +930,36 @@ function initializeInvisibilityBridge() {
             };
         } catch (error) {
             console.error('[InvisibilityBridge] Error getting tool UI capabilities:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:ui:getContextualActions', async (event, context) => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpUIIntegration) {
+                throw new Error('MCP UI Integration not available');
+            }
+            
+            const actions = service.mcpUIIntegration.getContextualActions(context);
+            return { success: true, actions };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting contextual actions:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    
+    ipcMain.handle('mcp:ui:executeAction', async (event, actionId, context) => {
+        try {
+            const service = getInvisibilityService();
+            if (!service || !service.mcpUIIntegration) {
+                throw new Error('MCP UI Integration not available');
+            }
+            
+            const result = await service.mcpUIIntegration.executeAction(actionId, context);
+            return { success: true, result };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error executing action:', error);
             return { success: false, error: error.message };
         }
     });
