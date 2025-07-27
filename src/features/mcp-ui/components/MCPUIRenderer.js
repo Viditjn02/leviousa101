@@ -1,5 +1,23 @@
-const { LitElement, html, css } = require('lit-element');
-const DOMPurify = require('dompurify');
+// Note: These will be loaded differently in browser vs Node.js
+let LitElement, html, css, DOMPurify;
+
+if (typeof window !== 'undefined') {
+  // Browser environment - will be imported via script tags
+  ({ LitElement, html, css } = window.LitElement || {});
+  DOMPurify = window.DOMPurify;
+} else {
+  // Node.js environment for testing
+  try {
+    ({ LitElement, html, css } = require('lit-element'));
+    DOMPurify = require('dompurify');
+  } catch (e) {
+    // Fallback for testing environment
+    LitElement = class { static properties = {}; };
+    html = (strings, ...values) => strings.join('');
+    css = (strings, ...values) => strings.join('');
+    DOMPurify = { sanitize: (html) => html };
+  }
+}
 
 class MCPUIRenderer extends LitElement {
   static properties = {

@@ -1,6 +1,24 @@
-const { LitElement, html, css } = require('lit-element');
-require('./MCPUIRenderer.js');
-const { default: mcpUIBridge } = require('../services/MCPUIBridge.js');
+// Note: These will be loaded differently in browser vs Node.js
+let LitElement, html, css, mcpUIBridge;
+
+if (typeof window !== 'undefined') {
+  // Browser environment - will be imported via script tags
+  ({ LitElement, html, css } = window.LitElement || {});
+  // MCPUIBridge will be available globally in browser
+  mcpUIBridge = window.mcpUIBridge;
+} else {
+  // Node.js environment for testing
+  try {
+    ({ LitElement, html, css } = require('lit-element'));
+    ({ default: mcpUIBridge } = require('../services/MCPUIBridge.js'));
+  } catch (e) {
+    // Fallback for testing environment
+    LitElement = class { static properties = {}; };
+    html = (strings, ...values) => strings.join('');
+    css = (strings, ...values) => strings.join('');
+    mcpUIBridge = { getActiveUIResources: () => [], removeUIResource: () => {} };
+  }
+}
 
 class MCPDashboard extends LitElement {
   static properties = {

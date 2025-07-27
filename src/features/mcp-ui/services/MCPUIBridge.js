@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+const { EventEmitter } = require('events');
 
 class MCPUIBridge extends EventEmitter {
   constructor() {

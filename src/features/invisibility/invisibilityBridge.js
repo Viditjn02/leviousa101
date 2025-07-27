@@ -758,44 +758,57 @@ function initializeInvisibilityBridge() {
         }
         
         // Initialize MCP UI Bridge
-        const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
-        
-        // Connect MCPUIBridge to MCP client
-        if (service.mcpClient) {
-            mcpUIBridge.initialize(service.mcpClient);
-            console.log('[InvisibilityBridge] MCP UI Bridge initialized');
+        let mcpUIBridge = null;
+        try {
+            const mcpUIModule = require('../mcp-ui/services/MCPUIBridge');
+            mcpUIBridge = mcpUIModule.default || mcpUIModule.mcpUIBridge;
             
-            // Listen for UI resource events from MCP client
-            service.mcpClient.on('ui-resource-received', (event) => {
-                const { toolName, result } = event;
+            // Connect MCPUIBridge to MCP client
+            if (service.mcpClient && mcpUIBridge) {
+                mcpUIBridge.initialize(service.mcpClient);
+                console.log('[InvisibilityBridge] MCP UI Bridge initialized');
                 
-                // Register the resource with the UI bridge
-                if (result && result.resource) {
-                    const resourceId = mcpUIBridge.registerUIResource(
-                        toolName.split('.')[0], // Extract server name
-                        toolName,
-                        result.resource
-                    );
+                // Listen for UI resource events from MCP client
+                service.mcpClient.on('ui-resource-received', (event) => {
+                    const { toolName, result } = event;
                     
-                    // Notify all windows about new UI resource
-                    BrowserWindow.getAllWindows().forEach(window => {
-                        if (!window.isDestroyed()) {
-                            window.webContents.send('mcp:ui-resource-available', {
-                                resourceId,
-                                toolName,
-                                resource: result.resource
-                            });
-                        }
-                    });
-                }
-            });
+                    // Register the resource with the UI bridge
+                    if (result && result.resource) {
+                        const resourceId = mcpUIBridge.registerUIResource(
+                            toolName.split('.')[0], // Extract server name
+                            toolName,
+                            result.resource
+                        );
+                        
+                        // Notify all windows about new UI resource
+                        BrowserWindow.getAllWindows().forEach(window => {
+                            if (!window.isDestroyed()) {
+                                window.webContents.send('mcp:ui-resource-available', {
+                                    resourceId,
+                                    toolName,
+                                    resource: result.resource
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('[InvisibilityBridge] MCP UI Bridge initialization failed:', error.message);
+            console.log('[InvisibilityBridge] MCP UI features will be disabled');
         }
     }
 
     // MCP UI IPC handlers
     ipcMain.handle('mcp:ui:getActiveResources', async () => {
         try {
-            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIModule = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIBridge = mcpUIModule.default || mcpUIModule.mcpUIBridge;
+            
+            if (!mcpUIBridge) {
+                return { success: false, error: 'MCP UI Bridge not available' };
+            }
+            
             const resources = mcpUIBridge.getActiveUIResources();
             return { success: true, resources };
         } catch (error) {
@@ -806,7 +819,13 @@ function initializeInvisibilityBridge() {
     
     ipcMain.handle('mcp:ui:invokeAction', async (event, actionData) => {
         try {
-            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIModule = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIBridge = mcpUIModule.default || mcpUIModule.mcpUIBridge;
+            
+            if (!mcpUIBridge) {
+                return { success: false, error: 'MCP UI Bridge not available' };
+            }
+            
             const { serverId, tool, params } = actionData;
             
             // Invoke the tool through MCP
@@ -821,7 +840,13 @@ function initializeInvisibilityBridge() {
     
     ipcMain.handle('mcp:ui:removeResource', async (event, resourceId) => {
         try {
-            const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIModule = require('../mcp-ui/services/MCPUIBridge');
+            const mcpUIBridge = mcpUIModule.default || mcpUIModule.mcpUIBridge;
+            
+            if (!mcpUIBridge) {
+                return { success: false, error: 'MCP UI Bridge not available' };
+            }
+            
             mcpUIBridge.removeUIResource(resourceId);
             
             // Notify all windows about resource removal
