@@ -22,11 +22,9 @@ class MCPUIBridge extends EventEmitter {
    * Set up global message handling for UI actions
    */
   setupMessageHandling() {
-    // Handle messages from UI components
-    window.addEventListener('ui-action', this.handleUIAction.bind(this));
-    
-    // Handle MCP tool responses that may contain UI resources
-    window.addEventListener('mcp-tool-response', this.handleToolResponse.bind(this));
+    // Note: In main process, we handle UI actions through IPC instead of window events
+    // UI actions are handled in invisibilityBridge.js via ipcMain.handle
+    console.log('[MCPUIBridge] Message handling setup for main process (IPC-based)');
   }
 
   /**
@@ -290,9 +288,8 @@ class MCPUIBridge extends EventEmitter {
    * Destroy the bridge and clean up resources
    */
   destroy() {
-    // Remove event listeners
-    window.removeEventListener('ui-action', this.handleUIAction);
-    window.removeEventListener('mcp-tool-response', this.handleToolResponse);
+    // Note: In main process, no window event listeners to remove
+    // Event handling is managed through IPC in invisibilityBridge.js
     
     // Clear all resources
     this.activeUIResources.clear();
