@@ -64,8 +64,9 @@ const ANSWER_STRATEGIES = {
     google_data_access: {
         systemPrompt: `You are accessing real Google services data through MCP tools. Use the available MCP tools to actually retrieve files from Google Drive, emails from Gmail, or calendar events from Google Calendar. Don't describe what you see on screen - use MCP to access their actual Google data. If no MCP tools are available, explain that Google integration needs to be set up.`,
         useResearch: false,
-        maxTokens: 2000,
+        maxTokens: 1200, // Reduced for faster responses
         temperature: 0.2,
+        timeout: 7000, // 7 second timeout
         useMCPTools: true,
         requiresServiceMCP: 'google'
     },
@@ -81,10 +82,18 @@ const ANSWER_STRATEGIES = {
     
     // MCP capability questions
     mcp_capabilities: {
-        systemPrompt: `You are explaining your capabilities as an AI system with MCP (Model Context Protocol) integrations. Be specific about what tools and services you can connect to. Mention that you can access Notion, GitHub, file systems, databases, and other external services through MCP. Explain how this allows you to do real-world tasks beyond just text generation. Be confident but informative about your actual capabilities.`,
+        systemPrompt: `You are Leviousa, an AI assistant with MCP (Model Context Protocol) integrations that allow you to access real external services and data. Be specific about what tools and services you can connect to:
+
+GOOGLE SERVICES: Google Drive (files, documents), Gmail (emails), Google Calendar (events), Google Docs, Google Sheets, Google Tasks
+PRODUCTIVITY: Notion (pages, databases, workspaces), Slack (messages, channels), GitHub (repositories, code, issues)  
+SYSTEM: File system access, SQLite databases, system monitoring
+OTHER: Discord, LinkedIn, and various APIs through MCP servers
+
+Explain that through MCP, you can actually retrieve, analyze, and work with their real data from these services - not just provide general information. You're not just a text generator, but can perform real-world tasks by accessing their connected accounts and data. Be confident about these capabilities while noting that specific services need to be authenticated first. Keep response concise and practical.`,
         useResearch: false,
-        maxTokens: 1500,
-        temperature: 0.2,
+        maxTokens: 800, // Reduced for faster responses
+        temperature: 0.1, // Lower temperature for more focused responses
+        timeout: 6000, // 6 second timeout for capability questions
         useMCPTools: true
     },
     
@@ -154,10 +163,11 @@ const ANSWER_STRATEGIES = {
     },
     
     general: {
-        systemPrompt: `You are answering a question naturally as yourself. Be helpful and informative but write as if you're just someone knowledgeable sharing information, not an AI assistant.`,
+        systemPrompt: `You are answering a question naturally as yourself. Be helpful and informative but write as if you're just someone knowledgeable sharing information, not an AI assistant. Keep responses concise and practical.`,
         useResearch: true,
-        maxTokens: 1000,
-        temperature: 0.3
+        maxTokens: 600, // Reduced for faster responses
+        temperature: 0.3,
+        timeout: 5000 // 5 second timeout for general questions
     }
 };
 
@@ -195,8 +205,15 @@ class AnswerService extends EventEmitter {
         const startTime = Date.now();
         
         try {
+            // Ensure question is a string
+            if (typeof question !== 'string') {
+                logger.warn('Question is not a string, converting:', typeof question, question);
+                question = String(question || '');
+            }
+            
+            const questionPreview = question.substring(0, 100);
             logger.info('Processing question', {
-                question: question.substring(0, 100),
+                question: questionPreview,
                 hasScreenshot: !!context.screenshot,
                 hasConversationHistory: !!context.conversationHistory
             });
@@ -239,9 +256,10 @@ class AnswerService extends EventEmitter {
             };
             
         } catch (error) {
+            const safeQuestion = typeof question === 'string' ? question.substring(0, 100) : String(question || '').substring(0, 100);
             logger.error('Failed to generate answer', {
                 error: error.message,
-                question: question.substring(0, 100)
+                question: safeQuestion
             });
             
             this.emit('answerFailed', {
@@ -294,12 +312,33 @@ class AnswerService extends EventEmitter {
             return 'google_data_access';
         }
         
-        // MCP capabilities
-        if (lowerQuestion.includes('what can') && 
-            (lowerQuestion.includes('mcp') || 
-             lowerQuestion.includes('do') || 
+        // MCP capabilities - capability questions about any service
+        if ((lowerQuestion.includes('what can') || 
+             lowerQuestion.includes('what do') ||
+             lowerQuestion.includes('what tools') ||
+             lowerQuestion.includes('what services') ||
+             lowerQuestion.includes('what google') ||
+             lowerQuestion.includes('google tools') ||
+             lowerQuestion.includes('tools can') ||
+             lowerQuestion.includes('tools do') ||
+             lowerQuestion.includes('access to')) && 
+            (lowerQuestion.includes('you') || 
+             lowerQuestion.includes('access') ||
+             lowerQuestion.includes('have') ||
              lowerQuestion.includes('capabilities'))) {
             return 'mcp_capabilities';
+        }
+        
+        // Google data access (specific data retrieval actions)
+        if (lowerQuestion.includes('google') && 
+            (lowerQuestion.includes('drive') || 
+             lowerQuestion.includes('gmail') || 
+             lowerQuestion.includes('calendar') ||
+             lowerQuestion.includes('get my') ||
+             lowerQuestion.includes('retrieve') ||
+             lowerQuestion.includes('show me') ||
+             lowerQuestion.includes('find in'))) {
+            return 'google_data_access';
         }
         
         // Service integration
@@ -428,7 +467,8 @@ class AnswerService extends EventEmitter {
         const llmOptions = {
             maxTokens: strategy.maxTokens,
             temperature: strategy.temperature,
-            systemPrompt: prompt.systemPrompt
+            systemPrompt: prompt.systemPrompt,
+            timeout: strategy.timeout // Pass timeout if specified in strategy
         };
         
         // Perform MCP test if needed
@@ -557,10 +597,28 @@ class AnswerService extends EventEmitter {
     }
 
     /**
-     * Get strategy configuration
+     * Get strategy configuration for a specific type
      */
     getStrategyConfig(type) {
-        return this.strategies[type];
+        return this.strategies[type] || null;
+    }
+
+    /**
+     * Get enhanced answer (compatibility method - delegates to getAnswer)
+     */
+    async getEnhancedAnswer(question, contextOrScreenshot = null) {
+        let context = {};
+        
+        // Handle both old (screenshotBase64) and new (context object) calling patterns
+        if (typeof contextOrScreenshot === 'string') {
+            // Old pattern: screenshotBase64 string
+            context.screenshot = contextOrScreenshot;
+        } else if (contextOrScreenshot && typeof contextOrScreenshot === 'object') {
+            // New pattern: enhanced context object
+            context = { ...contextOrScreenshot };
+        }
+        
+        return await this.getAnswer(question, context);
     }
 }
 

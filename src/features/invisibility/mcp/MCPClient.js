@@ -209,7 +209,7 @@ class MCPClient extends EventEmitter {
     }
 
     /**
-     * Internal server start logic
+     * Internal server start logic with circuit breaker
      */
     async _startServerInternal(serverName) {
         logger.info('Starting server', { serverName });
@@ -222,10 +222,17 @@ class MCPClient extends EventEmitter {
             // Get server configuration
             const serverConfig = await this.serverRegistry.getServerConfig(serverName);
             
+            if (!serverConfig) {
+                throw new Error(`No server configuration found for ${serverName}`);
+            }
+            
             // Get OAuth token if needed
             let env = {};
             if (serverConfig.requiresAuth) {
-                const token = await this.oauthManager.getToken(serverName);
+                const token = await this.oauthManager.getValidToken(serverName);
+                if (!token) {
+                    throw new Error(`No valid OAuth token found for ${serverName}. Please authenticate first.`);
+                }
                 env = this.buildAuthEnvironment(serverConfig, token);
             }
             
@@ -408,6 +415,31 @@ class MCPClient extends EventEmitter {
     }
 
     /**
+     * Get enhanced answer using MCP tools and context
+     */
+    async getEnhancedAnswer(question, screenshotBase64 = null) {
+        try {
+            if (this.answerService) {
+                return await this.answerService.getEnhancedAnswer(question, screenshotBase64);
+            } else {
+                // Fallback if answer service not available
+                return {
+                    success: false,
+                    error: 'Answer service not available',
+                    fallback: true
+                };
+            }
+        } catch (error) {
+            logger.error('Enhanced answer generation failed', { error: error.message });
+            return {
+                success: false,
+                error: error.message,
+                fallback: true
+            };
+        }
+    }
+
+    /**
      * Start OAuth flow for a service
      * @param {string} serviceName - Name of the service (e.g., 'notion', 'github')
      * @returns {string} OAuth URL for user authentication
@@ -555,6 +587,47 @@ class MCPClient extends EventEmitter {
     handleAuthSuccess(authResult) {
         logger.info('Auth success event', { provider: authResult.provider });
         this.emit('authSuccess', authResult);
+        
+        // After successful OAuth, automatically start the server if it's available
+        if (authResult.provider) {
+            this.startServerAfterAuth(authResult.provider).catch(error => {
+                logger.error('Failed to start server after successful auth', { 
+                    provider: authResult.provider, 
+                    error: error.message 
+                });
+            });
+        }
+    }
+    
+    /**
+     * Start server after successful authentication
+     */
+    async startServerAfterAuth(serviceName) {
+        try {
+            logger.info('Attempting to start server after successful OAuth', { serviceName });
+            
+            // Check if this service has a server configuration
+            const hasServerConfig = await this.serverRegistry.hasServerConfiguration(serviceName);
+            
+            if (hasServerConfig) {
+                logger.info('Server configuration found; registering and starting server', { serviceName });
+                // Register server if not already registered
+                if (!this.serverRegistry.hasServer(serviceName)) {
+                    const config = this.serverRegistry.getServerConfig(serviceName);
+                    await this.serverRegistry.register(serviceName, config);
+                }
+                // Start the newly registered server
+                await this.startServer(serviceName);
+                logger.info('Server registered and started successfully after OAuth', { serviceName });
+            } else {
+                logger.info('No server configuration found, registering as OAuth-only service', { serviceName });
+                // For OAuth-only services (like "google"), register them as authenticated
+                this.serverRegistry.registerOAuthService(serviceName);
+            }
+        } catch (error) {
+            logger.error('Failed to start server after auth', { serviceName, error: error.message });
+            // Don't throw - this shouldn't break the OAuth flow
+        }
     }
     
     handleConnectionCreated({ serverName, connectionId }) {

@@ -82,27 +82,31 @@ class ServerRegistry extends EventEmitter {
             // Convert OAuth services to server definitions
             for (const [serviceKey, service] of Object.entries(OAUTH_SERVICES_REGISTRY.services)) {
                 if (service.enabled) {
-                    this.serverDefinitions[serviceKey] = {
-                        command: service.serverConfig.command,
-                        args: service.serverConfig.args,
-                        description: service.description,
-                        capabilities: service.capabilities,
-                        requiresAuth: true,
-                        authProvider: service.oauth.provider,
-                        tokenEnvVar: service.serverConfig.envMapping ? 
-                            Object.values(service.serverConfig.envMapping)[0] : null,
-                        oauthConfig: service.oauth,
-                        priority: service.priority,
-                        icon: service.icon,
-                        documentation: service.documentation,
-                        requiresDocker: service.serverConfig.requiresDocker || false,
-                        requiresManualSetup: service.serverConfig.requiresManualSetup || false
-                    };
-                    logger.info('Loaded OAuth service', { 
-                        service: serviceKey, 
-                        name: service.name,
-                        enabled: service.enabled 
-                    });
+                    logger.info('Loading OAuth service', { service: serviceKey, name: service.name, enabled: service.enabled });
+                    
+                    // Only add as server definition if it has serverConfig
+                    if (service.serverConfig && (service.serverConfig.command || service.serverConfig.executable)) {
+                        this.serverDefinitions[serviceKey] = {
+                            command: service.serverConfig.command,
+                            args: service.serverConfig.args,
+                            description: service.description,
+                            capabilities: service.capabilities,
+                            requiresAuth: true,
+                            authProvider: service.oauth.provider,
+                            tokenEnvVar: service.serverConfig.envMapping ? 
+                                Object.values(service.serverConfig.envMapping)[0] : null,
+                            oauthConfig: service.oauth,
+                            priority: service.priority,
+                            icon: service.icon,
+                            documentation: service.documentation,
+                            requiresDocker: service.serverConfig.requiresDocker || false,
+                            requiresManualSetup: service.serverConfig.requiresManualSetup || false
+                        };
+                        logger.info('Added OAuth service to server definitions', { 
+                            service: serviceKey, 
+                            command: service.serverConfig.command 
+                        });
+                    }
                 }
             }
             
@@ -596,10 +600,95 @@ class ServerRegistry extends EventEmitter {
     }
 
     /**
-     * Get server configuration
+     * Get server configuration by name
      */
     getServerConfig(serverName) {
-        return this.servers.get(serverName);
+        // First check runtime server state (for running servers)
+        const runtimeServer = this.servers.get(serverName);
+        if (runtimeServer) {
+            return runtimeServer;
+        }
+        
+        // Check OAuth services registry for configuration
+        if (OAUTH_SERVICES_REGISTRY?.services?.[serverName]) {
+            const service = OAUTH_SERVICES_REGISTRY.services[serverName];
+            
+            // If it has a serverConfig, transform it to the expected format
+            if (service.serverConfig && (service.serverConfig.command || service.serverConfig.executable)) {
+                return {
+                    name: serverName,
+                    command: service.serverConfig.command,
+                    args: service.serverConfig.args || [],
+                    env: service.serverConfig.env || {},
+                    envMapping: service.serverConfig.envMapping || {},
+                    requiresAuth: !!service.oauth,
+                    type: service.oauth?.provider || 'unknown',
+                    description: service.description || '',
+                    capabilities: service.capabilities || []
+                };
+            }
+        }
+        
+        // Check legacy definitions
+        if (LEGACY_SERVER_DEFINITIONS[serverName]) {
+            return LEGACY_SERVER_DEFINITIONS[serverName];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if a server has configuration available
+     */
+    hasServerConfiguration(serverName) {
+        // Check if it's in the OAuth services registry AND has a serverConfig section
+        if (OAUTH_SERVICES_REGISTRY?.services?.[serverName]) {
+            const service = OAUTH_SERVICES_REGISTRY.services[serverName];
+            // Only return true if it has an actual server configuration, not just OAuth
+            return !!(service.serverConfig && (service.serverConfig.command || service.serverConfig.executable));
+        }
+        
+        // Check if it's in legacy definitions
+        if (LEGACY_SERVER_DEFINITIONS[serverName]) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Register an OAuth-only service (no actual server to start, just mark as authenticated)
+     */
+    registerOAuthService(serviceName) {
+        logger.info('Registering OAuth-only service', { serviceName });
+        
+        // Create a virtual server entry for OAuth services
+        const serverState = {
+            name: serviceName,
+            status: ServerStatus.RUNNING,
+            type: 'oauth',
+            authenticated: true,
+            startTime: Date.now(),
+            tools: [],
+            resources: [],
+            prompts: [],
+            capabilities: {
+                oauth: true,
+                authenticated: true
+            }
+        };
+        
+        this.servers.set(serviceName, serverState);
+        
+        // Emit server started event
+        this.emit('serverStarted', {
+            serverName: serviceName,
+            status: ServerStatus.RUNNING,
+            type: 'oauth'
+        });
+        
+        logger.info('OAuth service registered successfully', { serviceName });
+        return serverState;
     }
 }
 

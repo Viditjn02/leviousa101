@@ -1195,22 +1195,22 @@ export class SettingsView extends LitElement {
                 </div>
 
                 <!-- ═══════════════════════════════════════════════════════════ -->
-                <!-- PRIVACY & ADVANCED FEATURES SECTION -->
+                <!-- PRIVACY & AUTOMATION SECTION -->
                 <!-- ═══════════════════════════════════════════════════════════ -->
                 <div class="settings-section">
-                    <div class="section-title">Privacy & Advanced Features</div>
+                    <div class="section-title">Privacy & Automation</div>
                     <div class="section-content">
-                        <!-- Complete Invisibility Mode -->
+                        <!-- Privacy Protection -->
                         <invisibility-settings></invisibility-settings>
                         
-                        <!-- Voice Agent -->
+                        <!-- Voice Control -->
                         <voice-agent-settings></voice-agent-settings>
                         
-                        <!-- MCP Server Connections -->
+                        <!-- Connected Apps -->
                         <mcp-settings></mcp-settings>
                         
                         <button class="settings-button full-width" @click=${this.handleToggleInvisibility}>
-                            <span>${this.isContentProtectionOn ? 'Disable Invisibility' : 'Enable Invisibility'}</span>
+                            <span>${this.isContentProtectionOn ? 'Disable Privacy Mode' : 'Enable Privacy Mode'}</span>
                         </button>
                     </div>
                 </div>

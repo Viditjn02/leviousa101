@@ -403,12 +403,11 @@ export class InvisibilitySettings extends LitElement {
                 </div>
 
                 <div class="info">
-                    <strong>How it works:</strong> When enabled, the system monitors for remote access and keeps the overlay hidden. 
+                    <strong>How it works:</strong> When enabled, the system monitors for remote access and keeps the overlay hidden.
                     <br><br>
                     <strong>Shortcuts:</strong><br>
                     • <span class="hotkey-display"><span class="key">⌘</span> + <span class="key">I</span></span> - Toggle complete invisibility mode on/off<br>
-                    • <span class="hotkey-display"><span class="key">⌘</span> + <span class="key">L</span></span> - Detect questions and auto-type answers<br>
-                    • <span class="hotkey-display"><span class="key">⌘</span> + <span class="key">Shift</span> + <span class="key">I</span></span> - Temporarily show overlay for access
+                    • <span class="hotkey-display"><span class="key">⌘</span> + <span class="key">L</span></span> - Detect questions and auto-type answers
                 </div>
 
                 ${this.status.lastRemoteAccessState ? html`
@@ -454,7 +453,7 @@ export class InvisibilitySettings extends LitElement {
                     ></div>
                 </div>
                 <div class="info" style="font-size: 10px; margin-top: 4px;">
-                    ${this.status.config?.typingSpeedMode === 'human' ? '🧑 Human Mode: Realistic typing speed (~40-60 WPM) with natural variations' : '⚡ Bolt Mode: Instant typing for maximum speed'}
+                    ${this.status.config?.typingSpeedMode === 'human' ? '🧑 Human-like typing' : '⚡ Instant typing'}
                 </div>
 
                 <button class="button primary" @click=${this.triggerManualAnswer}>
@@ -463,48 +462,15 @@ export class InvisibilitySettings extends LitElement {
             </div>
 
             <div class="section">
-                <div class="section-title">
-                    🧪 Testing & Debugging
-                    <button class="button" @click=${() => this.showAdvanced = !this.showAdvanced}>
-                        ${this.showAdvanced ? 'Hide' : 'Show'} Advanced
-                    </button>
+                <div class="section-title">ℹ️ Usage Notes</div>
+                <div class="info">
+                    <strong>Requirements:</strong><br>
+                    • Accessibility permissions in System Preferences<br>
+                    • Works with web browsers and most applications<br><br>
+                    <strong>Usage Guidelines:</strong><br>
+                    • Use responsibly and follow platform guidelines<br>
+                    • Best for learning and practice environments
                 </div>
-
-                ${this.showAdvanced ? html`
-                    <div class="test-section">
-                        <button class="button" @click=${() => this.runTest('questionDetection')}>
-                            Test Question Detection
-                        </button>
-                        <button class="button" @click=${() => this.runTest('fieldDetection')}>
-                            Test Field Detection
-                        </button>
-                        <button class="button" @click=${() => this.runTest('typing')}>
-                            Test Human Typing
-                        </button>
-                        <button class="button" @click=${() => this.runTest('answerGeneration')}>
-                            Test Answer Generation
-                        </button>
-                        <button class="button" @click=${() => this.runTest('remoteAccess')}>
-                            Test Remote Access Detection
-                        </button>
-                    </div>
-
-                    ${Object.keys(this.testResults).length > 0 ? html`
-                        <div class="log-output">
-                            ${Object.entries(this.testResults).map(([test, result]) => 
-                                `${test}: ${result}\n`
-                            )}
-                        </div>
-                    ` : ''}
-
-                    <div class="warning">
-                        <strong>⚠️ Important Notes:</strong><br>
-                        • Requires accessibility permissions in System Preferences<br>
-                        • Works best with web-based coding platforms and forms<br>
-                        • May not work with all applications or question formats<br>
-                        • Use responsibly and in accordance with platform terms of service
-                    </div>
-                ` : ''}
             </div>
         `;
     }

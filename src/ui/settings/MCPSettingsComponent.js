@@ -506,16 +506,35 @@ export class MCPSettingsComponent extends LitElement {
 
     async loadSupportedServices() {
         try {
+            console.log('[MCPSettings] 🔍 Starting loadSupportedServices...');
+            console.log('[MCPSettings] 🔍 API available:', !!window.api);
+            console.log('[MCPSettings] 🔍 MCP API available:', !!window.api?.mcp);
+            console.log('[MCPSettings] 🔍 getRegistryServices available:', !!window.api?.mcp?.getRegistryServices);
+            
             // Load services from the registry
             const registry = await window.api?.mcp?.getRegistryServices();
+            console.log('[MCPSettings] 📡 Registry response:', registry);
+            console.log('[MCPSettings] 📡 Registry has services:', !!(registry && registry.services));
             
             if (registry && registry.services) {
                 // Separate enabled and disabled services
-                const allServices = Object.entries(registry.services);
+                const allServices = Object.entries(registry.services)
+                    .filter(([key, service]) => {
+                        // If unified Google service is present, hide individual Google provider entries
+                        if (registry.services['google'] && service.oauth && service.oauth.provider === 'google' && key !== 'google') {
+                            return false;
+                        }
+                        return true;
+                    });
+                console.log('[MCPSettings] 📊 All services from registry:', allServices.length);
+                console.log('[MCPSettings] 📊 Service keys:', allServices.map(([key]) => key));
                 
-                // Filter enabled services and sort by priority
-                this.supportedServices = allServices
-                    .filter(([key, service]) => service.enabled)
+                // Exclude Slack, Discord, and GitHub temporarily
+                const excludedServices = ['slack', 'discord', 'github'];
+                const enabledServicesList = allServices.filter(([key, service]) => service.enabled && !excludedServices.includes(key));
+                console.log('[MCPSettings] ✅ Enabled services list:', enabledServicesList.map(([key, service]) => `${key} (${service.name})`));
+                
+                this.supportedServices = enabledServicesList
                     .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
                     .reduce((acc, [key, service]) => {
                         acc[key] = {
@@ -525,9 +544,16 @@ export class MCPSettingsComponent extends LitElement {
                         return acc;
                     }, {});
                     
+                console.log('[MCPSettings] ✅ Supported services final object:', this.supportedServices);
+                console.log('[MCPSettings] ✅ Supported services loaded:', {
+                    count: Object.keys(this.supportedServices).length,
+                    services: Object.keys(this.supportedServices)
+                });
+                    
                 // Filter disabled services and sort by priority
+                // Exclude Slack, Discord, and GitHub from disabled services too
                 this.disabledServices = allServices
-                    .filter(([key, service]) => !service.enabled)
+                    .filter(([key, service]) => !service.enabled && !excludedServices.includes(key))
                     .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
                     .reduce((acc, [key, service]) => {
                         acc[key] = {
@@ -536,9 +562,17 @@ export class MCPSettingsComponent extends LitElement {
                         };
                         return acc;
                     }, {});
+                    
+                console.log('[MCPSettings] ⏸️ Disabled services loaded:', {
+                    count: Object.keys(this.disabledServices).length,
+                    services: Object.keys(this.disabledServices)
+                });
             } else {
+                console.log('[MCPSettings] ⚠️ No registry data, using fallback...');
+                console.log('[MCPSettings] ⚠️ Registry response was:', registry);
                 // Fallback to legacy method if registry not available
                 const services = await window.api?.mcp?.getSupportedServices();
+                console.log('[MCPSettings] ⚠️ Legacy services response:', services);
                 this.supportedServices = services || {};
                 this.disabledServices = {};
             }
@@ -796,7 +830,9 @@ export class MCPSettingsComponent extends LitElement {
             'google-drive': `<svg viewBox="0 0 24 24"><path fill="#4285f4" d="M6.4 5.7h13.2L24 12.8L16.8 24H7.2L0 12.8L6.4 5.7z"/><path fill="#34a853" d="M6.4 5.7L0 12.8L7.2 24L16.8 24L24 12.8L19.6 5.7H6.4z"/><path fill="#ea4335" d="M6.4 5.7L0 12.8L7.2 24L13.6 16.2L6.4 5.7z"/><path fill="#fbbc04" d="M19.6 5.7L24 12.8L16.8 24L10.4 16.2L19.6 5.7z"/></svg>`,
             'github': `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.374 0 0 5.373 0 12 0 17.302 3.438 21.8 8.207 23.387c.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`,
             'notion': `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933z"/></svg>`,
-            'slack': `<svg viewBox="0 0 24 24"><path fill="#e01e5a" d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/><path fill="#36c5f0" d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"/><path fill="#2eb67d" d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z"/><path fill="#ecb22e" d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"/><path fill="#e01e5a" d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z"/><path fill="#36c5f0" d="M17.688 8.834a2.528 2.528 0 0 1-2.523-2.521 2.527 2.527 0 0 1 2.523-2.521A2.527 2.527 0 0 1 20.21 6.313v6.312a2.528 2.528 0 0 1-2.522 2.523 2.528 2.528 0 0 1-2.523-2.523V8.834z"/><path fill="#2eb67d" d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521z"/><path fill="#ecb22e" d="M15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.526 2.526 0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`
+            'slack': `<svg viewBox="0 0 24 24"><path fill="#e01e5a" d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/><path fill="#36c5f0" d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"/><path fill="#2eb67d" d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z"/><path fill="#ecb22e" d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"/><path fill="#e01e5a" d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z"/><path fill="#36c5f0" d="M17.688 8.834a2.528 2.528 0 0 1-2.523-2.521 2.527 2.527 0 0 1 2.523-2.521A2.527 2.527 0 0 1 20.21 6.313v6.312a2.528 2.528 0 0 1-2.522 2.523 2.528 2.528 0 0 1-2.523-2.523V8.834z"/><path fill="#2eb67d" d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521z"/><path fill="#ecb22e" d="M15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.526 2.526 a="0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`,
+            'discord': `<svg viewBox="0 0 71 55"><path fill="currentColor" d="M104.4 104.8c-5.7 0-10.2 5-10.2 11.2 0..."/><path fill="currentColor" d="M189.5 20h-134C37.3 20 30 27.5 30 37.5v165c0 10 7.3 17.5 25.5 17.5h113..."/></svg>`,
+            'linkedin': `<svg viewBox="0 0 448 512"><path fill="currentColor" d="M100.28 448H7.4V148.9h92.88zm-46.44-341C24.6 107 0 82..."/></svg>`
         };
         return logos[serviceName] || `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>`;
     }
@@ -806,7 +842,9 @@ export class MCPSettingsComponent extends LitElement {
             'google-drive': '#4285f4',
             'github': '#24292e', 
             'notion': '#000000',
-            'slack': '#4a154b'
+            'slack': '#4a154b',
+            'discord': '#7289da',
+            'linkedin': '#0077b5'
         };
         return colors[serviceName] || '#6366f1';
     }
@@ -931,11 +969,19 @@ export class MCPSettingsComponent extends LitElement {
     }
 
     getConnectedCount() {
-        return Object.values(this.servers).filter(server => server.connected).length;
+        // Count services that are connected or authenticated
+        let count = 0;
+        for (const serviceName in this.supportedServices) {
+            if (this.isServiceConnected(serviceName)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     getTotalServicesCount() {
-        return Object.keys(this.supportedServices).length || 4; // fallback to 4 main services
+        // Total number of available services (only enabled ones)
+        return Object.keys(this.supportedServices).length;
     }
 
     async refreshStatus() {
@@ -1016,7 +1062,7 @@ export class MCPSettingsComponent extends LitElement {
             <div class="header" @click=${this.toggleExpanded}>
                 <div class="title">
                     <span>🔌</span>
-                    <span>Integrations</span>
+                    <span>Connected Apps</span>
                 </div>
                 <div class="expand-icon ${this.isExpanded ? 'expanded' : ''}">▶</div>
             </div>
@@ -1033,13 +1079,13 @@ export class MCPSettingsComponent extends LitElement {
                 ${this.isLoading ? html`
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Loading integrations...</p>
+                        <p>Loading your apps...</p>
                     </div>
                 ` : html`
-                    <div class="mcp-settings">
-                        <div class="mcp-header">
-                            <h3>🔌 External Service Integrations</h3>
-                            <p>Connect external services to enhance your MCP capabilities</p>
+                    <div class="app-connections">
+                        <div class="apps-header">
+                            <h3>🔌 Your Connected Apps</h3>
+                            <p>Connect your favorite apps to unlock powerful automation and data access</p>
                         </div>
 
                         <div class="stats-summary">
@@ -1047,49 +1093,30 @@ export class MCPSettingsComponent extends LitElement {
                                 <span class="stat-value">${connectedCount}</span> / ${totalCount} connected
                             </div>
                             <div class="stat-item">
-                                <span class="stat-value">${this.availableTools.length}</span> tools available
-                            </div>
-                            <div class="stat-item">
                                 <button 
                                     class="refresh-btn" 
                                     @click=${this.refreshStatus}
                                     ?disabled=${this.isLoading}
-                                    title="Refresh connection status"
+                                    title="Check connection status"
                                 >
                                     🔄 Refresh
                                 </button>
-                                ${this.connectingServices.size > 0 ? html`
-                                    <button 
-                                        class="refresh-btn stuck-btn" 
-                                        @click=${this.clearStuckServices}
-                                        title="Clear stuck connecting services"
-                                    >
-                                        🔧 Clear Stuck
-                                    </button>
-                                ` : ''}
                             </div>
                         </div>
 
                         <div class="services-grid">
-                            ${Object.entries(this.supportedServices).map(([key, service]) => 
-                                this.renderServiceCard(key, service)
-                            )}
+                            ${(() => {
+                                console.log('[MCPSettings] 🎨 Rendering apps:', Object.keys(this.supportedServices));
+                                return Object.entries(this.supportedServices).map(([key, service]) => {
+                                    console.log(`[MCPSettings] 🎨 Rendering app: ${key} - ${service.name}`);
+                                    return this.renderServiceCard(key, service);
+                                });
+                            })()}
                         </div>
                         
-                        ${Object.keys(this.disabledServices).length > 0 ? html`
-                            <details class="more-services">
-                                <summary>More Services (${Object.keys(this.disabledServices).length} available)</summary>
-                                <div class="services-grid">
-                                    ${Object.entries(this.disabledServices).map(([key, service]) => 
-                                        this.renderComingSoonCard(key, service)
-                                    )}
-                                </div>
-                            </details>
-                        ` : ''}
-                        
-                        <button class="add-custom-btn" @click=${this.showAddCustomServerDialog}>
+                        <button class="add-custom-btn" @click=${this.showAddCustomAppDialog}>
                             <span style="font-size: 1.2em;">+</span>
-                            <span>Add Custom MCP Server</span>
+                            <span>Add Custom App</span>
                         </button>
                     </div>
                 `}
@@ -1097,28 +1124,27 @@ export class MCPSettingsComponent extends LitElement {
         `;
     }
     
-    async showAddCustomServerDialog() {
+    async showAddCustomAppDialog() {
         // For now, show a simple alert with instructions
         // In a full implementation, this would open a modal dialog
-        const message = `To add a custom MCP server:
+        const message = `Add Your Own App Integration:
 
-1. The server must implement the Model Context Protocol (MCP)
-2. You'll need to provide:
-   - Server name
-   - Command to run the server
-   - Any required environment variables
-   - OAuth configuration (if applicable)
+Connect any app or service that supports automation protocols.
 
-This feature is coming soon! For now, you can manually add servers by editing the configuration.`;
+You'll need:
+• App or service name
+• Connection details from the app's developer settings
+• Authentication information (if required)
+
+This feature is coming soon! Contact support for help adding custom integrations.`;
         
         alert(message);
         
-        // TODO: In the future, this would open a proper dialog to collect:
-        // - Server name
-        // - Command and arguments
-        // - Environment variables
-        // - OAuth settings (if needed)
-        // Then call an API to add the custom server
+        // TODO: Future dialog will collect:
+        // - App name and description
+        // - Connection method (OAuth, API key, etc.)
+        // - Required permissions
+        // - Configuration settings
     }
 }
 

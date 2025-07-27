@@ -126,7 +126,29 @@ module.exports = {
 
     // Ask
     ipcMain.handle('ask:sendQuestionFromAsk', async (event, userPrompt, conversationHistory = []) => await askService.sendMessage(userPrompt, conversationHistory));
-    ipcMain.handle('ask:sendQuestionFromSummary', async (event, userPrompt) => await askService.sendMessage(userPrompt));
+    ipcMain.handle('ask:sendQuestionFromSummary', async (event, userPrompt) => {
+        // Get current conversation context from the listen session for better AI responses
+        const sessionRepository = require('../features/common/repositories/session');
+        try {
+            const activeSession = await sessionRepository.getCurrentSession();
+            let conversationHistory = [];
+            
+            if (activeSession && activeSession.id) {
+                // Get recent messages from the session to provide context
+                const recentMessages = await sessionRepository.getRecentMessages(activeSession.id, 10);
+                conversationHistory = recentMessages.map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
+            }
+            
+            return await askService.sendMessage(userPrompt, conversationHistory);
+        } catch (error) {
+            console.warn('[FeatureBridge] Could not get conversation context:', error.message);
+            // Fallback to sending without context
+            return await askService.sendMessage(userPrompt);
+        }
+    });
     ipcMain.handle('ask:toggleAskButton', async () => await askService.toggleAskButton());
     ipcMain.handle('ask:closeAskWindow',  async () => await askService.closeAskWindow());
     

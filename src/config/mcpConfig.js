@@ -303,7 +303,6 @@ class MCPConfigManager extends EventEmitter {
         async loadEnvironmentCredentials() {
             console.log('[MCPConfig] 🔄 Loading environment credentials...');
             
-            // Load OAuth credentials from environment variables
             const envCredentials = {
                 // Notion credentials
                 'notion_client_id': process.env.NOTION_CLIENT_ID,
@@ -320,6 +319,12 @@ class MCPConfigManager extends EventEmitter {
                 // Google credentials (if you want to add them later)
                 'google_client_id': process.env.GOOGLE_CLIENT_ID,
                 'google_client_secret': process.env.GOOGLE_CLIENT_SECRET,
+                // Discord credentials
+                'discord_client_id': process.env.DISCORD_CLIENT_ID,
+                'discord_client_secret': process.env.DISCORD_CLIENT_SECRET,
+                // LinkedIn credentials
+                'linkedin_client_id': process.env.LINKEDIN_CLIENT_ID,
+                'linkedin_client_secret': process.env.LINKEDIN_CLIENT_SECRET,
             };
 
             console.log('[MCPConfig] 📋 Environment variables check:');
@@ -381,22 +386,25 @@ class MCPConfigManager extends EventEmitter {
         generateOAuthUrl(provider, service, scopes = [], redirectUri = null) {
         console.log(`[MCPConfig] 🔧 Generating OAuth URL for ${provider}:${service}`);
         
-        // Use localhost callback if available (most reliable for all providers)
+        // Determine callback URI based on provider
         if (!redirectUri) {
-            // First, try to use localhost OAuth server for ALL providers (preferred method)
-            const mcpClient = global.invisibilityService?.mcpClient;
-            if (mcpClient && mcpClient.oauthPort) {
-                redirectUri = `http://localhost:${mcpClient.oauthPort}/callback`;
-                console.log(`[MCPConfig] 🏠 Using localhost callback server for ${provider}: ${redirectUri}`);
+            const lower = provider.toLowerCase();
+            const webCallbackProviders = ['slack'];
+            if (webCallbackProviders.includes(lower)) {
+                // Always use HTTPS API callback for Notion and Slack
+                redirectUri = 'https://leviousa-101.web.app/api/oauth/callback';
+                console.log(`[MCPConfig] 🌐 Using API route fallback for ${provider}: ${redirectUri}`);
             } else {
-                // Fallback to web callback for providers that require HTTPS
-                const webCallbackProviders = ['notion', 'slack'];
-                
-                if (webCallbackProviders.includes(provider.toLowerCase())) {
-                    redirectUri = 'https://leviousa-101.web.app/api/oauth/callback';
-                    console.log(`[MCPConfig] 🌐 Using API route fallback for ${provider}: ${redirectUri}`);
+                // Try localhost callback for other providers (e.g., Google)
+                const mcpClient = global.invisibilityService?.mcpClient;
+                if (mcpClient && mcpClient.oauthPort) {
+                    // LinkedIn, Discord, and GitHub require HTTPS even for localhost
+                    const httpsProviders = ['linkedin', 'discord'];
+                    const protocol = httpsProviders.includes(lower) ? 'https' : 'http';
+                    redirectUri = `${protocol}://localhost:${mcpClient.oauthPort}/callback`;
+                    console.log(`[MCPConfig] 🏠 Using localhost callback server for ${provider}: ${redirectUri}`);
                 } else {
-                    // Direct to Electron for providers that support custom protocols
+                    // Fallback to custom protocol
                     redirectUri = 'leviousa://oauth/callback';
                     console.log(`[MCPConfig] 🔄 Using custom protocol for ${provider}: ${redirectUri}`);
                 }
@@ -662,8 +670,15 @@ class MCPConfigManager extends EventEmitter {
     }
 
     async getValidAccessToken(provider, service) {
-        const tokenKey = `${provider}_${service}_token`;
-        const tokenData = this.getCredential(tokenKey);
+        // First try with just provider_token (how tokens are saved)
+        let tokenKey = `${provider}_token`;
+        let tokenData = this.getCredential(tokenKey);
+        
+        // If not found, try with provider_service_token (legacy format)
+        if (!tokenData && service && service !== provider) {
+            tokenKey = `${provider}_${service}_token`;
+            tokenData = this.getCredential(tokenKey);
+        }
         
         if (!tokenData) {
             return null;
@@ -681,7 +696,7 @@ class MCPConfigManager extends EventEmitter {
             }
         }
 
-        return tokens.access_token;
+        return tokens;
     }
 
     // Server Configuration Management

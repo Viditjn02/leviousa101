@@ -428,12 +428,12 @@ function initializeInvisibilityBridge() {
     ipcMain.handle('mcp:getRegistryServices', async () => {
         try {
             const service = getInvisibilityService();
-            if (!service || !service.mcpClient || !service.mcpClient.mcpConfigManager) {
+            if (!service || !service.mcpClient || !service.mcpClient.oauthManager || !service.mcpClient.oauthManager.configManager) {
                 return null;
             }
             
             // Get the full OAuth services registry
-            const registry = service.mcpClient.mcpConfigManager.getOAuthServicesRegistry();
+            const registry = service.mcpClient.oauthManager.configManager.getOAuthServicesRegistry();
             
             if (!registry) {
                 console.log('[InvisibilityBridge] OAuth services registry not loaded');

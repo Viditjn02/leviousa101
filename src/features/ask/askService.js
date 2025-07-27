@@ -542,17 +542,28 @@ class AskService {
                     }
                     
                     // Build enhanced question with conversation awareness
-                    const question = this._buildEnhancedQuestion(userPrompt, conversationHistoryRaw, questionType);
+                    const questionObj = this._buildEnhancedQuestion(userPrompt, conversationHistoryRaw, questionType);
                     
                     // Add conversation context from session tracking
                     const conversationContext = this.getConversationContext(sessionId);
                     if (conversationContext) {
-                        question.sessionContext = conversationContext;
+                        questionObj.sessionContext = conversationContext;
                     }
                     
                     console.log('[AskService] MCP: Requesting enhanced answer...');
-                    const mcpAnswer = await mcpClient.getEnhancedAnswer(question, screenshotBase64);
-                    if (mcpAnswer) {
+                    // Pass the question text and include the enhanced context in the context parameter
+                    const enhancedContext = {
+                        questionType: questionObj.type,
+                        conversationHistory: questionObj.context,
+                        isFollowUp: questionObj.isFollowUp,
+                        needsPreviousContext: questionObj.needsPreviousContext,
+                        requiresScreenContext: questionObj.requiresScreenContext,
+                        sessionContext: questionObj.sessionContext,
+                        screenshot: screenshotBase64
+                    };
+                    const mcpResponse = await mcpClient.getEnhancedAnswer(questionObj.text, enhancedContext);
+                    if (mcpResponse && mcpResponse.answer) {
+                        const mcpAnswer = mcpResponse.answer;
                         console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
                         
                         // Special logging for successful Notion answers
@@ -824,21 +835,14 @@ class AskService {
             if (request.type === 'meeting_insight') {
                 const { transcription, context } = request;
                 
-                // Create a prompt for generating meeting insights
-                const insightPrompt = `Based on this participant's speech in a meeting, provide a brief, helpful insight or suggestion:
+                // Create a concise prompt for faster insight generation
+                const insightPrompt = `Generate a brief insight for this meeting comment:
 
-Participant said: "${transcription.text}"
+"${transcription.text}"
 
-Context from recent conversation:
-${context.map(msg => `${msg.speaker}: ${msg.text}`).join('\n')}
+Context: ${context.slice(-2).map(msg => msg.text).join('. ')}
 
-Provide a concise insight (1-2 sentences max) that would be helpful for the user to know about this participant's contribution. Focus on:
-- Key information or decisions mentioned
-- Action items or commitments
-- Important questions or concerns raised
-- Technical details or expertise shared
-
-Keep it brief and actionable:`;
+Provide one actionable insight (max 15 words):`;
 
                 // Get current model info
                 const modelInfo = await modelStateService.getCurrentModelInfo('llm');
@@ -851,8 +855,8 @@ Keep it brief and actionable:`;
                 const llm = createLLM(modelInfo.provider, {
                     apiKey: modelInfo.apiKey,
                     model: modelInfo.model,
-                    temperature: 0.3,
-                    maxTokens: 150,
+                    temperature: 0.1, // Lower temperature for faster, more focused responses
+                    maxTokens: 50,    // Much smaller token limit for faster generation
                     usePortkey: modelInfo.provider === 'openai-leviousa',
                     portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
                 });
@@ -1025,6 +1029,12 @@ Keep it brief and actionable:`;
         const askWin = getWindowPool()?.get('ask');
         if (!askWin || askWin.isDestroyed()) {
             return;
+        }
+
+        // Ensure answer is a string
+        if (typeof answer !== 'string') {
+            console.error('[AskService] _streamMCPAnswer: answer is not a string:', typeof answer, answer);
+            answer = String(answer || '');
         }
 
         this.state.isLoading = false;

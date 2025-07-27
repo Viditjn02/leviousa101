@@ -7,6 +7,8 @@
 const winston = require('winston');
 const { EventEmitter } = require('events');
 const MCPClient = require('./MCPClient');
+const { createLLM } = require('../../common/ai/factory');
+const modelStateService = require('../../common/services/modelStateService');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -31,12 +33,18 @@ class MCPMigrationBridge extends EventEmitter {
         super();
         logger.info('Initializing MCP Migration Bridge');
         
-        // Create new MCPClient instance
+        // Create LLM service wrapper
+        this.llmService = this.createLLMService();
+        
+        // Create new MCPClient instance with LLM service
         this.newClient = new MCPClient({
             enableMetrics: true,
             enableCircuitBreaker: true,
-            enableConnectionPool: true // Enable connection pooling
+            enableConnectionPool: true, // Enable connection pooling
+            llmService: this.llmService
         });
+        // Expose OAuthManager for backward compatibility (for registry access)
+        this.oauthManager = this.newClient.oauthManager;
 
         // Compatibility properties from old implementation
         this.mcpServers = new Map();
@@ -397,6 +405,8 @@ class MCPMigrationBridge extends EventEmitter {
             
             // Convert to old API format
             const serverStatus = {};
+            
+            // First, add all running servers
             for (const [serverName, serverState] of this.newClient.serverRegistry.servers) {
                 serverStatus[serverName] = {
                     status: serverState.status,
@@ -405,10 +415,29 @@ class MCPMigrationBridge extends EventEmitter {
                 };
             }
             
+            // Then, add authenticated OAuth services that have server configurations
+            const authStatus = this.newClient.oauthManager.getStatus();
+            const availableServers = this.newClient.serverRegistry.getAvailableServers();
+            
+            for (const serverName of availableServers) {
+                const serverDef = this.newClient.serverRegistry.getServerDefinition(serverName);
+                
+                // If it's an OAuth service that's authenticated but not running
+                if (serverDef?.requiresAuth && authStatus[serverName]?.hasValidToken && !serverStatus[serverName]) {
+                    serverStatus[serverName] = {
+                        status: 'authenticated',
+                        running: false,
+                        tools: [],
+                        authenticated: true,
+                        canStart: true
+                    };
+                }
+            }
+            
             return {
                 servers: serverStatus,
                 isConnected: status.isConnected || false,
-                availableServers: Array.from(this.newClient.serverRegistry.servers.keys()),
+                availableServers: availableServers,
                 tools: this.externalTools
             };
         } catch (error) {
@@ -459,6 +488,18 @@ class MCPMigrationBridge extends EventEmitter {
                     authType: 'oauth',
                     scopes: ['profile', 'email'],
                     description: 'Access Google services'
+                },
+                linkedin: {
+                    name: 'LinkedIn',
+                    authType: 'oauth',
+                    scopes: ['r_liteprofile', 'r_emailaddress'],
+                    description: 'Access LinkedIn profile and connections'
+                },
+                discord: {
+                    name: 'Discord',
+                    authType: 'oauth',
+                    scopes: ['identify', 'guilds'],
+                    description: 'Access Discord servers and user info'
                 }
             };
         } catch (error) {
@@ -542,8 +583,154 @@ class MCPMigrationBridge extends EventEmitter {
      * Get OAuth token
      */
     async getOAuthToken(serviceName) {
-        const token = await this.newClient.oauthManager.getToken(serviceName);
+        const token = await this.newClient.oauthManager.getValidToken(serviceName);
         return token ? token.access_token : null;
+    }
+
+    /**
+     * Get enhanced answer using MCP tools and context (delegate to new client)
+     */
+    async getEnhancedAnswer(question, screenshotBase64 = null) {
+        try {
+            return await this.newClient.getEnhancedAnswer(question, screenshotBase64);
+        } catch (error) {
+            logger.error('Failed to get enhanced answer', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Create LLM service wrapper for AnswerService with fallback support
+     */
+    createLLMService() {
+        return {
+            generateResponse: async (prompt, context = {}, options = {}) => {
+                const startTime = Date.now();
+                const timeout = options.timeout || 8000; // 8 second timeout
+                
+                // Define provider priorities (primary and fallback)
+                const providers = [
+                    { name: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                    { name: 'openai', model: 'gpt-4o-mini' }
+                ];
+                
+                for (let i = 0; i < providers.length; i++) {
+                    const provider = providers[i];
+                    const isLastProvider = i === providers.length - 1;
+                    
+                    try {
+                        logger.info('LLM service attempting provider', { 
+                            provider: provider.name,
+                            attempt: i + 1,
+                            timeout,
+                            model: provider.model
+                        });
+                        
+                        // Get API key for this provider
+                        const apiKey = await this.getProviderApiKey(provider.name);
+                        if (!apiKey) {
+                            logger.warn('No API key available for provider', { provider: provider.name });
+                            continue;
+                        }
+
+                        // Create LLM instance for this provider
+                        const llm = createLLM(provider.name, {
+                            apiKey: apiKey,
+                            model: provider.model,
+                            temperature: options.temperature || 0.7,
+                            maxTokens: options.maxTokens || 1500, // Reduced for faster responses
+                            usePortkey: provider.name === 'openai-leviousa',
+                            portkeyVirtualKey: provider.name === 'openai-leviousa' ? apiKey : undefined,
+                        });
+
+                        // Format messages correctly for different providers
+                        const messages = [];
+                        
+                        // Add system prompt if provided
+                        if (options.systemPrompt) {
+                            messages.push({ role: 'system', content: options.systemPrompt });
+                        }
+                        
+                        // Add conversation history if provided
+                        if (context.conversationHistory && Array.isArray(context.conversationHistory)) {
+                            messages.push(...context.conversationHistory);
+                        }
+                        
+                        // Add current user prompt
+                        messages.push({ role: 'user', content: prompt });
+
+                        // Create timeout promise
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error(`Provider ${provider.name} timeout after ${timeout}ms`)), timeout);
+                        });
+
+                        // Race between API call and timeout
+                        const response = await Promise.race([
+                            llm.chat(messages),
+                            timeoutPromise
+                        ]);
+                        
+                        const duration = Date.now() - startTime;
+                        logger.info('LLM service success', { 
+                            provider: provider.name,
+                            model: provider.model,
+                            duration,
+                            messageCount: messages.length
+                        });
+                        
+                        return response.content;
+                        
+                    } catch (error) {
+                        const duration = Date.now() - startTime;
+                        logger.error('LLM service provider failed', { 
+                            provider: provider.name,
+                            model: provider.model,
+                            error: error.message,
+                            duration,
+                            isLastProvider
+                        });
+                        
+                        // If this is the last provider, throw the error
+                        if (isLastProvider) {
+                            throw new Error(`All LLM providers failed. Last error: ${error.message}`);
+                        }
+                        
+                        // Otherwise, continue to next provider
+                        logger.info('Trying next provider due to failure', { 
+                            failedProvider: provider.name,
+                            nextProvider: providers[i + 1]?.name 
+                        });
+                    }
+                }
+                
+                throw new Error('No LLM providers available');
+            }
+        };
+    }
+
+    /**
+     * Get API key for a specific provider
+     */
+    async getProviderApiKey(providerName) {
+        try {
+            const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+            
+            // If current model matches the provider, use its key
+            if (modelInfo && modelInfo.provider === providerName && modelInfo.apiKey) {
+                return modelInfo.apiKey;
+            }
+            
+            // Otherwise, try to get provider settings
+            const providerSettings = await modelStateService.getProviderSettings(providerName);
+            return providerSettings?.apiKey || null;
+            
+        } catch (error) {
+            logger.warn('Failed to get API key for provider', { 
+                provider: providerName, 
+                error: error.message 
+            });
+            return null;
+        }
     }
 }
 

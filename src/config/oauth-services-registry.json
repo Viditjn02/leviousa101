@@ -1,6 +1,69 @@
 {
   "version": "1.0.0",
   "services": {
+    "google": {
+      "name": "Google Workspace",
+      "description": "Comprehensive access to Google Workspace services including Drive, Gmail, Calendar, Docs, Sheets, and Tasks",
+      "enabled": true,
+      "priority": 0,
+      "serverConfig": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-gdrive"
+        ],
+        "envMapping": {
+          "credentialsPath": "GOOGLE_CREDENTIALS_PATH"
+        }
+      },
+      "oauth": {
+        "provider": "google",
+        "authUrl": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenUrl": "https://oauth2.googleapis.com/token",
+        "scopes": {
+          "required": [
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/spreadsheets.readonly",
+            "https://www.googleapis.com/auth/tasks"
+          ],
+          "default": [
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/spreadsheets.readonly",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+          ]
+        },
+        "pkce": true,
+        "customParams": {
+          "access_type": "offline",
+          "prompt": "consent"
+        }
+      },
+      "capabilities": [
+        "drive",
+        "gmail", 
+        "calendar",
+        "documents",
+        "spreadsheets",
+        "tasks",
+        "workspace"
+      ],
+      "documentation": "https://developers.google.com/workspace",
+      "icon": "https://developers.google.com/identity/images/g-logo.png"
+    },
     "notion": {
       "name": "Notion",
       "description": "Connect to Notion workspace for managing pages, databases, and content",
@@ -679,9 +742,9 @@
     }
   },
   "metadata": {
-    "lastUpdated": "2025-07-25",
-    "totalServices": 11,
-    "enabledServices": 7,
+    "lastUpdated": "2025-01-27",
+    "totalServices": 16,
+    "enabledServices": 12,
     "version": "1.0.0"
   }
 }

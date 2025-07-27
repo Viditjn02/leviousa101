@@ -159,15 +159,22 @@ class OAuthManager extends EventEmitter {
     async startOAuthFlow(provider) {
         // Generate state for CSRF protection
         const state = crypto.randomBytes(32).toString('hex');
-        this.authStates.set(state, {
-            provider,
-            timestamp: Date.now()
-        });
+        this.authStates.set(state, { provider, timestamp: Date.now() });
 
-        // Start local callback server
-        const callbackUrl = await this.startCallbackServer();
-        
-        // Build authorization URL
+        // Determine callback URL: use HTTPS endpoint for specific providers
+        let callbackUrl;
+        const lower = provider.toLowerCase();
+        const webCallback = ['slack'];
+        if (webCallback.includes(lower)) {
+            callbackUrl = 'https://leviousa-101.web.app/api/oauth/callback';
+            logger.info('Using web callback URI for OAuth flow', { provider, callbackUrl });
+        } else {
+            // Use local callback server for others (e.g., Google)
+            callbackUrl = await this.startCallbackServer();
+            logger.info('Started local callback server for OAuth flow', { provider, callbackUrl });
+        }
+
+        // Build authorization URL with determined callback
         const authUrl = this.buildAuthorizationUrl(provider, state, callbackUrl);
         
         logger.info('Opening authorization URL', { provider, authUrl });
@@ -200,9 +207,19 @@ class OAuthManager extends EventEmitter {
 
         logger.info('Preparing OAuth flow', { provider });
 
-        // Start local callback server
-        const callbackUrl = await this.startCallbackServer();
-        
+        // Determine callback URL: use HTTPS endpoint only for Slack
+        const lower = provider.toLowerCase();
+        let callbackUrl;
+        if (lower === 'slack') {
+            // Use web callback for Slack
+            callbackUrl = 'https://leviousa-101.web.app/api/oauth/callback';
+            logger.info('Using web callback URI for OAuth flow', { provider, callbackUrl });
+        } else {
+            // Use local callback server for other providers
+            callbackUrl = await this.startCallbackServer();
+            logger.info('Started local callback server for OAuth flow', { provider, callbackUrl });
+        }
+
         logger.info('OAuth flow prepared', { provider, callbackUrl });
         return callbackUrl;
     }
@@ -246,8 +263,11 @@ class OAuthManager extends EventEmitter {
             response_type: 'code'
         });
 
-        // Add scopes if configured
-        if (config.scopes && config.scopes.length > 0) {
+        // Add scopes
+        if (provider.toLowerCase() === 'linkedin') {
+            // Use OpenID Connect for LinkedIn (openid + profile + email scopes required)
+            params.append('scope', 'openid profile email');
+        } else if (config.scopes && config.scopes.length > 0) {
             params.append('scope', config.scopes.join(' '));
         }
 
@@ -256,11 +276,6 @@ class OAuthManager extends EventEmitter {
             for (const [key, value] of Object.entries(config.customParams)) {
                 params.append(key, value);
             }
-        }
-
-        // Provider-specific parameters (legacy support)
-        if (provider === 'notion') {
-            params.append('owner', 'user');
         }
 
         return `${config.authUrl}?${params.toString()}`;
@@ -545,17 +560,25 @@ class OAuthManager extends EventEmitter {
             redirect_uri: redirectUri
         });
 
-        // Use Basic Authentication for client credentials (OAuth 2.0 standard)
-        const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+        let headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        };
+
+        // LinkedIn requires client credentials in form data for OpenID Connect
+        if (provider.toLowerCase() === 'linkedin') {
+            tokenData.append('client_id', clientId);
+            tokenData.append('client_secret', clientSecret);
+        } else {
+            // Use Basic Authentication for other providers (OAuth 2.0 standard)
+            const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+            headers['Authorization'] = `Basic ${credentials}`;
+        }
 
         try {
             const response = await fetch(config.tokenUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Accept': 'application/json',
-                    'Authorization': `Basic ${credentials}`
-                },
+                headers: headers,
                 body: tokenData.toString()
             });
 
@@ -779,7 +802,35 @@ class OAuthManager extends EventEmitter {
     }
 
     /**
-     * Get authentication status for all providers
+     * Get current authentication status for all providers
+     */
+    getStatus() {
+        const status = {};
+        
+        for (const provider of Object.keys(this.oauthProviders)) {
+            // Get token from config manager (where they're actually saved)
+            const tokenData = this.configManager.getCredential(`${provider}_token`);
+            let token = null;
+            
+            if (tokenData) {
+                try {
+                    token = JSON.parse(tokenData);
+                } catch (e) {
+                    // Invalid token data
+                }
+            }
+            
+            status[provider] = {
+                hasValidToken: !!token && !!token.access_token,
+                expiresAt: token ? token.expires_at : null
+            };
+        }
+        
+        return status;
+    }
+
+    /**
+     * Get authentication status for all providers (detailed)
      */
     async getAuthenticationStatus() {
         const status = {};
@@ -825,53 +876,6 @@ class OAuthManager extends EventEmitter {
                 description: service.description,
                 priority: service.priority
             }));
-    }
-
-    /**
-     * Get authorization URL for a service (for testing)
-     */
-    async getAuthorizationUrl(serviceName) {
-        const provider = this.getProviderConfig(serviceName);
-        if (!provider) {
-            throw new Error(`Unsupported OAuth provider: ${serviceName}`);
-        }
-        
-        // Generate state for CSRF protection
-        const state = crypto.randomBytes(32).toString('hex');
-        
-        // Build authorization URL
-        const params = new URLSearchParams({
-            client_id: 'test-client-id', // For testing
-            redirect_uri: 'http://localhost:3000/callback',
-            response_type: 'code',
-            state: state
-        });
-        
-        // Add scopes if configured
-        if (provider.scopes && provider.scopes.length > 0) {
-            params.append('scope', provider.scopes.join(' '));
-        }
-        
-        const authUrl = `${provider.authUrl}?${params.toString()}`;
-        
-        return authUrl;
-    }
-
-    /**
-     * Get OAuth status for all services
-     */
-    getStatus() {
-        const status = {};
-        
-        for (const provider of Object.keys(this.oauthProviders)) {
-            const token = this.tokens.get(provider);
-            status[provider] = {
-                hasValidToken: !!token && !this.isTokenExpired(token),
-                expiresAt: token ? token.expires_at : null
-            };
-        }
-        
-        return status;
     }
 
     /**

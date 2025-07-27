@@ -189,6 +189,30 @@ function endAllActiveSessions(uid) {
     }
 }
 
+function getCurrentSession(uid) {
+    try {
+        const query = `SELECT * FROM sessions WHERE uid = ? AND ended_at IS NULL ORDER BY updated_at DESC LIMIT 1`;
+        const session = db.prepare(query).get(uid);
+        return session || null;
+    } catch (err) {
+        console.error('SQLite: Failed to get current session:', err);
+        return null;
+    }
+}
+
+function getRecentMessages(sessionId, limit = 10) {
+    try {
+        // Get recent messages from both ask_messages table (for AI conversations)
+        const askRepository = require('../../ask/repositories');
+        const query = `SELECT role, content, created_at FROM ask_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`;
+        const messages = db.prepare(query).all(sessionId, limit);
+        return messages.reverse(); // Return in chronological order
+    } catch (err) {
+        console.error('SQLite: Failed to get recent messages:', err);
+        return [];
+    }
+}
+
 module.exports = {
     getById,
     create,
@@ -201,4 +225,6 @@ module.exports = {
     getOrCreateActive,
     endAllActiveSessions,
     generateIntelligentTitle, // NEW: Export the intelligent title function
+    getCurrentSession,
+    getRecentMessages,
 }; 
