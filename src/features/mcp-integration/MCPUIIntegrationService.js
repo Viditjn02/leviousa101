@@ -306,7 +306,7 @@ class MCPUIIntegrationService extends EventEmitter {
     // Send connection request
     return await this.mcpClient.invokeTool('linkedin.sendConnectionRequest', {
       profileId: context.profileId,
-      message: context.message || 'I'd like to connect with you on LinkedIn.'
+      message: context.message || 'I\'d like to connect with you on LinkedIn.'
     });
   }
 
