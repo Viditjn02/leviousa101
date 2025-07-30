@@ -591,8 +591,8 @@ class MCPConfigManager extends EventEmitter {
             const tokenData = await tokenResponse.json();
             console.log(`[MCPConfig] ✅ Token exchange successful for ${provider}:${oauthState.service}`);
             
-            // Store the access token securely
-            const tokenKey = `${provider}_${oauthState.service}_token`;
+            // Store the access token securely under provider_token for consistency
+            const tokenKey = `${provider}_token`;
             this.setCredential(tokenKey, JSON.stringify({
                 access_token: tokenData.access_token,
                 refresh_token: tokenData.refresh_token,
@@ -603,6 +603,29 @@ class MCPConfigManager extends EventEmitter {
             // Clean up OAuth state
             delete this.config.oauthStates[state];
             await this.saveConfiguration();
+
+            // Auto-configure and start MCP server for OAuth services
+            if (provider === 'google' || provider === 'notion') {
+                console.log(`[MCPConfig] 🚀 Auto-configuring MCP server for ${provider}...`);
+                
+                // Add server to configuration if not already present
+                if (!this.config.servers[provider]) {
+                    this.addServer(provider, {
+                        type: provider,
+                        enabled: true,
+                        requiresAuth: true,
+                        authProvider: provider
+                    });
+                }
+                
+                // Emit server-ready event for auto-startup
+                this.emit('oauth-server-ready', { 
+                    provider, 
+                    service: oauthState.service, 
+                    tokenData,
+                    serverName: provider
+                });
+            }
 
             this.emit('oauth-success', { provider, service: oauthState.service, tokenData });
             return tokenData;

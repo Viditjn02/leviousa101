@@ -5,7 +5,7 @@
  */
 
 const { EventEmitter } = require('events');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs').promises;
@@ -104,7 +104,16 @@ class ServerRegistry extends EventEmitter {
                         };
                         logger.info('Added OAuth service to server definitions', { 
                             service: serviceKey, 
-                            command: service.serverConfig.command 
+                            command: service.serverConfig.command,
+                            args: service.serverConfig.args,
+                            enabled: service.enabled,
+                            hasServerConfig: !!service.serverConfig
+                        });
+                    } else {
+                        logger.warn('OAuth service missing serverConfig', {
+                            service: serviceKey,
+                            hasServerConfig: !!service.serverConfig,
+                            hasCommand: !!(service.serverConfig && service.serverConfig.command)
                         });
                     }
                 }
@@ -220,21 +229,43 @@ class ServerRegistry extends EventEmitter {
             // Prepare environment
             const env = await this.prepareEnvironment(name, serverState.config);
 
+            // Determine transport type and options
+            let transportOptions = { env, cwd: serverState.config.cwd };
+            
+            if (name === 'paragon' || serverState.config.authProvider === 'paragon') {
+                // For Paragon MCP, use SSE transport
+                transportOptions.transportType = 'sse';
+                transportOptions.sseUrl = 'http://localhost:3001/sse';
+                
+                // Add user information for JWT generation
+                // In production, this should come from authenticated user context
+                transportOptions.userId = 'default-user';
+                
+                logger.info('Using SSE transport for Paragon MCP', { 
+                    name, 
+                    url: transportOptions.sseUrl,
+                    userId: transportOptions.userId 
+                });
+                
+                // Start the Paragon HTTP server first
+                await this.startParagonServer(serverState.config, env);
+            }
+
             // Create MCP adapter
             const adapter = new MCPAdapter({
                 name: `${name}-server`,
                 version: '1.0.0',
-                transport: 'stdio'
+                transport: transportOptions.transportType || 'stdio'
             });
 
             // Set up adapter event handlers
             this.setupAdapterHandlers(name, adapter);
 
-            // Connect adapter to the server using command and args
+            // Connect adapter to the server using appropriate transport
             await adapter.connectWithRetry(
                 serverState.config.command, 
                 serverState.config.args,
-                { env, cwd: serverState.config.cwd }
+                transportOptions
             );
 
             // Update server state
@@ -286,6 +317,23 @@ class ServerRegistry extends EventEmitter {
             // Disconnect adapter
             if (serverState.adapter) {
                 await serverState.adapter.disconnect();
+            }
+
+            // Terminate Paragon subprocess if it exists
+            if (name === 'paragon' && this.paragonProcess && !this.paragonProcess.killed) {
+                logger.info('Terminating Paragon server subprocess', { name });
+                this.paragonProcess.kill('SIGTERM');
+                
+                // Force kill after timeout if process doesn't respond
+                setTimeout(() => {
+                    if (this.paragonProcess && !this.paragonProcess.killed) {
+                        logger.warn('Force killing unresponsive Paragon server subprocess', { name });
+                        this.paragonProcess.kill('SIGKILL');
+                    }
+                }, 3000);
+                
+                // Clear the process reference
+                this.paragonProcess = null;
             }
 
             // Update server state
@@ -342,11 +390,63 @@ class ServerRegistry extends EventEmitter {
     }
 
     /**
+     * Get active servers (running)
+     */
+    getActiveServers() {
+        return Array.from(this.servers.values()).filter(serverState => serverState.status === ServerStatus.RUNNING);
+    }
+    
+    /**
      * Ensure authentication for a server
      */
     async ensureAuthentication(serverName, authProvider) {
         logger.info('Checking authentication', { serverName, authProvider });
 
+        // Handle Paragon JWT authentication separately
+        if (authProvider === 'paragon') {
+            logger.info('Using JWT authentication for Paragon', { serverName });
+            
+            // Load Paragon environment if not already loaded
+            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            require('dotenv').config({ path: paragonEnvPath });
+            
+            // Check if Paragon credentials are available
+            const projectId = process.env.PROJECT_ID || process.env.PARAGON_PROJECT_ID;
+            const signingKey = process.env.SIGNING_KEY || process.env.PARAGON_SIGNING_KEY;
+            
+            if (!projectId || !signingKey) {
+                logger.error('Paragon credentials missing', { 
+                    serverName, 
+                    hasProjectId: !!projectId, 
+                    hasSigningKey: !!signingKey 
+                });
+                throw new Error(`Paragon authentication credentials missing - check PROJECT_ID and SIGNING_KEY in services/paragon-mcp/.env`);
+            }
+            
+            // Initialize and test JWT service
+            const paragonJwtService = require('./paragonJwtService');
+            if (!paragonJwtService.getStatus().initialized) {
+                paragonJwtService.initialize({
+                    projectId: projectId,
+                    signingKey: signingKey
+                });
+            }
+            
+            const status = paragonJwtService.getStatus();
+            if (!status.initialized) {
+                logger.error('Paragon JWT service initialization failed', { serverName, status });
+                throw new Error(`Paragon JWT service initialization failed`);
+            }
+            
+            logger.info('Paragon JWT authentication verified', { 
+                serverName, 
+                projectId: status.projectId,
+                hasSigningKey: status.hasSigningKey 
+            });
+            return;
+        }
+
+        // Handle OAuth authentication for other services
         const token = await this.oauthManager.getValidToken(authProvider);
         if (!token) {
             logger.info('Authentication required', { serverName, authProvider });
@@ -357,10 +457,126 @@ class ServerRegistry extends EventEmitter {
     }
 
     /**
+     * Start Paragon HTTP server in background
+     */
+    async startParagonServer(config, env) {
+        logger.info('Starting Paragon HTTP server...');
+        
+        const { spawn } = require('child_process');
+        
+        return new Promise((resolve, reject) => {
+            // Load Paragon .env file and merge with environment
+            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            const dotenv = require('dotenv');
+            const paragonEnv = dotenv.config({ path: paragonEnvPath });
+            
+            let processEnv = { ...process.env, ...env };
+            
+            // Merge Paragon environment variables if loaded successfully
+            if (!paragonEnv.error && paragonEnv.parsed) {
+                processEnv = { ...processEnv, ...paragonEnv.parsed };
+                logger.info('Loaded Paragon .env file for process', { 
+                    hasProjectId: !!paragonEnv.parsed.PROJECT_ID,
+                    hasSigningKey: !!paragonEnv.parsed.SIGNING_KEY
+                });
+            } else {
+                logger.warn('Failed to load Paragon .env file', { error: paragonEnv.error?.message });
+            }
+            
+            // Kill any process listening on the port to prevent EADDRINUSE
+            const port = processEnv.PORT || '3001';
+            try {
+                execSync(`lsof -t -i:${port} | xargs kill -9`, { stdio: 'ignore' });
+                logger.info(`Killed any process on port ${port}`);
+            } catch (err) {
+                logger.warn(`No process to kill on port ${port}: ${err.message}`);
+            }
+            // Start the Paragon server process with correct working directory
+            const paragonCwd = path.join(__dirname, '../../../../services/paragon-mcp');
+            const serverProcess = spawn(config.command, config.args, {
+                env: processEnv,
+                cwd: paragonCwd,
+                detached: false,
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            
+            let serverStarted = false;
+            
+            // Listen for stdout to know when server is ready
+            serverProcess.stdout.on('data', (data) => {
+                const output = data.toString();
+                logger.info('Paragon server output:', output.trim());
+                
+                // Check if server is ready - handle both regular server and mcp-proxy messages
+                if (output.includes('Server is running') || output.includes('listening on') || output.includes('starting server on port')) {
+                    if (!serverStarted) {
+                        serverStarted = true;
+                        logger.info('Paragon HTTP server started successfully');
+                        resolve(serverProcess);
+                    }
+                }
+            });
+            
+            // Handle stderr
+            serverProcess.stderr.on('data', (data) => {
+                const error = data.toString();
+                logger.error('Paragon server stderr:', error.trim());
+                // If we get an error during startup, reject immediately
+                if (!serverStarted && error.trim()) {
+                    reject(new Error(`Paragon server stderr: ${error.trim()}`));
+                }
+            });
+            
+            // Handle process exit
+            serverProcess.on('exit', (code, signal) => {
+                logger.warn('Paragon server process exited', { code, signal });
+            });
+            
+            // Handle process error
+            serverProcess.on('error', (error) => {
+                logger.error('Failed to start Paragon server process', { error: error.message });
+                if (!serverStarted) {
+                    reject(error);
+                }
+            });
+            
+            // Store process reference for cleanup
+            this.paragonProcess = serverProcess;
+            
+            // Timeout after 10 seconds if server doesn't start
+            setTimeout(() => {
+                if (!serverStarted) {
+                    logger.error('Paragon server startup timeout');
+                    reject(new Error('Paragon server startup timeout'));
+                }
+            }, 10000);
+        });
+    }
+
+    /**
      * Prepare environment variables for a server
      */
     async prepareEnvironment(serverName, config) {
         const env = { ...process.env };
+
+        // Special handling for Paragon - ensure environment variables are loaded
+        if (config.authProvider === 'paragon') {
+            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            require('dotenv').config({ path: paragonEnvPath });
+            
+            // Add Paragon-specific environment variables directly to server environment
+            env['PROJECT_ID'] = process.env.PROJECT_ID;
+            env['SIGNING_KEY'] = process.env.SIGNING_KEY;
+            env['MCP_SERVER_URL'] = process.env.MCP_SERVER_URL || 'http://localhost:3002';
+            env['NODE_ENV'] = process.env.NODE_ENV || 'development';
+            env['PORT'] = process.env.PORT || '3002';
+            
+            logger.info('Added Paragon environment variables', { 
+                serverName, 
+                hasProjectId: !!env['PROJECT_ID'],
+                hasSigningKey: !!env['SIGNING_KEY']
+            });
+        }
 
         // Add authentication tokens if required
         if (config.requiresAuth && config.authProvider) {
@@ -375,28 +591,59 @@ class ServerRegistry extends EventEmitter {
                 // Fall back to default mapping
                 const tokenEnvMap = {
                     'notion': 'NOTION_API_TOKEN',
-                    'github': 'GITHUB_PERSONAL_ACCESS_TOKEN',
-                    'slack': 'SLACK_BOT_TOKEN',
-                    'google-drive': 'GOOGLE_OAUTH_TOKEN',
-                    'google': 'GOOGLE_OAUTH_TOKEN',
-                    'microsoft': 'MICROSOFT_ACCESS_TOKEN',
-                    'dropbox': 'DROPBOX_ACCESS_TOKEN',
-                    'salesforce': 'SALESFORCE_ACCESS_TOKEN',
-                    'discord': 'DISCORD_TOKEN',
-                    'linkedin': 'LINKEDIN_ACCESS_TOKEN'
+                    'google': 'GOOGLE_OAUTH_CLIENT_ID'
                 };
                 envVar = tokenEnvMap[config.authProvider];
             }
-
+            
             if (envVar && token) {
-                env[envVar] = token;
+                // Handle different token formats for different services
+                if (envVar === 'GOOGLE_OAUTH_CLIENT_ID') {
+                    // For workspace-mcp-http, we need OAuth client credentials from environment
+                    // The server expects GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+                    // We'll provide the token as access token for now, but this should be configured properly
+                    env[envVar] = token && token.access_token ? token.access_token : token;
+                } else if (envVar === 'NOTION_API_TOKEN') {
+                    // For Notion, we need the raw token string
+                    env[envVar] = token && token.access_token ? token.access_token : token;
+                } else {
+                    // Generic handling for other services
+                    env[envVar] = token && token.access_token ? token.access_token : token;
+                }
                 logger.info('Added authentication token to environment', { serverName, envVar: envVar });
             }
-        }
 
-        // Add any custom environment variables
-        if (config.env) {
-            Object.assign(env, config.env);
+            // Add Google OAuth client credentials if needed for workspace-mcp-http
+            if (config.authProvider === 'google') {
+                // Load OAuth client credentials from oauth manager's config
+                const clientId = this.oauthManager.configManager.getCredential('google_client_id');
+                const clientSecret = this.oauthManager.configManager.getCredential('google_client_secret');
+                
+                if (clientId) {
+                    env['GOOGLE_OAUTH_CLIENT_ID'] = clientId;
+                    logger.info('Added Google OAuth client ID to environment', { serverName });
+                }
+                if (clientSecret) {
+                    env['GOOGLE_OAUTH_CLIENT_SECRET'] = clientSecret;
+                    logger.info('Added Google OAuth client secret to environment', { serverName });
+                }
+                
+                // Also add access and refresh tokens
+                if (token) {
+                    const tokens = typeof token === 'string' ? JSON.parse(token) : token;
+                    if (tokens.access_token) {
+                        env['GOOGLE_ACCESS_TOKEN'] = tokens.access_token;
+                        logger.info('Added Google access token to environment', { serverName });
+                    }
+                    if (tokens.refresh_token) {
+                        env['GOOGLE_REFRESH_TOKEN'] = tokens.refresh_token;
+                        logger.info('Added Google refresh token to environment', { serverName });
+                    }
+                }
+                
+                // Enable insecure transport for development
+                env['OAUTHLIB_INSECURE_TRANSPORT'] = '1';
+            }
         }
 
         return env;
@@ -534,6 +781,13 @@ class ServerRegistry extends EventEmitter {
      */
     getServerDefinition(name) {
         return this.serverDefinitions[name];
+    }
+
+    /**
+     * Check if server is registered
+     */
+    hasServer(name) {
+        return this.servers.has(name);
     }
 
     /**
@@ -689,6 +943,82 @@ class ServerRegistry extends EventEmitter {
         
         logger.info('OAuth service registered successfully', { serviceName });
         return serverState;
+    }
+
+    /**
+     * Shutdown all running servers and cleanup processes
+     */
+    async shutdown() {
+        logger.info('Shutting down all servers...');
+        
+        // Kill Paragon process if it exists
+        if (this.paragonProcess && !this.paragonProcess.killed) {
+            logger.info('Terminating Paragon server process');
+            try {
+                this.paragonProcess.kill('SIGTERM');
+                
+                // Give it 5 seconds to gracefully shutdown, then force kill
+                setTimeout(() => {
+                    if (!this.paragonProcess.killed) {
+                        logger.warn('Force killing Paragon server process');
+                        this.paragonProcess.kill('SIGKILL');
+                    }
+                }, 5000);
+            } catch (error) {
+                logger.error('Error killing Paragon process', { error: error.message });
+            }
+        }
+        
+        // Stop all running servers
+        const runningServers = Array.from(this.servers.entries())
+            .filter(([_, state]) => state.status === ServerStatus.RUNNING);
+            
+        for (const [serverName, _] of runningServers) {
+            try {
+                await this.stopServer(serverName);
+            } catch (error) {
+                logger.error('Error stopping server during shutdown', { serverName, error: error.message });
+            }
+        }
+        
+        logger.info('Server registry shutdown complete');
+    }
+
+    /**
+     * Stop a specific server
+     */
+    async stopServer(serverName) {
+        const serverState = this.servers.get(serverName);
+        if (!serverState) {
+            logger.warn('Cannot stop server - not found', { serverName });
+            return;
+        }
+        
+        if (serverState.status !== ServerStatus.RUNNING) {
+            logger.warn('Cannot stop server - not running', { serverName, status: serverState.status });
+            return;
+        }
+        
+        logger.info('Stopping server', { serverName });
+        serverState.status = ServerStatus.STOPPING;
+        
+        // For Paragon, kill the process
+        if (serverName === 'paragon' && this.paragonProcess && !this.paragonProcess.killed) {
+            try {
+                this.paragonProcess.kill('SIGTERM');
+            } catch (error) {
+                logger.error('Error stopping Paragon server', { error: error.message });
+            }
+        }
+        
+        // Update server state
+        serverState.status = ServerStatus.STOPPED;
+        serverState.stopTime = Date.now();
+        
+        // Emit server stopped event
+        this.emit('serverStopped', { serverName });
+        
+        logger.info('Server stopped', { serverName });
     }
 }
 

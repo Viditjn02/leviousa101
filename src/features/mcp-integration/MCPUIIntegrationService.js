@@ -52,80 +52,625 @@ class MCPUIIntegrationService extends EventEmitter {
       summarize: this.createNoteSummarizeAction.bind(this)
     });
 
-    // LinkedIn actions
-    this.contextualActions.set('linkedin', {
-      lookup: this.createLinkedInLookupAction.bind(this),
-      connect: this.createLinkedInConnectAction.bind(this)
-    });
+    // Note: Specific integration actions removed - now using Paragon for unified access
   }
 
   /**
-   * Get contextual actions based on current state
+   * Get contextual actions based on current state using LLM classification
    */
-  getContextualActions(context) {
-    const actions = [];
+  async getContextualActions(context) {
+    // Check if we have access to LLM services
+    if (!global.modelStateService) {
+      console.log('[MCPUIIntegrationService] No model state service available');
+      return [];
+    }
 
-    // Analyze context to determine relevant actions
-    if (context.type === 'ask') {
-      // In Ask mode, provide quick actions
-      if (context.message?.toLowerCase().includes('email')) {
-        actions.push({
+    try {
+      // Get available MCP tools to inform the LLM about capabilities
+      const availableTools = await this.getAvailableTools();
+
+      // Classify using LLM
+      let actions = await this.classifyIntentWithLLM(context, availableTools);
+
+      // Map classification result IDs to dynamic capability IDs
+      const dynamicCapabilities = await this.getDynamicCapabilities(availableTools);
+      const dynamicByCapability = {};
+      for (const [key, cap] of Object.entries(dynamicCapabilities)) {
+        dynamicByCapability[cap.capability] = key;
+      }
+      actions = actions.map(action => {
+        if (!dynamicCapabilities[action.id] && action.type) {
+          const [, capName] = action.type.split('.');
+          const mappedId = dynamicByCapability[capName];
+          if (mappedId) {
+            action.id = mappedId;
+            // Keep action.type unchanged (e.g. 'email.send') so handlers match 'email' category
+          }
+        }
+        return action;
+      });
+      // Remap email.compose to email.send for handler compatibility
+      actions = actions.map(action => {
+        if (action.type === 'email.compose') {
+          console.log('[MCPUIIntegrationService] Remapping email.compose to email.send');
+          action.type = 'email.send';
+          action.id = 'gmail-send';
+        }
+        return action;
+      });
+      
+      // Register actions so executeAction can find them
+      this.registerActiveActions('context', actions);
+
+      // Auto-execute high-confidence UI actions
+      const autoActions = actions.filter(action => action.confidence > 0.8 && action.autoTrigger);
+      for (const action of autoActions) {
+        console.log(`[MCPUIIntegrationService] Auto-triggering UI for: ${action.type}`);
+        await this.executeAction(action.id, context);
+      }
+
+      return actions;
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error in LLM-based action classification:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Use LLM to classify user intent and determine relevant MCP actions
+   */
+  async classifyIntentWithLLM(context, availableTools) {
+    try {
+      // Get LLM provider for classification
+      const provider = await this.getLLMProvider();
+      if (!provider) {
+        console.warn('[MCPUIIntegrationService] No LLM provider available for classification');
+        return [];
+      }
+
+      // Build system prompt that describes available MCP capabilities
+      const systemPrompt = await this.buildMCPCapabilitiesPrompt(availableTools, context);
+      
+      // Build user message with context
+      const userMessage = `Analyze this conversation for UI triggers:
+      
+User said: "${context.message}"
+Assistant response: "${context.response || 'Processing...'}"
+
+Should any interactive UI be triggered? Focus on clear intent patterns:
+- Email words: "send email", "email someone", "compose", "write to"
+- Calendar words: "schedule", "book meeting", "calendar"
+- Document words: "save to notion", "take notes"
+
+Return JSON array with detected actions.`;
+
+      console.log('[MCPUIIntegrationService] 🤖 LLM Classification Request:');
+      console.log('User message:', context.message);
+      console.log('Available tools:', Object.keys(availableTools).filter(k => availableTools[k]));
+
+      // Make LLM request for action classification via chat interface
+      const llmResponse = await provider.chat([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ]);
+      
+      console.log('[MCPUIIntegrationService] 🤖 LLM Raw Response:', llmResponse);
+      
+      // Parse the returned content string to extract action recommendations
+      const actions = this.parseLLMActionResponse(llmResponse);
+      
+      console.log('[MCPUIIntegrationService] 🎯 Parsed Actions:', actions);
+      
+      return actions;
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error in LLM classification:', error);
+      
+      // Fallback: simple keyword-based detection if LLM fails
+      return this.fallbackIntentDetection(context, availableTools);
+    }
+  }
+
+  /**
+   * Build system prompt that describes MCP capabilities
+   */
+  async buildMCPCapabilitiesPrompt(availableTools, context) {
+    // Get dynamic capabilities from OAuth registry instead of hardcoded ones
+    const dynamicCapabilities = await this.getDynamicCapabilities(availableTools);
+    
+    const capabilitiesText = Object.entries(dynamicCapabilities).map(([key, cap]) => 
+      `- ${cap.label}: ${cap.description} (available: ${cap.available ? '✅' : '❌'})`
+    ).join('\n');
+
+    const connectedServices = Object.entries(availableTools)
+      .map(([service, available]) => `${available ? '✅' : '❌'} ${service}`)
+      .join(', ');
+
+    return `You are analyzing user messages to determine when interactive UI components should be triggered.
+
+Available MCP capabilities:
+${capabilitiesText}
+
+Connected services: ${connectedServices}
+
+Analyze the user's message and conversation context to identify if any interactive UI should be triggered. Look for:
+
+1. **Email Intent**: "send email", "email someone", "compose email", "write to [person]"
+   - Extract recipients if mentioned (names, email addresses)
+   - Extract subject if mentioned
+   - Extract or generate draft content based on conversation context
+
+2. **Calendar Intent**: "book meeting", "schedule", "calendar", "set appointment"
+   - Extract meeting details if mentioned
+
+3. **Document Intent**: "save to notion", "create document", "take notes"
+   - Extract content to be saved
+
+4. **Other tool usage**: Based on available capabilities
+
+For each detected intent, extract specific context details to pre-populate the UI.
+
+Current conversation context:
+- Message: "${context.message}"
+- Response: "${context.response || 'No response yet'}"
+- Has screenshot: ${context.hasScreenshot || false}
+
+Return a JSON array of actions with this structure:
+[
+  {
+    "id": "action-identifier",
+    "type": "category.action", 
+    "confidence": 0.85,
+    "autoTrigger": true,
+    "context": {
+      "recipients": "extracted email addresses or names",
+      "subject": "extracted or suggested subject",
+      "body": "draft content based on conversation context",
+      "title": "for documents/meetings",
+      "description": "additional context"
+    }
+  }
+]
+
+Only include actions with confidence > 0.8 and autoTrigger: true for immediate UI display.
+Return [] if no high-confidence UI triggers are detected.`;
+  }
+
+  /**
+   * Get dynamic capabilities from OAuth services registry
+   */
+  async getDynamicCapabilities(availableTools) {
+    const capabilities = {};
+    
+    try {
+      // Load OAuth services registry if not already loaded
+      if (!this.oauthRegistry) {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const registryPath = path.join(__dirname, '../../config/oauth-services-registry.json');
+        const registryContent = await fs.readFile(registryPath, 'utf-8');
+        this.oauthRegistry = JSON.parse(registryContent);
+      }
+
+      // Generate capabilities dynamically from registry
+      for (const [serviceKey, service] of Object.entries(this.oauthRegistry.services)) {
+        if (!service.enabled) continue;
+
+        const isAvailable = availableTools[serviceKey] || false;
+        
+        // Generate actions based on service capabilities
+        if (service.capabilities) {
+          for (const capability of service.capabilities) {
+            const actionId = `${serviceKey}-${capability}`;
+            
+            capabilities[actionId] = {
+              id: actionId,
+              label: this.generateActionLabel(serviceKey, capability, service.name),
+              description: this.generateActionDescription(serviceKey, capability, service.description),
+              type: `${serviceKey}.${capability}`,
+              service: serviceKey,
+              capability: capability,
+              available: isAvailable,
+              triggers: this.generateTriggerWords(serviceKey, capability)
+            };
+          }
+        }
+      }
+      
+      console.log(`[MCPUIIntegrationService] Generated ${Object.keys(capabilities).length} dynamic capabilities from registry`);
+      return capabilities;
+      
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error loading dynamic capabilities:', error);
+      
+      // Fallback to minimal hardcoded capabilities if registry fails
+      return {
+        'email-send': {
           id: 'send-email',
           label: '📧 Send Email',
-          type: 'email.send'
-        });
+          description: 'Compose and send emails',
+          available: availableTools.email || false
+        }
+      };
+    }
+  }
+
+  /**
+   * Generate action label with appropriate emoji
+   */
+  generateActionLabel(serviceKey, capability, serviceName) {
+    const emojiMap = {
+      // Communication
+      email: '📧', compose: '📧', send: '📤', message: '💬',
+      // Calendar & Time
+      calendar: '📅', schedule: '📅', event: '📅', meeting: '🤝', appointment: '⏰',
+      // Documents & Content
+      documents: '📄', docs: '📄', sheets: '📊', drive: '💾', files: '📁',
+      pages: '📝', content: '📝', notes: '📝', write: '✍️',
+      // Tasks & Productivity
+      tasks: '✅', todo: '✅', projects: '📋', workspace: '🏢',
+      // Search & Discovery
+      search: '🔍', find: '🔍', lookup: '🔍', discover: '🔍',
+      // Storage & Management
+      save: '💾', store: '🗄️', manage: '⚙️', organize: '📂'
+    };
+
+    const emoji = emojiMap[capability] || emojiMap[serviceKey] || '🔧';
+    const action = capability.charAt(0).toUpperCase() + capability.slice(1);
+    
+    return `${emoji} ${action} (${serviceName})`;
+  }
+
+  /**
+   * Generate action description
+   */
+  generateActionDescription(serviceKey, capability, serviceDescription) {
+    const actionTemplates = {
+      send: `Send content via ${serviceDescription}`,
+      compose: `Compose content in ${serviceDescription}`,
+      create: `Create new items in ${serviceDescription}`,
+      schedule: `Schedule events using ${serviceDescription}`,
+      search: `Search content in ${serviceDescription}`,
+      save: `Save content to ${serviceDescription}`,
+      manage: `Manage items in ${serviceDescription}`,
+      read: `Read content from ${serviceDescription}`,
+      write: `Write content to ${serviceDescription}`
+    };
+
+    return actionTemplates[capability] || `${capability} using ${serviceDescription}`;
+  }
+
+  /**
+   * Generate trigger words for LLM classification
+   */
+  generateTriggerWords(serviceKey, capability) {
+    const baseWords = [serviceKey, capability];
+    
+    const wordMap = {
+      email: ['email', 'send', 'compose', 'message', 'contact', 'reach out'],
+      gmail: ['email', 'send', 'compose', 'message', 'contact', 'reach out'],
+      calendar: ['meeting', 'calendar', 'schedule', 'appointment', 'book', 'plan', 'time'],
+      notion: ['notion', 'save', 'notes', 'document', 'write', 'record'],
+      drive: ['drive', 'file', 'upload', 'save', 'store', 'document'],
+      tasks: ['task', 'todo', 'remind', 'list', 'complete', 'done']
+    };
+
+    const serviceWords = wordMap[serviceKey] || [];
+    const capabilityWords = wordMap[capability] || [];
+    
+    return [...new Set([...baseWords, ...serviceWords, ...capabilityWords])];
+  }
+
+  /**
+   * Build context message for LLM classification
+   */
+  buildContextMessage(context) {
+    let message = `User message: "${context.message || ''}"`;
+    
+    if (context.type) {
+      message += `\nContext type: ${context.type}`;
+    }
+    
+    if (context.history && context.history.length > 0) {
+      message += `\nConversation history: ${context.history.length} previous exchanges`;
+    }
+    
+    if (context.response) {
+      message += `\nCurrent response context available: ${context.response.substring(0, 100)}...`;
+    }
+    
+    return message;
+  }
+
+  /**
+   * Get LLM provider for classification (fallback to configured providers)
+   */
+  async getLLMProvider() {
+    if (!this.mcpClient) {
+      console.warn('[MCPUIIntegrationService] No MCP client available for LLM provider');
+      return null;
+    }
+    try {
+      // Try Anthropic via migration bridge
+      const anthKey = await this.mcpClient.getProviderApiKey('anthropic');
+      if (anthKey) {
+        const { createLLM } = require('../common/ai/providers/anthropic');
+        return createLLM({ apiKey: anthKey, model: 'claude-3-5-sonnet-20241022', temperature: 0.1 });
       }
+      // Fallback to OpenAI
+      const openKey = await this.mcpClient.getProviderApiKey('openai');
+      if (openKey) {
+        const { createLLM } = require('../common/ai/providers/openai');
+        return createLLM({ apiKey: openKey, model: 'gpt-4', temperature: 0.1 });
+      }
+      // Fallback to Gemini
+      const gemKey = await this.mcpClient.getProviderApiKey('gemini');
+      if (gemKey) {
+        const { createLLM } = require('../common/ai/providers/gemini');
+        return createLLM({ apiKey: gemKey, model: 'gemini-pro', temperature: 0.1 });
+      }
+      console.warn('[MCPUIIntegrationService] No LLM provider available for classification');
+      return null;
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error fetching LLM API key:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Parse LLM response to extract action recommendations
+   */
+  parseLLMActionResponse(response) {
+    try {
+      // Extract content from response
+      let content = '';
+      if (typeof response === 'string') {
+        content = response;
+      } else if (response.content) {
+        content = response.content;
+      } else if (response.message && response.message.content) {
+        content = response.message.content;
+      }
+
+      console.log('[MCPUIIntegrationService] 📋 Parsing LLM content:', content);
+
+      // Try to parse as JSON
+      const jsonMatch = content.match(/\[.*\]/s);
+      if (!jsonMatch) {
+        console.warn('[MCPUIIntegrationService] No JSON array found in LLM response');
+        return [];
+      }
+
+      const actions = JSON.parse(jsonMatch[0]);
       
-      if (context.message?.toLowerCase().includes('meeting') || 
-          context.message?.toLowerCase().includes('calendar')) {
-        actions.push({
-          id: 'schedule-meeting',
-          label: '📅 Schedule Meeting',
-          type: 'meeting.schedule'
-        });
-      }
-      
-      if (context.message?.toLowerCase().includes('linkedin') || 
-          context.message?.toLowerCase().includes('profile')) {
-        actions.push({
-          id: 'linkedin-lookup',
-          label: '🔍 LinkedIn Lookup',
-          type: 'linkedin.lookup'
-        });
-      }
-    } else if (context.type === 'listen-complete') {
-      // After listening session, provide summary actions
-      actions.push({
-        id: 'save-to-notion',
-        label: '📝 Save to Notion',
-        type: 'notes.save'
+      // Validate and process actions
+      return actions.filter(action => {
+        const isValid = action.id && action.type && 
+          typeof action.confidence === 'number' && 
+          action.confidence > 0.8 &&
+          action.autoTrigger === true;
+        
+        if (!isValid) {
+          console.warn('[MCPUIIntegrationService] Filtered out invalid action:', action);
+        }
+        
+        return isValid;
       });
-      
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error parsing LLM response:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fallback intent detection for LLM failures
+   */
+  async fallbackIntentDetection(context, availableTools) {
+    console.warn('[MCPUIIntegrationService] Falling back to keyword-based intent detection due to LLM failure.');
+    const actions = [];
+
+    // Simple keyword matching for email
+    if (context.message && (
+      context.message.toLowerCase().includes('send email') ||
+      context.message.toLowerCase().includes('email someone') ||
+      context.message.toLowerCase().includes('compose email') ||
+      context.message.toLowerCase().includes('write to')
+    )) {
       actions.push({
-        id: 'schedule-followup',
-        label: '📅 Schedule Follow-up',
-        type: 'meeting.followUp'
-      });
-      
-      actions.push({
-        id: 'send-summary-email',
-        label: '✉️ Send Summary Email',
+        id: 'email-send',
+        label: '📧 Send Email',
         type: 'email.send',
-        metadata: { template: 'meeting-summary' }
+        confidence: 0.9,
+        autoTrigger: true,
+        context: {
+          recipients: '', // Will be extracted by LLM if needed
+          subject: '', // Will be extracted by LLM if needed
+          body: '', // Will be extracted by LLM if needed
+          cc: '',
+          bcc: ''
+        }
       });
-    } else if (context.type === 'conversation') {
-      // During conversation, provide contextual actions
-      if (context.participants?.length > 0) {
-        actions.push({
-          id: 'linkedin-participants',
-          label: '👥 View LinkedIn Profiles',
-          type: 'linkedin.lookup',
-          metadata: { participants: context.participants }
-        });
+    }
+
+    // Simple keyword matching for calendar
+    if (context.message && (
+      context.message.toLowerCase().includes('schedule') ||
+      context.message.toLowerCase().includes('book meeting') ||
+      context.message.toLowerCase().includes('calendar') ||
+      context.message.toLowerCase().includes('set appointment')
+    )) {
+      actions.push({
+        id: 'meeting-schedule',
+        label: '📅 Schedule Meeting',
+        type: 'meeting.schedule',
+        confidence: 0.9,
+        autoTrigger: true,
+        context: {
+          title: '', // Will be extracted by LLM if needed
+          start: '', // Will be extracted by LLM if needed
+          duration: 30, // Default
+          attendees: [] // Will be extracted by LLM if needed
+        }
+      });
+    }
+
+    // Simple keyword matching for notes
+    if (context.message && (
+      context.message.toLowerCase().includes('save to notion') ||
+      context.message.toLowerCase().includes('take notes') ||
+      context.message.toLowerCase().includes('create document')
+    )) {
+      actions.push({
+        id: 'notes-save',
+        label: '📝 Save Notes',
+        type: 'notes.save',
+        confidence: 0.9,
+        autoTrigger: true,
+        context: {
+          title: '', // Will be extracted by LLM if needed
+          content: '', // Will be extracted by LLM if needed
+          tags: ['notes'], // Default
+          workspace: '' // Will be extracted by LLM if needed
+        }
+      });
+    }
+
+    console.log(`[MCPUIIntegrationService] Fallback detected ${actions.length} actions.`);
+    return actions;
+  }
+
+  /**
+   * Get available tools/services and their connection status
+   */
+  async getAvailableTools() {
+    const tools = {};
+
+    try {
+      // Load OAuth services registry if not already loaded
+      if (!this.oauthRegistry) {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const registryPath = path.join(__dirname, '../../config/oauth-services-registry.json');
+        const registryContent = await fs.readFile(registryPath, 'utf-8');
+        this.oauthRegistry = JSON.parse(registryContent);
+      }
+
+      // Initialize all services as unavailable
+      for (const serviceKey of Object.keys(this.oauthRegistry.services)) {
+        tools[serviceKey] = false;
+      }
+
+      // Check server registry for active servers instead of just tools
+      if (this.mcpClient && this.mcpClient.serverRegistry) {
+        const serverRegistry = this.mcpClient.serverRegistry;
+        
+        // Get active servers from the registry
+        const activeServers = serverRegistry.getActiveServers ? 
+          serverRegistry.getActiveServers() : [];
+        
+        console.log(`[MCPUIIntegrationService] Active MCP servers:`, 
+          activeServers.map(s => s.name || s.serverName || 'unknown'));
+
+        // Match active servers to services
+        for (const [serviceKey, service] of Object.entries(this.oauthRegistry.services)) {
+          if (!service.enabled) continue;
+
+          // Check if server is active for this service
+          tools[serviceKey] = activeServers.some(serverState => {
+            const serverName = serverState.name || serverState.serverName || '';
+            return serverName.toLowerCase().includes(serviceKey.toLowerCase()) ||
+                   serverName.includes('google') && serviceKey === 'google' ||
+                   serverName.includes('gmail') && serviceKey === 'google' ||
+                   serverName.includes('workspace') && serviceKey === 'google';
+          });
+        }
+        
+        // Also check tool registry as fallback
+        if (this.mcpClient.toolRegistry) {
+          const allTools = await this.mcpClient.toolRegistry.getAllTools();
+          
+          if (allTools.length > 0) {
+            console.log(`[MCPUIIntegrationService] Discovered ${allTools.length} MCP tools:`, 
+              allTools.map(t => t.name));
+
+            // Match discovered tools to services using intelligent matching
+            for (const [serviceKey, service] of Object.entries(this.oauthRegistry.services)) {
+              if (!service.enabled) continue;
+
+              // If server check failed, try tool matching
+              if (!tools[serviceKey]) {
+                tools[serviceKey] = this.matchToolsToService(allTools, serviceKey, service);
+              }
+            }
+          }
+        }
+      }
+
+      console.log('[MCPUIIntegrationService] Available tools status:', tools);
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error checking available tools:', error);
+    }
+
+    return tools;
+  }
+
+  /**
+   * Match discovered tools to a service using multiple strategies
+   */
+  matchToolsToService(discoveredTools, serviceKey, serviceConfig) {
+    // Strategy 1: Direct service name matching
+    const serviceMatches = discoveredTools.some(tool => 
+      tool.name.toLowerCase().includes(serviceKey.toLowerCase()) ||
+      (serviceConfig.name && tool.name.toLowerCase().includes(serviceConfig.name.toLowerCase()))
+    );
+
+    if (serviceMatches) {
+      console.log(`[MCPUIIntegrationService] ✅ ${serviceKey} matched by service name`);
+      return true;
+    }
+
+    // Strategy 2: Capability-based matching
+    if (serviceConfig.capabilities) {
+      const capabilityMatches = serviceConfig.capabilities.some(capability =>
+        discoveredTools.some(tool => 
+          tool.name.toLowerCase().includes(capability.toLowerCase()) ||
+          (tool.description && tool.description.toLowerCase().includes(capability.toLowerCase()))
+        )
+      );
+
+      if (capabilityMatches) {
+        console.log(`[MCPUIIntegrationService] ✅ ${serviceKey} matched by capabilities`);
+        return true;
       }
     }
 
-    return actions;
+    // Strategy 3: Server command matching (for MCP servers)
+    if (serviceConfig.serverConfig && serviceConfig.serverConfig.args) {
+      const serverMatches = serviceConfig.serverConfig.args.some(arg =>
+        discoveredTools.some(tool => 
+          tool.server && tool.server.toLowerCase().includes(arg.toLowerCase())
+        )
+      );
+
+      if (serverMatches) {
+        console.log(`[MCPUIIntegrationService] ✅ ${serviceKey} matched by server config`);
+        return true;
+      }
+    }
+
+    // Strategy 4: OAuth provider matching (for Google services)
+    if (serviceConfig.oauth && serviceConfig.oauth.provider) {
+      const providerMatches = discoveredTools.some(tool =>
+        tool.name.toLowerCase().includes(serviceConfig.oauth.provider.toLowerCase())
+      );
+
+      if (providerMatches) {
+        console.log(`[MCPUIIntegrationService] ✅ ${serviceKey} matched by OAuth provider`);
+        return true;
+      }
+    }
+
+    console.log(`[MCPUIIntegrationService] ❌ ${serviceKey} not matched`);
+    return false;
   }
 
   /**
@@ -144,38 +689,73 @@ class MCPUIIntegrationService extends EventEmitter {
       throw new Error(`No handler for action type ${action.type}`);
     }
 
-    return await handler(action, context);
+    // Pass the action-specific context if available
+    const actionContext = action.context || context;
+    return await handler(action, actionContext);
   }
 
   /**
    * Email Action Handlers
    */
   async createEmailSendAction(action, context) {
-    const emailData = {
-      to: context.recipients || '',
-      subject: context.subject || '',
-      body: context.body || '',
-      cc: context.cc || '',
-      bcc: context.bcc || ''
-    };
+    try {
+        const emailData = {
+            to: context.recipients || '',
+            subject: context.subject || '',
+            body: context.body || '',
+            cc: context.cc || '',
+            bcc: context.bcc || ''
+        };
 
-    // Generate email composer UI resource
-    const resource = UIResourceGenerator.generateEmailComposer(emailData);
-    
-    // Emit event for UI to handle
-    this.emit('ui-resource-ready', {
-      actionId: action.id,
-      resource,
-      type: 'modal',
-      onAction: async (tool, params) => {
-        // Handle email sending through MCP
-        if (tool === 'gmail.send') {
-          return await this.mcpClient.invokeTool('gmail.send', params);
-        }
-      }
-    });
+        // Generate email composer UI resource
+        const resource = UIResourceGenerator.generateEmailComposer(emailData);
+        
+        // Emit event for UI to handle with context
+        this.emit('ui-resource-ready', {
+            actionId: action.id,
+            serverId: 'paragon',
+            tool: 'paragon.GMAIL_SEND_EMAIL',
+            resource,
+            type: 'modal',
+            onAction: async (tool, params) => {
+                if (tool === 'gmail.send') {
+                    // Determine the full tool name with server prefix
+                    const activeServers = this.mcpClient.serverRegistry.getActiveServers();
+                    const serverName = activeServers[0]?.name || activeServers[0]?.serverName || 'paragon';
+                    const fullToolName = `${serverName}.GMAIL_SEND_EMAIL`;
+                    
+                    // Use correct Paragon API parameter names
+                    const result = await this.mcpClient.callTool(fullToolName, {
+                        toRecipients: [{ emailAddress: { address: params.to[0] } }],
+                        from: { emailAddress: { address: 'user@gmail.com' } }, // Will use authenticated user's email
+                        messageContent: {
+                            subject: params.subject,
+                            body: {
+                                content: params.body,
+                                contentType: 'text'
+                            }
+                        }
+                    });
+                    
+                    // Check if the result contains an error
+                    if (result.content && result.content[0] && result.content[0].text) {
+                        const responseText = result.content[0].text;
+                        if (responseText.includes('"error"')) {
+                            const errorData = JSON.parse(responseText);
+                            throw new Error(`Email sending failed: ${errorData.error}`);
+                        }
+                    }
+                    
+                    return result;
+                }
+            }
+        });
 
-    return { success: true, resourceId: resource.resource.uri };
+        return { success: true, resourceId: resource.resource.uri };
+    } catch (error) {
+        console.error('[MCPUIIntegrationService] Email sending failed:', error);
+        return { success: false, error: error.message };
+    }
   }
 
   async createEmailDraftAction(action, context) {
@@ -205,6 +785,8 @@ class MCPUIIntegrationService extends EventEmitter {
     
     this.emit('ui-resource-ready', {
       actionId: action.id,
+      serverId: 'google',
+      tool: 'google-calendar.createEvent',
       resource,
       type: 'modal',
       onAction: async (tool, params) => {
@@ -270,47 +852,6 @@ class MCPUIIntegrationService extends EventEmitter {
   }
 
   /**
-   * LinkedIn Action Handlers
-   */
-  async createLinkedInLookupAction(action, context) {
-    const searchQuery = context.query || context.name || '';
-    
-    // Search for LinkedIn profiles
-    const searchResult = await this.mcpClient.invokeTool('linkedin.searchPeople', {
-      query: searchQuery,
-      limit: 5
-    });
-
-    if (searchResult.profiles && searchResult.profiles.length > 0) {
-      // Generate LinkedIn profile cards
-      const profiles = searchResult.profiles.map(profile => 
-        UIResourceGenerator.generateLinkedInProfileCard(profile)
-      );
-
-      this.emit('ui-resource-ready', {
-        actionId: action.id,
-        resources: profiles,
-        type: 'inline',
-        onAction: async (tool, params) => {
-          if (tool === 'linkedin.connect') {
-            return await this.mcpClient.invokeTool('linkedin.sendConnectionRequest', params);
-          }
-        }
-      });
-    }
-
-    return searchResult;
-  }
-
-  async createLinkedInConnectAction(action, context) {
-    // Send connection request
-    return await this.mcpClient.invokeTool('linkedin.sendConnectionRequest', {
-      profileId: context.profileId,
-      message: context.message || 'I\'d like to connect with you on LinkedIn.'
-    });
-  }
-
-  /**
    * Helper methods
    */
   findAction(actionId) {
@@ -350,10 +891,7 @@ class MCPUIIntegrationService extends EventEmitter {
     // Check for calendar tools
     availability.calendar = tools.some(t => t.name.includes('calendar'));
     
-    // Check for LinkedIn tools
-    availability.linkedin = tools.some(t => t.name.includes('linkedin'));
-    
-    // Check for Notion tools
+    // Check for Notion tools (now via Paragon)
     availability.notion = tools.some(t => t.name.includes('notion'));
 
     return availability;

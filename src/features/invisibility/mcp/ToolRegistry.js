@@ -169,7 +169,7 @@ class ToolRegistry extends EventEmitter {
                 args
             );
 
-            logger.info('Tool invocation successful', { fullName });
+            logger.info('Tool invocation successful', { fullName, result });
             this.emit('toolInvoked', { fullName, args, result });
             
             return result;

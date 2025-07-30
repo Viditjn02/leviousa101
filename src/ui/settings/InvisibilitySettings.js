@@ -1,5 +1,4 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
-import '../mcp-ui/MCPUIIntegration.js';
 
 export class InvisibilitySettings extends LitElement {
     static styles = css`

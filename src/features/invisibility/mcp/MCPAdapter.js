@@ -7,6 +7,7 @@
 
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+const { SSEClientTransport } = require('@modelcontextprotocol/sdk/client/sse.js');
 const { EventEmitter } = require('events');
 const winston = require('winston');
 
@@ -64,24 +65,67 @@ class MCPAdapter extends EventEmitter {
      * Connect to an MCP server using command and arguments
      * @param {string} command - The command to run the server
      * @param {string[]} args - Arguments for the server command
-     * @param {Object} options - Additional options (env, cwd, etc.)
+     * @param {Object} options - Additional options (env, cwd, transportType, etc.)
      */
     async connectToServer(command, args = [], options = {}) {
         try {
-            logger.info('Connecting to MCP server', { command, args });
+            logger.info('Connecting to MCP server', { command, args, transportType: options.transportType });
             
             // Store connection parameters for reconnection
             this.lastConnectionParams = { command, args, options };
             
-            // Create stdio transport with enhanced error handling and process isolation
-            this.transport = new StdioClientTransport({
-                command,
-                args,
-                env: options.env,
-                cwd: options.cwd,
-                stderr: 'pipe', // Always pipe stderr to avoid stdio conflicts
-                stdio: ['pipe', 'pipe', 'pipe'] // Explicit stdio configuration for isolation
-            });
+            // Create transport based on type (SSE for Paragon, stdio for others)
+            if (options.transportType === 'sse') {
+                // For SSE transport (Paragon MCP)
+                const baseUrl = options.sseUrl || 'http://localhost:3002/sse';
+                const urlObj = new URL(baseUrl);
+                
+                // Generate user JWT token for Paragon authentication
+                let authHeaders = {};
+                if (options.env && options.env.PROJECT_ID) {
+                    try {
+                        const paragonJwtService = require('./paragonJwtService');
+                        if (paragonJwtService.getStatus().initialized) {
+                            // Use a test user ID - in production, this should come from actual user context
+                            const userId = options.userId || 'default-user';
+                            const userToken = paragonJwtService.generateUserToken(userId);
+                            
+                            if (userToken) {
+                                authHeaders['Authorization'] = `Bearer ${userToken}`;
+                                urlObj.searchParams.set('user', options.env.PROJECT_ID);
+                                logger.info('Generated user JWT for Paragon authentication', { 
+                                    userId, 
+                                    projectId: options.env.PROJECT_ID 
+                                });
+                            } else {
+                                logger.warn('Failed to generate user token for Paragon authentication');
+                            }
+                        } else {
+                            logger.warn('Paragon JWT service not initialized');
+                        }
+                    } catch (error) {
+                        logger.error('Error generating Paragon user token', { error: error.message });
+                    }
+                }
+                
+                const finalUrl = urlObj.toString();
+                logger.info('Creating SSE transport', { url: finalUrl, hasAuth: !!authHeaders.Authorization });
+                
+                // Create SSE transport with authentication headers
+                this.transport = new SSEClientTransport(urlObj, {
+                    headers: authHeaders
+                });
+            } else {
+                // Default stdio transport
+                this.transport = new StdioClientTransport({
+                    command,
+                    args,
+                    env: options.env,
+                    cwd: options.cwd,
+                    stderr: 'pipe', // Always pipe stderr to avoid stdio conflicts
+                    stdio: ['pipe', 'pipe', 'pipe'] // Explicit stdio configuration for isolation
+                });
+            }
             
             // Create MCP client
             this.mcpClient = new Client({
@@ -168,22 +212,38 @@ class MCPAdapter extends EventEmitter {
                 logger.info(`Discovered ${toolsResult.tools.length} tools`);
             }
             
-            // Discover resources
-            const resourcesResult = await this.mcpClient.listResources();
-            if (resourcesResult.resources) {
-                for (const resource of resourcesResult.resources) {
-                    this.capabilities.resources.set(resource.uri, resource);
+            // Discover resources (optional capability)
+            try {
+                const resourcesResult = await this.mcpClient.listResources();
+                if (resourcesResult.resources) {
+                    for (const resource of resourcesResult.resources) {
+                        this.capabilities.resources.set(resource.uri, resource);
+                    }
+                    logger.info(`Discovered ${resourcesResult.resources.length} resources`);
                 }
-                logger.info(`Discovered ${resourcesResult.resources.length} resources`);
+            } catch (error) {
+                if (error.message && error.message.includes('Method not found')) {
+                    logger.debug('Server does not support resources capability');
+                } else {
+                    logger.warn('Failed to discover resources', { error: error.message });
+                }
             }
             
-            // Discover prompts
-            const promptsResult = await this.mcpClient.listPrompts();
-            if (promptsResult.prompts) {
-                for (const prompt of promptsResult.prompts) {
-                    this.capabilities.prompts.set(prompt.name, prompt);
+            // Discover prompts (optional capability)
+            try {
+                const promptsResult = await this.mcpClient.listPrompts();
+                if (promptsResult.prompts) {
+                    for (const prompt of promptsResult.prompts) {
+                        this.capabilities.prompts.set(prompt.name, prompt);
+                    }
+                    logger.info(`Discovered ${promptsResult.prompts.length} prompts`);
                 }
-                logger.info(`Discovered ${promptsResult.prompts.length} prompts`);
+            } catch (error) {
+                if (error.message && error.message.includes('Method not found')) {
+                    logger.debug('Server does not support prompts capability');
+                } else {
+                    logger.warn('Failed to discover prompts', { error: error.message });
+                }
             }
             
             this.emit('capabilitiesDiscovered', {
@@ -302,6 +362,24 @@ class MCPAdapter extends EventEmitter {
      * Set up transport event handlers for reconnection
      */
     setupTransportHandlers() {
+        // For SSE transport, handle connection events differently
+        if (this.transport instanceof SSEClientTransport) {
+            logger.info('Setting up SSE transport event handlers');
+            
+            this.transport.onclose = () => {
+                logger.warn('SSE transport closed');
+                this.handleDisconnection();
+            };
+            
+            this.transport.onerror = (error) => {
+                logger.error('SSE transport error', { error: error.message });
+                this.handleDisconnection();
+            };
+            
+            return;
+        }
+        
+        // For stdio transport, handle process events
         if (!this.transport || !this.transport._process) {
             logger.warn('No transport process found for event handler setup');
             return;
@@ -525,6 +603,23 @@ class MCPAdapter extends EventEmitter {
             const wasAutoReconnect = this.config.autoReconnect;
             this.config.autoReconnect = false;
             
+            // Terminate subprocess if it exists (for SSE/HTTP servers)
+            if (this.transport && this.transport._process) {
+                const process = this.transport._process;
+                if (!process.killed) {
+                    logger.info('Terminating MCP server process during shutdown');
+                    process.kill('SIGTERM');
+                    
+                    // Force kill after timeout
+                    setTimeout(() => {
+                        if (!process.killed) {
+                            logger.warn('Force killing unresponsive MCP server process during shutdown');
+                            process.kill('SIGKILL');
+                        }
+                    }, 3000); // Shorter timeout for shutdown
+                }
+            }
+            
             if (this.mcpClient) {
                 await this.mcpClient.close();
             }
@@ -533,6 +628,10 @@ class MCPAdapter extends EventEmitter {
             this.status = 'disconnected';
             this.isReconnecting = false;
             this.reconnectAttempts = 0;
+            
+            // Clear transport and client references
+            this.transport = null;
+            this.mcpClient = null;
             
             // Restore auto-reconnect setting
             this.config.autoReconnect = wasAutoReconnect;

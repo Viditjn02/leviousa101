@@ -24,6 +24,30 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('[GlobalErrorHandler] Unhandled promise rejection at:', promise, 'reason:', reason);
 });
 
+// Handle process exit to cleanup servers
+async function handleAppExit(signal) {
+    console.log(`[GlobalShutdown] Received ${signal}, cleaning up...`);
+    
+    try {
+        // Shutdown invisibility service (which includes MCP services)
+        if (global.invisibilityService && typeof global.invisibilityService.shutdown === 'function') {
+            await global.invisibilityService.shutdown();
+        }
+        
+        console.log('[GlobalShutdown] Cleanup complete');
+    } catch (error) {
+        console.error('[GlobalShutdown] Error during cleanup:', error);
+    }
+    
+    // Exit gracefully
+    process.exit(0);
+}
+
+// Register exit handlers
+process.on('SIGTERM', () => handleAppExit('SIGTERM'));
+process.on('SIGINT', () => handleAppExit('SIGINT'));
+process.on('beforeExit', () => handleAppExit('beforeExit'));
+
 if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
@@ -364,6 +388,16 @@ app.on('before-quit', async (event) => {
             console.log('[Shutdown] Active sessions ended');
         } catch (dbError) {
             console.warn('[Shutdown] Could not end active sessions (database may be closed):', dbError.message);
+        }
+        
+        // 3. Shutdown invisibility service (including MCP servers and Paragon subprocess)
+        try {
+            if (global.invisibilityService && typeof global.invisibilityService.shutdown === 'function') {
+                await global.invisibilityService.shutdown();
+                console.log('[Shutdown] Invisibility service and MCP servers stopped');
+            }
+        } catch (mcpError) {
+            console.warn('[Shutdown] Error shutting down MCP services:', mcpError.message);
         }
         
         // Ollama shutdown removed - local models disabled

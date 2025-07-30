@@ -4,16 +4,28 @@
     "google": {
       "name": "Google Workspace",
       "description": "Comprehensive access to Google Workspace services including Drive, Gmail, Calendar, Docs, Sheets, and Tasks",
-      "enabled": true,
+      "enabled": false,
       "priority": 0,
+      "authProvider": "google",
       "serverConfig": {
-        "command": "npx",
+        "command": "uvx",
         "args": [
-          "-y",
-          "@modelcontextprotocol/server-gdrive"
+          "workspace-mcp",
+          "--tools",
+          "gmail",
+          "drive",
+          "calendar",
+          "docs",
+          "sheets",
+          "tasks",
+          "--transport",
+          "stdio"
         ],
         "envMapping": {
-          "credentialsPath": "GOOGLE_CREDENTIALS_PATH"
+          "GOOGLE_ACCESS_TOKEN": "google_token",
+          "GOOGLE_REFRESH_TOKEN": "google_token",
+          "GOOGLE_OAUTH_CLIENT_ID": "google_client_id",
+          "GOOGLE_OAUTH_CLIENT_SECRET": "google_client_secret"
         }
       },
       "oauth": {
@@ -23,11 +35,19 @@
         "scopes": {
           "required": [
             "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/drive.file",
             "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.compose",
             "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/documents",
             "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/tasks"
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/userinfo.email"
           ],
           "default": [
             "https://www.googleapis.com/auth/drive.readonly",
@@ -35,6 +55,7 @@
             "https://www.googleapis.com/auth/gmail.readonly",
             "https://www.googleapis.com/auth/gmail.modify",
             "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.compose",
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/documents.readonly",
@@ -66,17 +87,18 @@
     },
     "notion": {
       "name": "Notion",
-      "description": "Connect to Notion workspace for managing pages, databases, and content",
-      "enabled": true,
+      "description": "Powerful workspace integration for notes, databases, tasks, and wikis",
+      "enabled": false,
       "priority": 1,
+      "authProvider": "notion",
       "serverConfig": {
         "command": "npx",
         "args": [
           "-y",
-          "@modelcontextprotocol/server-notion"
+          "@suekou/mcp-notion-server"
         ],
         "envMapping": {
-          "apiKey": "NOTION_API_KEY"
+          "credentialsPath": "NOTION_API_TOKEN"
         }
       },
       "oauth": {
@@ -104,7 +126,7 @@
     "slack": {
       "name": "Slack",
       "description": "Connect to Slack workspaces for messaging, channels, and file sharing",
-      "enabled": true,
+      "enabled": false,
       "priority": 2,
       "serverConfig": {
         "command": "npx",
@@ -155,7 +177,7 @@
     "github": {
       "name": "GitHub",
       "description": "Connect to GitHub for repository management, issues, and pull requests",
-      "enabled": true,
+      "enabled": false,
       "priority": 3,
       "serverConfig": {
         "command": "npx",
@@ -198,7 +220,7 @@
     "google-drive": {
       "name": "Google Drive",
       "description": "Access and manage Google Drive files and folders",
-      "enabled": true,
+      "enabled": false,
       "priority": 4,
       "serverConfig": {
         "command": "npx",
@@ -240,7 +262,7 @@
     "google-docs": {
       "name": "Google Docs",
       "description": "Create and edit Google Docs with formatting capabilities",
-      "enabled": true,
+      "enabled": false,
       "priority": 5,
       "serverConfig": {
         "command": "node",
@@ -284,7 +306,7 @@
     "gmail": {
       "name": "Gmail",
       "description": "Send, receive, and manage Gmail messages and threads",
-      "enabled": true,
+      "enabled": false,
       "priority": 6,
       "serverConfig": {
         "command": "npx",
@@ -333,7 +355,7 @@
     "google-calendar": {
       "name": "Google Calendar",
       "description": "Manage calendar events, schedules, and appointments",
-      "enabled": true,
+      "enabled": false,
       "priority": 7,
       "serverConfig": {
         "command": "npx",
@@ -379,7 +401,7 @@
     "google-sheets": {
       "name": "Google Sheets",
       "description": "Read and write data in Google Sheets spreadsheets",
-      "enabled": true,
+      "enabled": false,
       "priority": 8,
       "serverConfig": {
         "command": "npx",
@@ -423,7 +445,7 @@
     "google-tasks": {
       "name": "Google Tasks",
       "description": "Manage Google Tasks and to-do lists",
-      "enabled": true,
+      "enabled": false,
       "priority": 9,
       "serverConfig": {
         "command": "npx",
@@ -606,7 +628,7 @@
     "discord": {
       "name": "Discord",
       "description": "Connect to Discord for managing servers, channels, and messages",
-      "enabled": true,
+      "enabled": false,
       "priority": 10,
       "serverConfig": {
         "command": "docker",
@@ -654,7 +676,7 @@
     "linkedin": {
       "name": "LinkedIn",
       "description": "Connect to LinkedIn for professional networking and content sharing",
-      "enabled": true,
+      "enabled": false,
       "priority": 11,
       "serverConfig": {
         "command": "npx",
@@ -739,12 +761,65 @@
       ],
       "documentation": "https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/",
       "icon": "https://trello.com/favicon.ico"
+    },
+    "paragon": {
+      "name": "Paragon MCP",
+      "description": "Universal access to 130+ SaaS integrations including Gmail, Notion, Slack, Salesforce, and more through Paragon ActionKit",
+      "enabled": true,
+      "priority": 0,
+      "authProvider": "paragon",
+      "serverConfig": {
+        "command": "/Users/viditjain/.nvm/versions/node/v22.14.0/bin/npm",
+        "args": [
+          "run",
+          "start:sse"
+        ],
+        "cwd": "services/paragon-mcp",
+        "envMapping": {
+          "PARAGON_PROJECT_ID": "paragon_project_id",
+          "PARAGON_SIGNING_KEY": "paragon_signing_key",
+          "PARAGON_USER_TOKEN": "paragon_user_token"
+        }
+      },
+      "oauth": {
+        "provider": "paragon",
+        "authUrl": "https://dashboard.useparagon.com",
+        "tokenUrl": "https://api.useparagon.com/oauth/token",
+        "scopes": {
+          "required": [],
+          "default": []
+        },
+        "pkce": false,
+        "customParams": {}
+      },
+      "auth": {
+        "type": "jwt",
+        "provider": "paragon",
+        "description": "Uses JWT authentication instead of OAuth"
+      },
+      "capabilities": [
+        "gmail_send",
+        "gmail_search", 
+        "drive_files",
+        "calendar_events",
+        "notion_pages",
+        "slack_messages",
+        "salesforce_records",
+        "hubspot_contacts",
+        "airtable_records",
+        "and_130_more"
+      ],
+      "icon": "🚀",
+      "resources": {
+        "documentation": "https://docs.useparagon.com",
+        "dashboard": "https://dashboard.useparagon.com"
+      }
     }
   },
   "metadata": {
-    "lastUpdated": "2025-01-27",
+    "lastUpdated": "2025-01-28",
     "totalServices": 16,
-    "enabledServices": 12,
+    "enabledServices": 4,
     "version": "1.0.0"
   }
 }

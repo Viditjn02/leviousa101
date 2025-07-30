@@ -33,6 +33,13 @@ class MCPSettings {
             } else if (e.target.matches('.mcp-test-tool')) {
                 const toolName = e.target.dataset.tool;
                 this.testTool(toolName);
+            } else if (e.target.matches('.paragon-authenticate')) {
+                this.authenticateParagon();
+            } else if (e.target.matches('.paragon-connect-integration')) {
+                const integration = e.target.dataset.integration;
+                this.showParagonIntegrationSelector(integration);
+            } else if (e.target.matches('.paragon-connect-all')) {
+                this.connectAllParagonIntegrations();
             }
         });
     }
@@ -221,6 +228,11 @@ class MCPSettings {
     }
 
     generateServerCard(server) {
+        // Special handling for Paragon
+        if (server.name === 'paragon') {
+            return this.generateParagonCard(server);
+        }
+        
         const runningServer = this.servers.running?.find(rs => rs.name === server.name);
         const isRunning = !!runningServer;
         const isConnected = runningServer?.info?.connected || false;
@@ -257,6 +269,73 @@ class MCPSettings {
                         </button>
                     `}
                 </div>
+            </div>
+        `;
+    }
+
+    generateParagonCard(server) {
+        const runningServer = this.servers.running?.find(rs => rs.name === server.name);
+        const isRunning = !!runningServer;
+        const isConnected = runningServer?.info?.connected || false;
+        const isAuthenticated = this.servers.paragonAuthenticated || false;
+        
+        return `
+            <div class="server-card paragon-card ${isRunning ? 'running' : ''} ${isConnected ? 'connected' : ''} ${isAuthenticated ? 'authenticated' : ''}">
+                <div class="server-header">
+                    <h5>🚀 Paragon MCP</h5>
+                    <div class="server-status">
+                        <span class="status-dot ${isAuthenticated && isConnected ? 'authenticated' : (isRunning ? 'running' : 'stopped')}"></span>
+                        <span class="status-text">${isAuthenticated && isConnected ? 'Authenticated' : (isRunning ? 'Running (Not Authenticated)' : 'Stopped')}</span>
+                    </div>
+                </div>
+                
+                <p class="server-description">${server.description}</p>
+                
+                <div class="paragon-integrations">
+                    <small><strong>Available:</strong> Gmail, Notion, Slack, Salesforce, HubSpot, and 125+ more integrations</small>
+                </div>
+
+                <div class="server-actions">
+                    ${!isRunning ? `
+                        <button class="mcp-start-server btn-primary" data-server="${server.name}">
+                            <span class="icon">▶️</span> Start Server
+                        </button>
+                    ` : !isAuthenticated ? `
+                        <button class="paragon-authenticate btn-primary">
+                            <span class="icon">🔐</span> Authenticate
+                        </button>
+                        <button class="mcp-stop-server btn-danger" data-server="${server.name}">
+                            <span class="icon">⏹️</span> Stop
+                        </button>
+                    ` : `
+                        <button class="paragon-connect-all btn-primary">
+                            <span class="icon">🔌</span> Connect Integrations
+                        </button>
+                        <button class="mcp-test-connection btn-secondary" data-server="${server.name}">
+                            <span class="icon">🔍</span> Test
+                        </button>
+                        <button class="mcp-stop-server btn-danger" data-server="${server.name}">
+                            <span class="icon">⏹️</span> Stop
+                        </button>
+                    `}
+                </div>
+                
+                ${isAuthenticated ? `
+                    <div class="paragon-quick-integrations">
+                        <small>Quick Connect:</small>
+                        <div class="integration-buttons">
+                            <button class="paragon-connect-integration btn-secondary" data-integration="gmail">
+                                <span class="icon">📧</span> Gmail
+                            </button>
+                            <button class="paragon-connect-integration btn-secondary" data-integration="notion">
+                                <span class="icon">📝</span> Notion
+                            </button>
+                            <button class="paragon-connect-integration btn-secondary" data-integration="slack">
+                                <span class="icon">💬</span> Slack
+                            </button>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
@@ -348,6 +427,68 @@ class MCPSettings {
         // Keep only last 10 entries
         while (log.children.length > 10) {
             log.removeChild(log.firstChild);
+        }
+    }
+
+    async authenticateParagon() {
+        try {
+            this.showLoading('Authenticating with Paragon...');
+            
+            // Import the Paragon auth service dynamically
+            const paragonAuthModule = await import('../../features/invisibility/mcp/paragonAuth.js');
+            const paragonAuth = paragonAuthModule.default;
+            
+            const result = await paragonAuth.authenticate();
+            if (result.success) {
+                this.showSuccess('Paragon authentication successful');
+                this.servers.paragonAuthenticated = true;
+                this.updateUI();
+            } else {
+                this.showError(`Authentication failed: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[MCPSettings] Failed to authenticate with Paragon:', error);
+            this.showError('Failed to authenticate with Paragon');
+        }
+    }
+
+    async showParagonIntegrationSelector(integrationName) {
+        try {
+            this.showLoading(`Connecting ${integrationName}...`);
+            
+            // Import the Paragon auth service dynamically
+            const paragonAuthModule = await import('../../features/invisibility/mcp/paragonAuth.js');
+            const paragonAuth = paragonAuthModule.default;
+            
+            const result = await paragonAuth.connectIntegration(integrationName);
+            if (result.success) {
+                this.showSuccess(`${integrationName} connected successfully`);
+            } else {
+                this.showError(`Failed to connect ${integrationName}: ${result.error}`);
+            }
+        } catch (error) {
+            console.error(`[MCPSettings] Failed to connect ${integrationName}:`, error);
+            this.showError(`Failed to connect ${integrationName}`);
+        }
+    }
+
+    async connectAllParagonIntegrations() {
+        try {
+            this.showLoading('Opening Paragon Connect Portal...');
+            
+            // Import the Paragon auth service dynamically
+            const paragonAuthModule = await import('../../features/invisibility/mcp/paragonAuth.js');
+            const paragonAuth = paragonAuthModule.default;
+            
+            const result = await paragonAuth.connectAllIntegrations();
+            if (result.success) {
+                this.showSuccess('Connect Portal opened successfully');
+            } else {
+                this.showError(`Failed to open Connect Portal: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('[MCPSettings] Failed to open Connect Portal:', error);
+            this.showError('Failed to open Connect Portal');
         }
     }
 }

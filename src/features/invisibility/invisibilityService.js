@@ -45,7 +45,14 @@ class InvisibilityService extends EventEmitter {
             this.questionDetector = new QuestionDetector();
             this.fieldFinder = new FieldFinder();
             this.humanTyper = new HumanTyper();
-            this.mcpClient = new MCPMigrationBridge();
+            // Initialize MCP client with enhanced features
+            this.mcpClient = new MCPMigrationBridge({
+                enableConnectionPool: true,
+                enableCircuitBreaker: true,
+                enableMetrics: true,
+                maxConcurrentConnections: 10,
+                configManager: this.configManager
+            });
             this.mcpUIIntegration = mcpUIIntegrationService;
 
             console.log('[InvisibilityService] Initializing QuestionDetector...');
@@ -643,6 +650,28 @@ class InvisibilityService extends EventEmitter {
             await this.retryInitialization();
         }
         return this.getServiceStatus();
+    }
+
+    /**
+     * Shutdown all invisibility services and cleanup processes
+     */
+    async shutdown() {
+        console.log('[InvisibilityService] Shutdown initiated');
+        
+        try {
+            // Stop monitoring
+            this.stopRemoteAccessDetection();
+            this.stopScreenMonitoring();
+            
+            // Shutdown MCP services
+            if (this.mcpClient && typeof this.mcpClient.shutdown === 'function') {
+                await this.mcpClient.shutdown();
+            }
+            
+            console.log('[InvisibilityService] Shutdown complete');
+        } catch (error) {
+            console.error('[InvisibilityService] Error during shutdown:', error);
+        }
     }
 }
 

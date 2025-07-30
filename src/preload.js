@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('api', {
     getSupportedServices: () => ipcRenderer.invoke('mcp:getSupportedServices'),
     getRegistryServices: () => ipcRenderer.invoke('mcp:getRegistryServices'),
     
+    // Paragon Service Management
+    getParagonServiceStatus: () => ipcRenderer.invoke('mcp:getParagonServiceStatus'),
+    authenticateParagonService: (serviceKey, options) => ipcRenderer.invoke('mcp:authenticateParagonService', serviceKey, options),
+    disconnectParagonService: (serviceKey) => ipcRenderer.invoke('mcp:disconnectParagonService', serviceKey),
+    
     // Authentication
     openOAuthWindow: (authUrl, provider, service) => ipcRenderer.invoke('mcp:openOAuthWindow', authUrl, provider, service),
     handleOAuthCallback: (code, state) => ipcRenderer.invoke('mcp:handleOAuthCallback', code, state),
@@ -495,6 +500,19 @@ leviousaApp: {
     onVoiceSampleRejected: (callback) => ipcRenderer.on('voice-agent:voice-sample-rejected', callback),
     onVoiceEnrollmentCompleted: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-completed', callback),
     onVoiceEnrollmentCancelled: (callback) => ipcRenderer.on('voice-agent:voice-enrollment-cancelled', callback)
+  }
+});
+
+// Add Paragon-specific IPC for auth window communication
+contextBridge.exposeInMainWorld('electron', {
+  ipcRenderer: {
+    send: (channel, data) => {
+      // Allow specific channels for Paragon auth communication
+      const validChannels = ['paragon-auth-complete', 'paragon-auth-error'];
+      if (validChannels.includes(channel)) {
+        ipcRenderer.send(channel, data);
+      }
+    }
   }
 });
 

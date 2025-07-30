@@ -449,9 +449,7 @@ class MCPDashboard extends LitElement {
   _renderQuickActions() {
     const quickActions = [
       { id: 'email', icon: '✉️', title: 'Compose Email', description: 'Create and send emails' },
-      { id: 'calendar', icon: '📅', title: 'Schedule Meeting', description: 'Book calendar events' },
-      { id: 'linkedin', icon: '💼', title: 'View Profile', description: 'Check LinkedIn profiles' },
-      { id: 'notion', icon: '📝', title: 'Save to Notion', description: 'Save content to Notion' }
+      { id: 'calendar', icon: '📅', title: 'Schedule Meeting', description: 'Book calendar events' }
     ];
 
     return html`
@@ -611,18 +609,6 @@ class MCPDashboard extends LitElement {
       case 'calendar':
         resource = UIResourceGenerator.generateCalendarWidget({
           serverId: 'google-calendar'
-        });
-        break;
-      case 'linkedin':
-        // For LinkedIn, we'd need profile data first
-        resource = UIResourceGenerator.generateLinkedInProfileCard({
-          name: 'Sample Profile',
-          headline: 'Click to search for a profile'
-        });
-        break;
-      case 'notion':
-        resource = UIResourceGenerator.generateNotionSaver({
-          serverId: 'notion'
         });
         break;
     }

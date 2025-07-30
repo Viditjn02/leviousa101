@@ -1,387 +1,418 @@
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
 
-export class MCPUIIntegration extends LitElement {
-  static properties = {
-    isActive: { type: Boolean },
-    activeResources: { type: Array },
-    loading: { type: Boolean },
-    error: { type: String }
-  };
-
+class MCPUIIntegration extends LitElement {
   static styles = css`
     :host {
       display: block;
-      width: 100%;
+      padding: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin: 16px 0;
+      background: #f9f9f9;
     }
 
-    .ui-integration-section {
-      background: var(--bg-secondary, #1a1a1a);
+    .email-form {
+      background: white;
       border-radius: 8px;
       padding: 20px;
-      margin: 10px 0;
-      border: 1px solid var(--border-color, #333);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    .section-header {
+    .form-title {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 15px;
+      gap: 8px;
     }
 
-    h3 {
-      margin: 0;
-      color: var(--text-primary, #fff);
-      font-size: 16px;
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
       font-weight: 500;
+      color: #555;
+      font-size: 14px;
     }
 
-    .toggle-button {
-      background: #4CAF50;
-      color: white;
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #007acc;
+      box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.1);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 120px;
+      font-family: inherit;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    .btn {
+      padding: 10px 20px;
       border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.3s ease;
-    }
-
-    .toggle-button:hover {
-      background: #45a049;
-      transform: translateY(-1px);
-    }
-
-    .toggle-button.inactive {
-      background: #666;
-    }
-
-    .toggle-button.inactive:hover {
-      background: #555;
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
-    }
-
-    .feature-card {
-      background: var(--bg-tertiary, #2a2a2a);
-      border-radius: 8px;
-      padding: 15px;
-      border: 1px solid var(--border-color, #444);
-      transition: all 0.3s ease;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .feature-icon {
-      width: 32px;
-      height: 32px;
-      margin-bottom: 10px;
-      opacity: 0.8;
-    }
-
-    .feature-title {
+      border-radius: 4px;
       font-size: 14px;
       font-weight: 500;
-      margin-bottom: 5px;
-      color: var(--text-primary, #fff);
-    }
-
-    .feature-description {
-      font-size: 12px;
-      color: var(--text-secondary, #999);
-      line-height: 1.4;
-    }
-
-    .try-button {
-      margin-top: 10px;
-      background: transparent;
-      color: #4CAF50;
-      border: 1px solid #4CAF50;
-      padding: 6px 12px;
-      border-radius: 4px;
       cursor: pointer;
-      font-size: 12px;
-      transition: all 0.3s ease;
+      transition: all 0.2s;
     }
 
-    .try-button:hover {
-      background: #4CAF50;
+    .btn-primary {
+      background: #007acc;
       color: white;
     }
 
-    .dashboard-container {
-      margin-top: 20px;
-      padding: 15px;
-      background: var(--bg-tertiary, #2a2a2a);
-      border-radius: 8px;
-      border: 1px solid var(--border-color, #444);
-      max-height: 600px;
-      overflow-y: auto;
+    .btn-primary:hover {
+      background: #0066b3;
     }
 
-    .loading {
-      text-align: center;
-      padding: 20px;
-      color: var(--text-secondary, #999);
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #666;
+      border: 1px solid #ddd;
     }
 
-    .error {
-      color: #f44336;
-      padding: 10px;
-      background: rgba(244, 67, 54, 0.1);
+    .btn-secondary:hover {
+      background: #ebebeb;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .status-message {
+      padding: 12px;
       border-radius: 4px;
-      margin: 10px 0;
+      margin-bottom: 16px;
+      font-size: 14px;
     }
 
-    @keyframes pulse {
-      0% { opacity: 0.4; }
-      50% { opacity: 1; }
-      100% { opacity: 0.4; }
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
     }
 
-    .loading-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
-      margin: 0 2px;
-      animation: pulse 1.4s ease-in-out infinite;
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
     }
 
-    .loading-dot:nth-child(2) {
-      animation-delay: 0.2s;
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
     }
 
-    .loading-dot:nth-child(3) {
-      animation-delay: 0.4s;
+    .no-ui {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-style: italic;
     }
   `;
 
   constructor() {
     super();
-    this.isActive = false;
-    this.activeResources = [];
-    this.loading = false;
-    this.error = null;
+    this.emailData = {
+      to: '',
+      cc: '',
+      bcc: '',
+      subject: '',
+      body: ''
+    };
+    this.isVisible = false;
+    this.isLoading = false;
+    this.statusMessage = null;
+    this.statusType = null;
   }
 
-  async connectedCallback() {
+  connectedCallback() {
     super.connectedCallback();
-    await this.loadActiveResources();
     
-    // Listen for UI resource events
-    window.api.mcp.ui.onResourceAvailable((event, data) => {
-      this.handleNewResource(data);
-    });
-    
-    window.api.mcp.ui.onResourceRemoved((event, data) => {
-      this.handleResourceRemoved(data);
-    });
+    // Listen for new UI resources
+    window.addEventListener('mcp:ui-resource-available', this.handleNewResource.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    // Clean up event listeners
-    window.api.mcp.ui.removeResourceAvailable();
-    window.api.mcp.ui.removeResourceRemoved();
+    window.removeEventListener('mcp:ui-resource-available', this.handleNewResource.bind(this));
   }
 
-  async loadActiveResources() {
-    this.loading = true;
-    this.error = null;
+  handleNewResource(event) {
+    console.log('New UI resource received:', event.detail);
+    
+    const { serverId, tool, resource } = event.detail;
+    
+    // Check if this is an email-related resource
+    if (tool?.includes('gmail') || tool?.includes('email') || serverId === 'google') {
+      this.showEmailForm();
+      
+      // Try to extract any pre-filled data from the context
+      this.extractEmailContext(event.detail);
+    }
+  }
+
+  extractEmailContext(resourceData) {
+    // If there's context about the email from the conversation, extract it
+    const context = resourceData.context || {};
+    
+    if (context.recipients) {
+      this.emailData.to = Array.isArray(context.recipients) ? context.recipients.join(', ') : context.recipients;
+    }
+    
+    if (context.subject) {
+      this.emailData.subject = context.subject;
+    }
+    
+    if (context.body) {
+      this.emailData.body = context.body;
+    }
+    
+    this.requestUpdate();
+  }
+
+  showEmailForm() {
+    this.isVisible = true;
+    this.statusMessage = null;
+    this.requestUpdate();
+  }
+
+  hideEmailForm() {
+    this.isVisible = false;
+    this.resetForm();
+    this.requestUpdate();
+  }
+
+  resetForm() {
+    this.emailData = {
+      to: '',
+      cc: '',
+      bcc: '',
+      subject: '',
+      body: ''
+    };
+    this.statusMessage = null;
+    this.statusType = null;
+  }
+
+  handleInputChange(field, event) {
+    this.emailData[field] = event.target.value;
+    this.requestUpdate();
+  }
+
+  async sendEmail() {
+    // Validate required fields
+    if (!this.emailData.to.trim()) {
+      this.showStatus('Please enter at least one recipient', 'error');
+      return;
+    }
+    
+    if (!this.emailData.subject.trim()) {
+      this.showStatus('Please enter a subject', 'error');
+      return;
+    }
+    
+    if (!this.emailData.body.trim()) {
+      this.showStatus('Please enter a message', 'error');
+      return;
+    }
+
+    this.isLoading = true;
+    this.showStatus('Sending email...', 'info');
     
     try {
-      const result = await window.api.mcp.ui.getActiveResources();
+      // Call the Gmail MCP tool
+      const result = await window.api.mcp.ui.invokeAction('gmail.send', {
+        to: this.emailData.to.split(',').map(e => e.trim()).filter(e => e),
+        cc: this.emailData.cc ? this.emailData.cc.split(',').map(e => e.trim()).filter(e => e) : [],
+        bcc: this.emailData.bcc ? this.emailData.bcc.split(',').map(e => e.trim()).filter(e => e) : [],
+        subject: this.emailData.subject,
+        body: this.emailData.body
+      });
+      
       if (result.success) {
-        this.activeResources = result.resources || [];
+        this.showStatus('✅ Email sent successfully!', 'success');
+        setTimeout(() => {
+          this.hideEmailForm();
+        }, 2000);
       } else {
-        throw new Error(result.error || 'Failed to load resources');
+        this.showStatus(`❌ Failed to send email: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Error loading UI resources:', error);
-      this.error = error.message;
+      console.error('Error sending email:', error);
+      this.showStatus(`❌ Error sending email: ${error.message}`, 'error');
     } finally {
-      this.loading = false;
+      this.isLoading = false;
+      this.requestUpdate();
     }
   }
 
-  handleNewResource(data) {
-    const existing = this.activeResources.find(r => r.id === data.resourceId);
-    if (!existing) {
-      this.activeResources = [...this.activeResources, {
-        id: data.resourceId,
-        toolName: data.toolName,
-        resource: data.resource,
-        timestamp: new Date()
-      }];
-    }
-  }
-
-  handleResourceRemoved(data) {
-    this.activeResources = this.activeResources.filter(r => r.id !== data.resourceId);
-  }
-
-  toggleUIMode() {
-    this.isActive = !this.isActive;
-    this.dispatchEvent(new CustomEvent('ui-mode-toggled', {
-      detail: { active: this.isActive }
-    }));
-  }
-
-  async tryFeature(feature) {
-    this.loading = true;
-    this.error = null;
+  async saveDraft() {
+    this.isLoading = true;
+    this.showStatus('Saving draft...', 'info');
     
     try {
-      // Create sample data based on feature
-      let result;
+      const result = await window.api.mcp.ui.invokeAction('gmail.draft', {
+        to: this.emailData.to.split(',').map(e => e.trim()).filter(e => e),
+        cc: this.emailData.cc ? this.emailData.cc.split(',').map(e => e.trim()).filter(e => e) : [],
+        bcc: this.emailData.bcc ? this.emailData.bcc.split(',').map(e => e.trim()).filter(e => e) : [],
+        subject: this.emailData.subject,
+        body: this.emailData.body
+      });
       
-      switch (feature) {
-        case 'email':
-          result = await window.api.mcp.callTool('gmail.createDraft', {
-            to: 'example@gmail.com',
-            subject: 'Meeting Follow-up',
-            body: 'Thank you for the productive meeting today. Here are the key points we discussed...'
-          });
-          break;
-          
-        case 'calendar':
-          result = await window.api.mcp.callTool('google-calendar.createEvent', {
-            summary: 'Follow-up Meeting',
-            description: 'Discuss action items from today\'s meeting',
-            start: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            duration: 30
-          });
-          break;
-          
-        case 'linkedin':
-          result = await window.api.mcp.callTool('linkedin.searchPeople', {
-            query: 'software engineer',
-            limit: 5
-          });
-          break;
-          
-        case 'notion':
-          result = await window.api.mcp.callTool('notion.createPage', {
-            title: 'Meeting Summary',
-            content: 'Key points from today\'s meeting...'
-          });
-          break;
-      }
-      
-      if (result && result.type === 'ui_resource') {
-        // UI resource will be handled by event listeners
-        console.log('UI resource created:', result);
+      if (result.success) {
+        this.showStatus('✅ Draft saved successfully!', 'success');
+      } else {
+        this.showStatus(`❌ Failed to save draft: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Error trying feature:', error);
-      this.error = error.message;
+      console.error('Error saving draft:', error);
+      this.showStatus(`❌ Error saving draft: ${error.message}`, 'error');
     } finally {
-      this.loading = false;
+      this.isLoading = false;
+      this.requestUpdate();
     }
+  }
+
+  showStatus(message, type) {
+    this.statusMessage = message;
+    this.statusType = type;
+    this.requestUpdate();
   }
 
   render() {
+    if (!this.isVisible) {
+      return html`
+        <div class="no-ui">
+          💌 Say "I need to send an email" to open the email composer
+        </div>
+      `;
+    }
+
     return html`
-      <div class="ui-integration-section">
-        <div class="section-header">
-          <h3>🎨 MCP Interactive UI</h3>
-          <button 
-            class="toggle-button ${this.isActive ? '' : 'inactive'}"
-            @click=${this.toggleUIMode}
+      <div class="email-form">
+        <h3 class="form-title">
+          📧 Compose Email
+        </h3>
+
+        ${this.statusMessage ? html`
+          <div class="status-message status-${this.statusType}">
+            ${this.statusMessage}
+          </div>
+        ` : ''}
+
+        <div class="form-group">
+          <label for="to">To *</label>
+          <input
+            id="to"
+            type="email"
+            placeholder="recipient@example.com, another@example.com"
+            .value=${this.emailData.to}
+            @input=${(e) => this.handleInputChange('to', e)}
+            ?disabled=${this.isLoading}
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="cc">CC</label>
+          <input
+            id="cc"
+            type="email"
+            placeholder="cc@example.com"
+            .value=${this.emailData.cc}
+            @input=${(e) => this.handleInputChange('cc', e)}
+            ?disabled=${this.isLoading}
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="bcc">BCC</label>
+          <input
+            id="bcc"
+            type="email"
+            placeholder="bcc@example.com"
+            .value=${this.emailData.bcc}
+            @input=${(e) => this.handleInputChange('bcc', e)}
+            ?disabled=${this.isLoading}
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="subject">Subject *</label>
+          <input
+            id="subject"
+            type="text"
+            placeholder="Email subject"
+            .value=${this.emailData.subject}
+            @input=${(e) => this.handleInputChange('subject', e)}
+            ?disabled=${this.isLoading}
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="body">Message *</label>
+          <textarea
+            id="body"
+            placeholder="Type your message here..."
+            .value=${this.emailData.body}
+            @input=${(e) => this.handleInputChange('body', e)}
+            ?disabled=${this.isLoading}
+          ></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button
+            class="btn btn-primary"
+            @click=${this.sendEmail}
+            ?disabled=${this.isLoading}
           >
-            ${this.isActive ? 'Active' : 'Inactive'}
+            ${this.isLoading ? '⏳ Sending...' : '📤 Send Email'}
+          </button>
+          
+          <button
+            class="btn btn-secondary"
+            @click=${this.saveDraft}
+            ?disabled=${this.isLoading}
+          >
+            💾 Save Draft
+          </button>
+          
+          <button
+            class="btn btn-secondary"
+            @click=${this.hideEmailForm}
+            ?disabled=${this.isLoading}
+          >
+            ❌ Cancel
           </button>
         </div>
-
-        <p style="color: var(--text-secondary, #999); font-size: 14px; margin: 10px 0;">
-          Transform MCP tools into interactive UI components. Send emails, book meetings, and save summaries with beautiful interfaces.
-        </p>
-
-        ${this.error ? html`
-          <div class="error">
-            Error: ${this.error}
-          </div>
-        ` : ''}
-
-        <div class="feature-grid">
-          <div class="feature-card">
-            <svg class="feature-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-            </svg>
-            <div class="feature-title">Interactive Email Composer</div>
-            <div class="feature-description">
-              Compose and send emails directly through Gmail with a rich editor
-            </div>
-            <button class="try-button" @click=${() => this.tryFeature('email')}>
-              Try It
-            </button>
-          </div>
-
-          <div class="feature-card">
-            <svg class="feature-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-            </svg>
-            <div class="feature-title">Visual Calendar Widget</div>
-            <div class="feature-description">
-              Book meetings and manage your schedule with an interactive calendar
-            </div>
-            <button class="try-button" @click=${() => this.tryFeature('calendar')}>
-              Try It
-            </button>
-          </div>
-
-          <div class="feature-card">
-            <svg class="feature-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-            </svg>
-            <div class="feature-title">LinkedIn Profile Cards</div>
-            <div class="feature-description">
-              View LinkedIn profiles with rich previews and contact options
-            </div>
-            <button class="try-button" @click=${() => this.tryFeature('linkedin')}>
-              Try It
-            </button>
-          </div>
-
-          <div class="feature-card">
-            <svg class="feature-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-            </svg>
-            <div class="feature-title">Notion Summary Saver</div>
-            <div class="feature-description">
-              Save meeting summaries to Notion with one click
-            </div>
-            <button class="try-button" @click=${() => this.tryFeature('notion')}>
-              Try It
-            </button>
-          </div>
-        </div>
-
-        ${this.loading ? html`
-          <div class="loading">
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-          </div>
-        ` : ''}
-
-        ${this.isActive && this.activeResources.length > 0 ? html`
-          <div class="dashboard-container">
-            <mcp-dashboard 
-              .activeResources=${this.activeResources}
-            ></mcp-dashboard>
-          </div>
-        ` : ''}
       </div>
     `;
   }

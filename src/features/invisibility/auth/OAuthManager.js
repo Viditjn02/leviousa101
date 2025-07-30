@@ -149,8 +149,8 @@ class OAuthManager extends EventEmitter {
      * Get a valid access token (refresh if needed)
      */
     async getValidToken(provider) {
-        const oauthService = this.getOAuthServiceIdentifier(provider);
-        return await this.configManager.getValidAccessToken(provider, oauthService);
+        // Only use provider token (avoid legacy service-specific token keys)
+        return await this.configManager.getValidAccessToken(provider);
     }
 
     /**

@@ -37,16 +37,15 @@ class MCPClient extends EventEmitter {
         super();
         
         this.options = {
-            maxConcurrentConnections: options.maxConcurrentConnections || 10,
-            enableMetrics: options.enableMetrics !== false,
-            enableCircuitBreaker: options.enableCircuitBreaker !== false,
-            enableConnectionPool: options.enableConnectionPool !== false,
-            autoReconnect: options.autoReconnect !== false,
-            reconnectInterval: options.reconnectInterval || 5000,
+            enableConnectionPool: false,
+            enableCircuitBreaker: true,
+            enableMetrics: true,
+            maxConcurrentConnections: 5,
             ...options
         };
-
-        // Initialize components
+        
+        // Core components
+        this.configManager = options.configManager || null;
         this.serverRegistry = new ServerRegistry();
         this.toolRegistry = new ToolRegistry(this.serverRegistry);
         this.oauthManager = new OAuthManager();
@@ -155,6 +154,11 @@ class MCPClient extends EventEmitter {
         this.oauthManager.on('tokenRefreshed', this.handleTokenRefreshed.bind(this));
         this.oauthManager.on('authSuccess', this.handleAuthSuccess.bind(this));
         
+        // Configuration Manager events for OAuth server startup
+        if (this.configManager) {
+            this.configManager.on('oauth-server-ready', this.handleOAuthServerReady.bind(this));
+        }
+        
         // Connection Pool events
         if (this.connectionPool) {
             this.connectionPool.on('connectionCreated', this.handleConnectionCreated.bind(this));
@@ -171,25 +175,60 @@ class MCPClient extends EventEmitter {
      * Start configured servers
      */
     async startConfiguredServers() {
-        const servers = await this.serverRegistry.getConfiguredServers();
+        // Only use Paragon MCP which provides access to all integrations
+        const desired = ['paragon'];
+        logger.info('Starting configured servers', { desired });
         
-        for (const serverConfig of servers) {
-            try {
-                // Check if server requires authentication
-                if (serverConfig.requiresAuth) {
-                    const hasValidToken = await this.oauthManager.hasValidToken(serverConfig.name);
-                    if (!hasValidToken) {
-                        logger.info('Server requires authentication', { server: serverConfig.name });
-                        continue;
-                    }
-                }
+        for (const name of desired) {
+            logger.info('Processing server', { serverName: name });
+            
+            // Auto-register using definitions if not already registered
+            if (!this.serverRegistry.hasServer(name)) {
+                logger.info('Server not registered, attempting to get definition', { serverName: name });
                 
-                await this.startServer(serverConfig.name);
+                const def = this.serverRegistry.getServerDefinition(name);
+                if (def) {
+                    logger.info('Server definition found, registering', { serverName: name, definition: def });
+                    await this.serverRegistry.register(name, def);
+                    logger.info('Auto-registered MCP server', { serverName: name });
+                } else {
+                    logger.warn('No server definition for', { serverName: name });
+                    logger.warn('Available definitions', { 
+                        available: Object.keys(this.serverRegistry.serverDefinitions || {})
+                    });
+                    continue;
+                }
+            } else {
+                logger.info('Server already registered', { serverName: name });
+            }
+            
+            // Handle authentication based on server type
+            if (name === 'paragon') {
+                // Paragon uses JWT authentication, not OAuth
+                const paragonJwtService = require('./paragonJwtService');
+                if (!paragonJwtService.getStatus().initialized) {
+                    logger.warn('Paragon JWT service not initialized', { serverName: name });
+                    // Continue anyway - the server manager will handle initialization
+                }
+                logger.info('Paragon provides access to Google, Notion, Slack and 130+ other integrations');
+            } else {
+                // Ensure OAuth token is present for other servers
+                const token = await this.oauthManager.getValidToken(name);
+                if (!token) {
+                    logger.info('No valid OAuth token for', { serverName: name, action: 'starting OAuth flow' });
+                    await this.oauthManager.startOAuthFlow(name);
+                } else {
+                    logger.info('Valid OAuth token found', { serverName: name });
+                }
+            }
+            
+            // Attempt to start the server
+            try {
+                logger.info('Starting server', { serverName: name });
+                await this.startServer(name);
+                logger.info('Server started successfully', { serverName: name });
             } catch (error) {
-                logger.error('Failed to start server', { 
-                    server: serverConfig.name, 
-                    error: error.message 
-                });
+                logger.error('Failed to start MCP server', { serverName: name, error: error.message });
             }
         }
     }
@@ -226,14 +265,45 @@ class MCPClient extends EventEmitter {
                 throw new Error(`No server configuration found for ${serverName}`);
             }
             
-            // Get OAuth token if needed
+            // Get authentication credentials if needed
             let env = {};
             if (serverConfig.requiresAuth) {
-                const token = await this.oauthManager.getValidToken(serverName);
-                if (!token) {
-                    throw new Error(`No valid OAuth token found for ${serverName}. Please authenticate first.`);
+                if (serverName === 'paragon' || serverConfig.authType === 'jwt') {
+                    // Paragon uses JWT authentication
+                    const paragonJwtService = require('./paragonJwtService');
+                    
+                    // Ensure JWT service is initialized
+                    if (!paragonJwtService.getStatus().initialized) {
+                        paragonJwtService.initialize({
+                            projectId: process.env.PARAGON_PROJECT_ID,
+                            signingKey: process.env.PARAGON_SIGNING_KEY,
+                            signingKeyPath: process.env.PARAGON_SIGNING_KEY_PATH
+                        });
+                    }
+                    
+                    // Generate JWT token for current user
+                    const authService = require('../../common/services/authService');
+                    const currentUserId = authService.getCurrentUserId();
+                    
+                    if (currentUserId) {
+                        const jwtToken = paragonJwtService.generateUserToken(currentUserId);
+                        if (jwtToken) {
+                            env['PARAGON_USER_TOKEN'] = jwtToken;
+                            logger.info('Generated Paragon JWT token for user', { userId: currentUserId });
+                        } else {
+                            logger.warn('Failed to generate Paragon JWT token');
+                        }
+                    } else {
+                        logger.warn('No current user ID for Paragon JWT generation');
+                    }
+                } else {
+                    // OAuth authentication for other servers
+                    const token = await this.oauthManager.getValidToken(serverName);
+                    if (!token) {
+                        throw new Error(`No valid OAuth token found for ${serverName}. Please authenticate first.`);
+                    }
+                    env = this.buildAuthEnvironment(serverConfig, token);
                 }
-                env = this.buildAuthEnvironment(serverConfig, token);
             }
             
             // Start the server
@@ -263,7 +333,11 @@ class MCPClient extends EventEmitter {
         const env = {};
         
         // Map OAuth token to server-specific environment variables
-        switch (serverConfig.type) {
+        switch (serverConfig.type || serverConfig.name) {
+            case 'paragon':
+                // Paragon JWT token should already be set in env
+                // This method is typically not called for Paragon
+                break;
             case 'notion':
                 env['NOTION_API_TOKEN'] = token.access_token;
                 break;
@@ -633,9 +707,19 @@ class MCPClient extends EventEmitter {
         this.emit('toolsUpdated', { serverName, tools });
     }
     
-    handleToolInvoked({ toolName, duration, success }) {
-        logger.info('Tool invoked event', { toolName, duration, success });
-        this.emit('toolInvoked', { toolName, duration, success });
+    handleToolInvoked({ fullName, args, result }) {
+        logger.info('Tool invoked event', { 
+            toolName: fullName, 
+            args,
+            result,
+            success: !!result 
+        });
+        this.emit('toolInvoked', { 
+            toolName: fullName, 
+            args,
+            result,
+            success: !!result 
+        });
     }
     
     handleTokenAcquired({ serviceName }) {
@@ -719,6 +803,51 @@ class MCPClient extends EventEmitter {
     }
 
     /**
+     * Handle OAuth server ready event - automatically start MCP server
+     */
+    async handleOAuthServerReady(event) {
+        const { provider, serverName, tokenData } = event;
+        
+        logger.info('OAuth server ready, starting MCP server', { 
+            provider, 
+            serverName 
+        });
+        
+        try {
+            // Check if server is already running
+            const activeServers = await this.serverRegistry.getActiveServers();
+            const isRunning = activeServers.some(server => server.name === serverName);
+            
+            if (!isRunning) {
+                // Extract tokens for environment variables
+                const env = {};
+                if (tokenData.access_token) {
+                    env['GOOGLE_ACCESS_TOKEN'] = tokenData.access_token;
+                }
+                if (tokenData.refresh_token) {
+                    env['GOOGLE_REFRESH_TOKEN'] = tokenData.refresh_token;
+                }
+                
+                // Start the server with OAuth tokens
+                await this.startServer(serverName);
+                
+                logger.info('OAuth MCP server started successfully', { 
+                    serverName,
+                    hasAccessToken: !!tokenData.access_token
+                });
+            } else {
+                logger.info('OAuth MCP server already running', { serverName });
+            }
+            
+        } catch (error) {
+            logger.error('Failed to start OAuth MCP server', { 
+                serverName, 
+                error: error.message 
+            });
+        }
+    }
+
+    /**
      * Get client status
      */
     getStatus() {
@@ -746,6 +875,24 @@ class MCPClient extends EventEmitter {
         }
         
         return status;
+    }
+
+    /**
+     * Get MCP tools debug information for askService
+     */
+    getMCPToolsDebugInfo() {
+        const status = this.getStatus();
+        const activeServers = this.serverRegistry.getActiveServers();
+        const toolsStatus = this.toolRegistry.getStatus();
+        
+        return {
+            totalTools: toolsStatus?.totalTools || 0,
+            connectedServices: activeServers?.length || 0,
+            activeServers: activeServers?.map(server => server.name) || [],
+            initialized: this.isInitialized,
+            serverDetails: status.servers,
+            toolsDetails: status.tools
+        };
     }
 
     /**
@@ -983,6 +1130,108 @@ class MCPClient extends EventEmitter {
                 resolve();
             });
         });
+    }
+
+    /**
+     * Get Paragon service authentication status
+     * @returns {Object} Status of individual Paragon services
+     */
+    async getParagonServiceStatus() {
+        try {
+            logger.info('Getting Paragon service status');
+            
+            // Check if Paragon server is available
+            const paragonServer = this.serverRegistry.servers.get('paragon');
+            if (!paragonServer || !paragonServer.adapter) {
+                logger.warn('Paragon server not available');
+                return {};
+            }
+            
+            // Try to get service status from Paragon server
+            // This could be implemented as a specific tool call or resource read
+            try {
+                const statusResult = await paragonServer.adapter.callTool('get_authenticated_services', {});
+                return statusResult.services || {};
+            } catch (error) {
+                logger.warn('Could not get service status from Paragon server:', error.message);
+                // Return default status for known services
+                return {
+                    'gmail': { authenticated: false, toolsCount: 0 },
+                    'google-drive': { authenticated: false, toolsCount: 0 },
+                    'google-calendar': { authenticated: false, toolsCount: 0 },
+                    'notion': { authenticated: false, toolsCount: 0 },
+                    'slack': { authenticated: false, toolsCount: 0 },
+                    'salesforce': { authenticated: false, toolsCount: 0 },
+                    'hubspot': { authenticated: false, toolsCount: 0 },
+                    'airtable': { authenticated: false, toolsCount: 0 }
+                };
+            }
+            
+        } catch (error) {
+            logger.error('Failed to get Paragon service status:', error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Disconnect a Paragon service
+     * @param {string} serviceKey - The service to disconnect
+     * @returns {Object} Result of disconnection
+     */
+    async disconnectParagonService(serviceKey) {
+        try {
+            logger.info('Disconnecting Paragon service', { serviceKey });
+            
+            // Check if Paragon server is available
+            const paragonServer = this.serverRegistry.servers.get('paragon');
+            if (!paragonServer || !paragonServer.adapter) {
+                throw new Error('Paragon server not available');
+            }
+            
+            // Call the disconnect tool on Paragon server
+            const result = await paragonServer.adapter.callTool('disconnect_service', {
+                service: serviceKey
+            });
+            
+            logger.info('Paragon service disconnected successfully', { serviceKey });
+            return result;
+            
+        } catch (error) {
+            logger.error('Failed to disconnect Paragon service:', { serviceKey, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Authenticate a Paragon service (placeholder - actual auth happens via Connect Portal)
+     * @param {string} serviceKey - The service to authenticate
+     * @param {Object} authData - Authentication data
+     * @returns {Object} Result of authentication
+     */
+    async authenticateParagonService(serviceKey, authData) {
+        try {
+            logger.info('Processing Paragon service authentication', { serviceKey });
+            
+            // Check if Paragon server is available
+            const paragonServer = this.serverRegistry.servers.get('paragon');
+            if (!paragonServer || !paragonServer.adapter) {
+                throw new Error('Paragon server not available');
+            }
+            
+            // This method would typically store authentication tokens
+            // received from the Connect Portal OAuth flow
+            const result = await paragonServer.adapter.callTool('authenticate_service', {
+                service: serviceKey,
+                authData: authData
+            });
+            
+            logger.info('Paragon service authentication processed', { serviceKey });
+            return result;
+            
+        } catch (error) {
+            logger.error('Failed to process Paragon service authentication:', { serviceKey, error: error.message });
+            throw error;
+        }
     }
 }
 

@@ -162,33 +162,44 @@ class AskService {
 
         this.abortController = null;
         this.conversationSessions = new Map(); // Enhanced conversation session tracking
+        this.mcpVerificationDone = false; // Flag to track if MCP verification has been done
         
-        // Initialize MCP verification
-        this.initializeMCPVerification();
+        // MCP verification will be done lazily when first needed
     }
 
     /**
-     * Initialize MCP verification to ensure tools are available
+     * Initialize MCP verification to ensure tools are available (called lazily)
      */
     async initializeMCPVerification() {
+        // Only run verification once
+        if (this.mcpVerificationDone) {
+            return;
+        }
+        
         try {
             const mcpClient = getMCPClient();
             
             if (mcpClient) {
                 // Give MCP client time to initialize
                 setTimeout(async () => {
-                    const debugInfo = mcpClient.getMCPToolsDebugInfo();
-                    console.log('[AskService] MCP Tools Available:', debugInfo.totalTools);
-                    console.log('[AskService] Connected Services:', debugInfo.connectedServices);
-                    
-                    if (debugInfo.totalTools > 0) {
-                        console.log('[AskService] ✅ MCP tools are available for ask bar');
-                    } else {
-                        console.log('[AskService] ⚠️ No MCP tools available - service integrations may need setup');
+                    try {
+                        const debugInfo = mcpClient.getMCPToolsDebugInfo();
+                        console.log('[AskService] MCP Tools Available:', debugInfo.totalTools);
+                        console.log('[AskService] Connected Services:', debugInfo.connectedServices);
+                        
+                        if (debugInfo.totalTools > 0) {
+                            console.log('[AskService] ✅ MCP tools are available for ask bar');
+                        } else {
+                            console.log('[AskService] ⚠️ No MCP tools available - service integrations may need setup');
+                        }
+                    } catch (error) {
+                        console.warn('[AskService] Error getting MCP debug info:', error);
                     }
                 }, 2000);
+                
+                this.mcpVerificationDone = true;
             } else {
-                console.log('[AskService] ⚠️ MCP client not available');
+                console.log('[AskService] ⚠️ MCP client not available yet - will retry when needed');
             }
         } catch (error) {
             console.warn('[AskService] Error during MCP verification:', error);
@@ -521,6 +532,9 @@ class AskService {
             await askRepository.addAiMessage({ sessionId, role: 'user', content: userPrompt.trim() });
             console.log(`[AskService] DB: Saved user prompt to session ${sessionId}`);
             
+            // Initialize MCP verification lazily when first needed
+            await this.initializeMCPVerification();
+            
             // NEW: Try MCP enhanced answer generation first
             const mcpClient = getMCPClient();
             if (mcpClient) {
@@ -565,6 +579,27 @@ class AskService {
                     if (mcpResponse && mcpResponse.answer) {
                         const mcpAnswer = mcpResponse.answer;
                         console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
+                        
+                        // Analyze conversation for contextual UI opportunities
+                        try {
+                            if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
+                                console.log('[AskService] 🎨 Analyzing conversation for contextual UI triggers...');
+                                
+                                const uiContext = {
+                                    type: 'conversation',
+                                    message: userPrompt,
+                                    response: mcpAnswer,
+                                    conversationHistory: conversationHistoryRaw,
+                                    hasScreenshot: !!screenshotBase64,
+                                    timestamp: new Date().toISOString()
+                                };
+                                
+                                // This will auto-trigger UI if high-confidence intent is detected
+                                await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                            }
+                        } catch (uiError) {
+                            console.warn('[AskService] UI analysis failed, continuing without UI:', uiError);
+                        }
                         
                         // Special logging for successful Notion answers
                         if (questionType === 'notion_data_access') {

@@ -110,25 +110,35 @@ export class MCPActionBar extends LitElement {
   }
 
   async loadContextualActions() {
-    if (!window.api?.mcp?.ui) return;
+    if (!window.api?.mcp?.getContextualActions) return;
 
     this.isLoading = true;
+    this.requestUpdate(); // Trigger re-render to show loading
     
     try {
-      // Get contextual actions from the MCP UI Integration Service
-      const result = await window.api.mcp.ui.getContextualActions({
+      // Get contextual actions from the LLM-based MCP UI Integration Service
+      const result = await window.api.mcp.getContextualActions({
         type: 'ask',
         message: this.context.message || '',
-        history: this.context.history || []
+        history: this.context.history || [],
+        response: this.context.response || ''
       });
 
       if (result.success && result.actions) {
         this.actions = result.actions;
+        console.log(`[MCPActionBar] Loaded ${this.actions.length} contextual actions via LLM classification`);
+      } else {
+        this.actions = [];
+        if (result.error) {
+          console.warn(`[MCPActionBar] Failed to load actions: ${result.error}`);
+        }
       }
     } catch (error) {
-      console.error('[MCPActionBar] Error loading actions:', error);
+      console.error('[MCPActionBar] Error loading contextual actions:', error);
+      this.actions = [];
     } finally {
       this.isLoading = false;
+      this.requestUpdate(); // Trigger re-render with results
     }
   }
 
@@ -179,6 +189,13 @@ export class MCPActionBar extends LitElement {
   async updateContext(newContext) {
     this.context = newContext;
     await this.loadContextualActions();
+  }
+
+  // Add lifecycle hook to reload actions on context change
+  updated(changedProps) {
+    if (changedProps.has('context')) {
+      this.loadContextualActions();
+    }
   }
 }
 

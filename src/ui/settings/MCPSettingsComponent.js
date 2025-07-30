@@ -2,10 +2,16 @@ import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
 
 export class MCPSettingsComponent extends LitElement {
     static styles = css`
+        :host {
+            display: block;
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+            margin: 0 auto;
+        }
         .mcp-settings {
             padding: 16px;
-            max-width: 500px;
-            margin: 0 auto;
+            /* Inner padding; host controls width */
         }
 
         .mcp-header {
@@ -32,6 +38,8 @@ export class MCPSettingsComponent extends LitElement {
         }
 
         .service-card {
+            width: 100%;
+            box-sizing: border-box;
             background: var(--background-secondary, #2a2a2a);
             border: 1px solid var(--border-color, #333);
             border-radius: 8px;
@@ -184,6 +192,54 @@ export class MCPSettingsComponent extends LitElement {
             100% { opacity: 1; }
         }
 
+        /* Paragon Services Grid Layout */
+        .services-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .service-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            background: var(--background-secondary, #2a2a2a);
+            border: 1px solid var(--border-color, #333);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .service-card:hover {
+            background: var(--background-hover, #353535);
+            border-color: var(--accent-color, #4a90e2);
+        }
+
+        .service-card.needs-auth {
+            border-color: #3498db;
+            background: rgba(52, 152, 219, 0.1);
+        }
+
+        /* More Services Section */
+        .more-services {
+            margin-bottom: 20px;
+        }
+
+        .more-services summary {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--text-primary, #ffffff);
+            margin-bottom: 8px;
+            cursor: default;
+            padding: 0;
+            list-style: none;
+        }
+
+        .more-services summary::-webkit-details-marker {
+            display: none;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -267,8 +323,9 @@ export class MCPSettingsComponent extends LitElement {
         }
 
         .content.expanded {
-            max-height: 1000px;
+            max-height: none;
             opacity: 1;
+            overflow: visible;
         }
 
         .stats-summary {
@@ -529,65 +586,60 @@ export class MCPSettingsComponent extends LitElement {
                 console.log('[MCPSettings] 📊 All services from registry:', allServices.length);
                 console.log('[MCPSettings] 📊 Service keys:', allServices.map(([key]) => key));
                 
-                // Exclude Slack, Discord, and GitHub temporarily
-                const excludedServices = ['slack', 'discord', 'github'];
-                const enabledServicesList = allServices.filter(([key, service]) => service.enabled && !excludedServices.includes(key));
-                console.log('[MCPSettings] ✅ Enabled services list:', enabledServicesList.map(([key, service]) => `${key} (${service.name})`));
+                // Exclude all disabled integrations except Paragon (as we decided to use Paragon instead)
+                const excludedServices = [
+                    'slack', 'discord', 'github', 'linkedin', 'notion',
+                    'google', 'google-drive', 'google-docs', 'gmail', 
+                    'google-calendar', 'google-sheets', 'google-tasks'
+                ];
+                const enabledServicesList = allServices.filter(([key]) => !excludedServices.includes(key));
                 
-                this.supportedServices = enabledServicesList
-                    .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
-                    .reduce((acc, [key, service]) => {
-                        acc[key] = {
-                            ...service,
-                            key: key  // Include the service key for reference
-                        };
-                        return acc;
-                    }, {});
-                    
-                console.log('[MCPSettings] ✅ Supported services final object:', this.supportedServices);
-                console.log('[MCPSettings] ✅ Supported services loaded:', {
-                    count: Object.keys(this.supportedServices).length,
-                    services: Object.keys(this.supportedServices)
+                console.log('[MCPSettings] 📊 Enabled services after filtering:', enabledServicesList.length);
+                console.log('[MCPSettings] 📊 Enabled service keys:', enabledServicesList.map(([key]) => key));
+
+                this.supportedServices = {};
+                
+                enabledServicesList.forEach(([key, service]) => {
+                    this.supportedServices[key] = {
+                        ...service,
+                        id: key,
+                        displayName: service.name || this.formatDisplayName(key),
+                        isEnabled: service.enabled || false,
+                        status: 'disconnected', // Will be updated by server status
+                        authProvider: service.authProvider || service.oauth?.provider
+                    };
                 });
-                    
-                // Filter disabled services and sort by priority
-                // Exclude Slack, Discord, and GitHub from disabled services too
-                this.disabledServices = allServices
-                    .filter(([key, service]) => !service.enabled && !excludedServices.includes(key))
-                    .sort(([,a], [,b]) => (a.priority || 999) - (b.priority || 999))
-                    .reduce((acc, [key, service]) => {
-                        acc[key] = {
-                            ...service,
-                            key: key  // Include the service key for reference
-                        };
-                        return acc;
-                    }, {});
-                    
-                console.log('[MCPSettings] ⏸️ Disabled services loaded:', {
-                    count: Object.keys(this.disabledServices).length,
-                    services: Object.keys(this.disabledServices)
-                });
-            } else {
-                console.log('[MCPSettings] ⚠️ No registry data, using fallback...');
-                console.log('[MCPSettings] ⚠️ Registry response was:', registry);
-                // Fallback to legacy method if registry not available
-                const services = await window.api?.mcp?.getSupportedServices();
-                console.log('[MCPSettings] ⚠️ Legacy services response:', services);
-                this.supportedServices = services || {};
-                this.disabledServices = {};
+                
+                console.log('[MCPSettings] 📊 Final supportedServices:', Object.keys(this.supportedServices));
+                console.log('[MCPSettings] 📊 supportedServices data:', this.supportedServices);
             }
             
-            this.requestUpdate();
+            // Load Paragon service status - individual service authentication status
+            await this.loadParagonServiceStatus();
+            
         } catch (error) {
-            console.error('Failed to load supported services:', error);
-            // Fallback to default services
-            this.supportedServices = {
-                'google-drive': { name: 'Google Drive', enabled: true, priority: 4 },
-                'github': { name: 'GitHub', enabled: true, priority: 3 },
-                'notion': { name: 'Notion', enabled: true, priority: 1 },
-                'slack': { name: 'Slack', enabled: true, priority: 2 }
-            };
-            this.disabledServices = {};
+            console.error('[MCPSettings] ❌ Error loading supported services:', error);
+            this.errorMessage = 'Failed to load supported services: ' + error.message;
+        }
+    }
+    
+    // New method to load Paragon individual service authentication status
+    async loadParagonServiceStatus() {
+        try {
+            const paragonStatus = await window.api?.mcp?.getParagonServiceStatus();
+            console.log('[MCPSettings] 🚀 Paragon service status:', paragonStatus);
+            
+            // Update our service status based on Paragon authentication
+            if (paragonStatus && paragonStatus.services) {
+                Object.entries(paragonStatus.services).forEach(([serviceKey, status]) => {
+                    if (this.supportedServices[serviceKey]) {
+                        this.supportedServices[serviceKey].status = status.authenticated ? 'connected' : 'needs_auth';
+                        this.supportedServices[serviceKey].toolsCount = status.toolsCount || 0;
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn('[MCPSettings] ⚠️ Could not load Paragon service status:', error);
         }
     }
 
@@ -859,6 +911,13 @@ export class MCPSettingsComponent extends LitElement {
         return names[serviceName] || serviceName;
     }
 
+    formatDisplayName(serviceName) {
+        if (serviceName.includes('google-')) {
+            return 'Google ' + serviceName.split('-')[1].charAt(0).toUpperCase() + serviceName.split('-')[1].slice(1);
+        }
+        return serviceName.charAt(0).toUpperCase() + serviceName.slice(1);
+    }
+
     renderServiceCard(serviceName, service) {
         const status = this.getServiceStatus(serviceName);
         const statusText = this.getServiceStatusText(status);
@@ -896,41 +955,6 @@ export class MCPSettingsComponent extends LitElement {
                         .checked=${isConnected}
                         .disabled=${isConnecting}
                         @change=${() => this.toggleService(serviceName)}
-                    />
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-        `;
-    }
-
-    renderComingSoonCard(serviceName, service) {
-        const displayName = service?.name || this.getServiceDisplayName(serviceName);
-        const description = service?.description || '';
-        const icon = service?.icon;
-        
-        // If no icon from registry, use the existing logo method
-        const logo = icon ? 
-            html`<img src="${icon}" alt="${displayName}" style="width: 16px; height: 16px;" />` : 
-            this.getServiceLogo(serviceName);
-        const brandColor = this.getServiceBrandColor(serviceName);
-
-        return html`
-            <div class="service-card coming-soon" title="${description}">
-                <div class="service-info">
-                    <div class="service-logo" style="background-color: ${brandColor}20; color: ${brandColor};">
-                        ${icon ? logo : html`<div .innerHTML=${logo}></div>`}
-                    </div>
-                    <div class="service-details">
-                        <h4>${displayName}</h4>
-                        <div class="coming-soon-badge">Coming Soon</div>
-                    </div>
-                </div>
-                
-                <label class="toggle-switch" style="opacity: 0.5;">
-                    <input 
-                        type="checkbox" 
-                        .checked=${false}
-                        .disabled=${true}
                     />
                     <span class="toggle-slider"></span>
                 </label>
@@ -994,13 +1018,27 @@ export class MCPSettingsComponent extends LitElement {
         }
         this.connectingServices.clear(); 
         
-        await this.loadServerStatus();
-        await this.loadSupportedServices();
-        await this.loadAuthenticationStatus();
-        this.showSuccess('Status refreshed');
-        
-        // Force UI update after clearing stuck states
-        this.requestUpdate();
+        try {
+            this.isLoading = true;
+            this.requestUpdate();
+            
+            await this.loadServerStatus();
+            await this.loadSupportedServices();
+            await this.loadAuthenticationStatus();
+            await this.loadParagonServiceStatus();
+            
+            this.successMessage = 'Status refreshed successfully';
+            this.errorMessage = '';
+            this.showSuccess('Status refreshed');
+            
+        } catch (error) {
+            console.error('[MCPSettings] ❌ Error refreshing status:', error);
+            this.errorMessage = 'Failed to refresh status: ' + error.message;
+            this.successMessage = '';
+        } finally {
+            this.isLoading = false;
+            this.requestUpdate();
+        }
     }
 
     async clearStuckServices() {
@@ -1055,75 +1093,298 @@ export class MCPSettingsComponent extends LitElement {
     }
 
     render() {
-        const connectedCount = this.getConnectedCount();
-        const totalCount = this.getTotalServicesCount();
-
-        return html`
-            <div class="header" @click=${this.toggleExpanded}>
-                <div class="title">
-                    <span>🔌</span>
-                    <span>Connected Apps</span>
-                </div>
-                <div class="expand-icon ${this.isExpanded ? 'expanded' : ''}">▶</div>
-            </div>
-
-            <div class="content ${this.isExpanded ? 'expanded' : ''}">
-                ${this.errorMessage ? html`
-                    <div class="message error">${this.errorMessage}</div>
-                ` : ''}
-
-                ${this.successMessage ? html`
-                    <div class="message success">${this.successMessage}</div>
-                ` : ''}
-
-                ${this.isLoading ? html`
+        if (this.isLoading) {
+            return html`
+                <div class="mcp-settings">
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Loading your apps...</p>
+                        <p>Loading MCP services...</p>
                     </div>
-                ` : html`
-                    <div class="app-connections">
-                        <div class="apps-header">
-                            <h3>🔌 Your Connected Apps</h3>
-                            <p>Connect your favorite apps to unlock powerful automation and data access</p>
-                        </div>
+                </div>
+            `;
+        }
 
-                        <div class="stats-summary">
-                            <div class="stat-item">
-                                <span class="stat-value">${connectedCount}</span> / ${totalCount} connected
-                            </div>
-                            <div class="stat-item">
-                                <button 
-                                    class="refresh-btn" 
-                                    @click=${this.refreshStatus}
-                                    ?disabled=${this.isLoading}
-                                    title="Check connection status"
-                                >
-                                    🔄 Refresh
-                                </button>
-                            </div>
-                        </div>
+        const runningCount = Object.values(this.servers).filter(s => s.connected).length;
+        const totalTools = Object.values(this.servers).reduce((sum, server) => sum + (server.tools?.length || 0), 0);
 
-                        <div class="services-grid">
-                            ${(() => {
-                                console.log('[MCPSettings] 🎨 Rendering apps:', Object.keys(this.supportedServices));
-                                return Object.entries(this.supportedServices).map(([key, service]) => {
-                                    console.log(`[MCPSettings] 🎨 Rendering app: ${key} - ${service.name}`);
-                                    return this.renderServiceCard(key, service);
-                                });
-                            })()}
-                        </div>
-                        
-                        <button class="add-custom-btn" @click=${this.showAddCustomAppDialog}>
-                            <span style="font-size: 1.2em;">+</span>
-                            <span>Add Custom App</span>
-                        </button>
+        return html`
+            <div class="mcp-settings">
+                ${this.errorMessage ? html`<div class="message error">${this.errorMessage}</div>` : ''}
+                ${this.successMessage ? html`<div class="message success">${this.successMessage}</div>` : ''}
+                
+                <div class="header" @click="${this.toggleExpanded}">
+                    <div class="title">
+                        <span>🔌</span>
+                        <span>MCP Server Connections</span>
                     </div>
-                `}
+                    <div>
+                        <span class="refresh-btn" @click="${this.handleRefreshClick}">🔄</span>
+                        <span class="expand-icon ${this.isExpanded ? 'expanded' : ''}">▶</span>
+                    </div>
+                </div>
+
+                <div class="stats-summary">
+                    <div class="stat-item">
+                        <span class="stat-value">${runningCount}</span> running
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">${totalTools}</span> tools
+                    </div>
+                </div>
+
+                <div class="content ${this.isExpanded ? 'expanded' : ''}">
+                    ${this.renderParagonServicesSection()}
+                    ${this.renderAddCustomButton()}
+                </div>
             </div>
         `;
     }
-    
+
+    renderParagonServicesSection() {
+        // Define Paragon-supported services based on LIMIT_TO_INTEGRATIONS configuration
+        // This matches: gmail,googleCalendar,googleDrive,googleDocs,googleSheets,googleTasks,notion,linkedin
+        const paragonServices = {
+            'gmail': {
+                name: 'Gmail',
+                description: 'Send and search emails, access messages',
+                icon: '📧',
+                capabilities: ['gmail_send', 'gmail_search'],
+                status: 'needs_auth'
+            },
+            'googleCalendar': {
+                name: 'Google Calendar',
+                description: 'Manage events and schedules',
+                icon: '📅',
+                capabilities: ['calendar_events'],
+                status: 'needs_auth'
+            },
+            'googleDrive': {
+                name: 'Google Drive',
+                description: 'Access files, folders, and documents',
+                icon: '📁',
+                capabilities: ['drive_files'],
+                status: 'needs_auth'
+            },
+            'googleDocs': {
+                name: 'Google Docs',
+                description: 'Create and edit documents',
+                icon: '📄',
+                capabilities: ['docs_read', 'docs_write'],
+                status: 'needs_auth'
+            },
+            'googleSheets': {
+                name: 'Google Sheets',
+                description: 'Create and edit spreadsheets',
+                icon: '📊',
+                capabilities: ['sheets_read', 'sheets_write'],
+                status: 'needs_auth'
+            },
+            'googleTasks': {
+                name: 'Google Tasks',
+                description: 'Manage tasks and to-do lists',
+                icon: '✅',
+                capabilities: ['tasks_read', 'tasks_write'],
+                status: 'needs_auth'
+            },
+            'notion': {
+                name: 'Notion',
+                description: 'Access pages, databases, and content',
+                icon: '📝',
+                capabilities: ['notion_pages'],
+                status: 'needs_auth'
+            },
+            'linkedin': {
+                name: 'LinkedIn',
+                description: 'Access professional network and posts',
+                icon: '💼',
+                capabilities: ['linkedin_posts', 'linkedin_connections'],
+                status: 'needs_auth'
+            }
+        };
+
+        // Bypass server connection check to always render service toggles
+        return html`
+            <div class="more-services" style="margin-bottom: 20px;">
+                <summary>🚀 Paragon Services (Configured Integrations)</summary>
+                <p style="color: var(--text-secondary, #a0a0a0); font-size: 0.9em; margin: 12px 0;">
+                    Authenticate individual services to access their tools and capabilities through Paragon.
+                </p>
+                
+                <div class="services-grid">
+                    ${Object.entries(paragonServices).map(([serviceKey, service]) => 
+                        this.renderParagonServiceCard(serviceKey, service)
+                    )}
+                </div>
+                
+                <div style="margin-top: 16px; padding: 12px; background: var(--background-secondary, #2a2a2a); border-radius: 6px; border: 1px solid var(--border-color, #333);">
+                    <p style="margin: 0; font-size: 0.85em; color: var(--text-secondary, #a0a0a0);">
+                        💡 <strong>Configured Services:</strong> These are the services enabled in your Paragon configuration. 
+                        <a href="https://docs.useparagon.com" target="_blank" style="color: var(--accent-color, #4a90e2);">Learn more about Paragon</a>
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    renderParagonServiceCard(serviceKey, service) {
+        const isConnecting = this.connectingServices.has(serviceKey);
+        const isEnabled = service.status === 'connected';
+        const needsAuth = service.status === 'needs_auth';
+        
+        return html`
+            <div class="service-card ${needsAuth ? 'needs-auth' : ''}">
+                <div class="service-info">
+                    <div class="service-logo">
+                        <span style="font-size: 16px;">${service.icon}</span>
+                    </div>
+                    <div class="service-details">
+                        <h4>${service.name}</h4>
+                        <div class="service-status ${service.status}">
+                            ${isConnecting ? 'Connecting...' : 
+                              isEnabled ? 'Connected' :
+                              needsAuth ? 'Needs Authentication' : 'Disconnected'}
+                        </div>
+                    </div>
+                </div>
+                
+                <label class="toggle-switch ${isConnecting ? 'connecting' : ''} ${needsAuth ? 'needs-auth' : ''}">
+                    <input 
+                        type="checkbox" 
+                        .checked="${isEnabled}"
+                        .disabled="${isConnecting}"
+                        @change="${(e) => this.handleParagonServiceToggle(serviceKey, service, e.target.checked)}"
+                    />
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        `;
+    }
+
+    async handleParagonServiceToggle(serviceKey, service, isChecked) {
+        if (isChecked) {
+            await this.connectParagonService(serviceKey, service);
+        } else {
+            await this.disconnectParagonService(serviceKey, service);
+        }
+    }
+
+    async connectParagonService(serviceKey, service) {
+        try {
+            this.connectingServices.add(serviceKey);
+            this.connectingTimeouts.set(serviceKey, Date.now());
+            this.requestUpdate();
+
+            console.log(`[MCPSettings] 🚀 Connecting Paragon service: ${serviceKey}`);
+
+            // Launch Paragon Connect Portal for this specific service
+            const authResult = await window.api?.mcp?.authenticateParagonService(serviceKey, {
+                serviceName: service.name,
+                capabilities: service.capabilities,
+                redirectUrl: window.location.origin + '/oauth/callback'
+            });
+
+            if (authResult?.success) {
+                this.successMessage = `✅ ${service.name} connected successfully! Tools are now available.`;
+                this.errorMessage = '';
+                
+                // Update service status
+                if (this.supportedServices[serviceKey]) {
+                    this.supportedServices[serviceKey].status = 'connected';
+                    this.supportedServices[serviceKey].toolsCount = authResult.toolsCount || 0;
+                }
+                
+                // Refresh server status to get updated tools
+                await this.loadServerStatus();
+                await this.loadParagonServiceStatus();
+                
+            } else {
+                throw new Error(authResult?.error || 'Authentication failed');
+            }
+
+        } catch (error) {
+            console.error(`[MCPSettings] ❌ Error connecting ${serviceKey}:`, error);
+            this.errorMessage = `Failed to connect ${service.name}: ${error.message}`;
+            this.successMessage = '';
+            
+            // If authentication was cancelled or failed, uncheck the toggle
+            if (this.supportedServices[serviceKey]) {
+                this.supportedServices[serviceKey].status = 'needs_auth';
+            }
+        } finally {
+            this.connectingServices.delete(serviceKey);
+            this.connectingTimeouts.delete(serviceKey);
+            this.requestUpdate();
+        }
+    }
+
+    async disconnectParagonService(serviceKey, service) {
+        try {
+            console.log(`[MCPSettings] 🔌 Disconnecting Paragon service: ${serviceKey}`);
+
+            const result = await window.api?.mcp?.disconnectParagonService(serviceKey);
+
+            if (result?.success) {
+                this.successMessage = `${service.name} disconnected successfully.`;
+                this.errorMessage = '';
+                
+                // Update service status
+                if (this.supportedServices[serviceKey]) {
+                    this.supportedServices[serviceKey].status = 'needs_auth';
+                    this.supportedServices[serviceKey].toolsCount = 0;
+                }
+                
+                // Refresh server status
+                await this.loadServerStatus();
+                await this.loadParagonServiceStatus();
+                
+            } else {
+                throw new Error(result?.error || 'Disconnection failed');
+            }
+
+        } catch (error) {
+            console.error(`[MCPSettings] ❌ Error disconnecting ${serviceKey}:`, error);
+            this.errorMessage = `Failed to disconnect ${service.name}: ${error.message}`;
+            this.successMessage = '';
+        }
+    }
+
+    async handleRefreshClick(e) {
+        e.stopPropagation(); // Prevent header toggle
+        await this.refreshStatus();
+    }
+
+    renderServicesGrid() {
+        return html`
+            <div class="services-grid">
+                ${(() => {
+                    console.log('[MCPSettings] 🎨 Rendering apps:', Object.keys(this.supportedServices));
+                    return Object.entries(this.supportedServices).map(([key, service]) => {
+                        console.log(`[MCPSettings] 🎨 Rendering app: ${key} - ${service.name}`);
+                        return this.renderServiceCard(key, service);
+                    });
+                })()}
+            </div>
+        `;
+    }
+
+    renderMoreServices() {
+        return html`
+            <button class="add-custom-btn" @click=${this.showAddCustomAppDialog}>
+                <span style="font-size: 1.2em;">+</span>
+                <span>Add Custom App</span>
+            </button>
+        `;
+    }
+
+    renderAddCustomButton() {
+        return html`
+            <button class="add-custom-btn" @click=${this.showAddCustomAppDialog}>
+                <span style="font-size: 1.2em;">+</span>
+                <span>Add Custom App</span>
+            </button>
+        `;
+    }
+
     async showAddCustomAppDialog() {
         // For now, show a simple alert with instructions
         // In a full implementation, this would open a modal dialog
@@ -1148,4 +1409,4 @@ This feature is coming soon! Contact support for help adding custom integrations
     }
 }
 
-customElements.define('mcp-settings', MCPSettingsComponent); 
+customElements.define('mcp-settings', MCPSettingsComponent);

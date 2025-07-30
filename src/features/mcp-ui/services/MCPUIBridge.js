@@ -99,14 +99,8 @@ class MCPUIBridge extends EventEmitter {
     }
 
     try {
-      // Find the server instance
-      const server = await this.mcpClient.getServer(serverId);
-      if (!server) {
-        throw new Error(`Server ${serverId} not found`);
-      }
-
-      // Invoke the tool
-      const result = await server.callTool(tool, params);
+      // Invoke the tool directly through the MCP client
+      const result = await this.mcpClient.invokeTool(tool, params);
       return result;
     } catch (error) {
       console.error('MCPUIBridge: Error invoking MCP tool', error);

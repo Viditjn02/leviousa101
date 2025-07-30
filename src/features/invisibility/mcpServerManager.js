@@ -1,5 +1,6 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
+const path = require('path'); // Added for path.join
 
 class MCPServerManager extends EventEmitter {
     constructor() {
@@ -58,6 +59,25 @@ class MCPServerManager extends EventEmitter {
                 envVars: ['NOTION_API_TOKEN'],
                 requiresAuth: true,
                 authType: 'integration'
+            },
+            google: {
+                command: 'uvx',
+                args: ['workspace-mcp', '--tools', 'gmail', 'drive', 'calendar', 'docs', 'sheets', 'tasks', '--transport', 'stdio'],
+                description: 'Google Workspace integration with comprehensive tools for Gmail, Drive, Calendar, Docs, Sheets, and Tasks',
+                tools: ['send_gmail_message', 'list_gmail_messages', 'search_gmail_messages', 'list_drive_files', 'create_calendar_event', 'list_calendar_events'],
+                envVars: ['GOOGLE_ACCESS_TOKEN', 'GOOGLE_REFRESH_TOKEN', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET'],
+                requiresAuth: true,
+                authType: 'oauth'
+            },
+            paragon: {
+                command: '/Users/viditjain/.nvm/versions/node/v22.17.1/bin/node',
+                args: [path.join(__dirname, '../../../services/paragon-mcp/dist/index.mjs')],
+                description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
+                tools: [], // Will be dynamically populated from Paragon
+                envVars: ['PARAGON_PROJECT_ID', 'PARAGON_SIGNING_KEY'],
+                requiresAuth: true,
+                authType: 'jwt',
+                transport: 'stdio' // Paragon MCP uses stdio transport when run as a process
             }
         };
 
@@ -78,6 +98,53 @@ class MCPServerManager extends EventEmitter {
         try {
             console.log(`[MCPServerManager] Starting ${serverName} server...`);
             
+            // Special handling for Paragon server
+            if (serverName === 'paragon') {
+                // Load Paragon environment configuration
+                const paragonEnvPath = path.join(__dirname, '../../../services/paragon-mcp/.env');
+                try {
+                    const dotenv = require('dotenv');
+                    const paragonEnv = dotenv.config({ path: paragonEnvPath });
+                    
+                    if (paragonEnv.error) {
+                        console.warn('[MCPServerManager] Could not load Paragon .env file:', paragonEnv.error.message);
+                    } else {
+                        // Merge Paragon environment variables AND map them to expected names
+                        Object.assign(process.env, paragonEnv.parsed);
+                        
+                        // Map PROJECT_ID to PARAGON_PROJECT_ID for consistency
+                        if (paragonEnv.parsed.PROJECT_ID) {
+                            process.env.PARAGON_PROJECT_ID = paragonEnv.parsed.PROJECT_ID;
+                        }
+                        if (paragonEnv.parsed.SIGNING_KEY) {
+                            process.env.PARAGON_SIGNING_KEY = paragonEnv.parsed.SIGNING_KEY;
+                        }
+                        
+                        console.log('[MCPServerManager] ✅ Loaded Paragon configuration from .env file');
+                        console.log('[MCPServerManager] 🔑 PROJECT_ID:', paragonEnv.parsed.PROJECT_ID);
+                        console.log('[MCPServerManager] 🔐 SIGNING_KEY:', paragonEnv.parsed.SIGNING_KEY ? 'Present' : 'Missing');
+                    }
+                } catch (error) {
+                    console.warn('[MCPServerManager] Error loading Paragon .env:', error.message);
+                }
+
+                // Initialize JWT service if not already done
+                const paragonJwtService = require('./paragonJwtService');
+                if (!paragonJwtService.getStatus().initialized) {
+                    paragonJwtService.initialize({
+                        projectId: process.env.PARAGON_PROJECT_ID || process.env.PROJECT_ID,
+                        signingKey: process.env.PARAGON_SIGNING_KEY || process.env.SIGNING_KEY,
+                        signingKeyPath: process.env.PARAGON_SIGNING_KEY_PATH
+                    });
+                    
+                    if (paragonJwtService.getStatus().initialized) {
+                        console.log('[MCPServerManager] ✅ Paragon JWT service initialized successfully');
+                    } else {
+                        console.warn('[MCPServerManager] ❌ Failed to initialize Paragon JWT service');
+                    }
+                }
+            }
+            
             // Prepare command arguments with any custom config
             let args = [...serverConfig.args];
             if (config.args) {
@@ -86,11 +153,19 @@ class MCPServerManager extends EventEmitter {
 
             // Set up environment variables
             const env = { ...process.env };
+            
+            // Add Paragon-specific environment variables
+            if (serverName === 'paragon') {
+                env.NODE_ENV = env.NODE_ENV || 'development';
+                            env.PORT = env.PORT || '3002';
+            env.MCP_SERVER_URL = env.MCP_SERVER_URL || 'http://localhost:3002';
+            }
+            
             if (serverConfig.envVars) {
                 serverConfig.envVars.forEach(envVar => {
                     if (config.env && config.env[envVar]) {
                         env[envVar] = config.env[envVar];
-                    } else {
+                    } else if (!env[envVar]) {
                         console.warn(`[MCPServerManager] Missing environment variable ${envVar} for ${serverName}`);
                     }
                 });

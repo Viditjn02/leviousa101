@@ -682,7 +682,8 @@ function initializeInvisibilityBridge() {
                 throw new Error('MCP client not available');
             }
             
-            const result = await service.mcpClient.invokeTool(toolName, args);
+            // The migration bridge now handles the tool call directly
+            const result = await service.mcpClient.callTool(toolName, args);
             return { success: true, result };
         } catch (error) {
             console.error('[InvisibilityBridge] Error calling tool:', error);
@@ -829,11 +830,23 @@ function initializeInvisibilityBridge() {
             if (service.mcpUIIntegration) {
                 service.mcpUIIntegration.on('ui-resource-ready', (data) => {
                     console.log('[InvisibilityBridge] UI resource ready:', data);
-                    
+                    // Register resource in the MCP UI Bridge
+                    try {
+                      const { default: mcpUIBridge } = require('../mcp-ui/services/MCPUIBridge');
+                      mcpUIBridge.registerUIResource(data.serverId, data.tool, data.resource);
+                    } catch (e) {
+                      console.error('[InvisibilityBridge] Error registering UI resource with bridge:', e);
+                    }
+
                     // Forward to all windows
                     BrowserWindow.getAllWindows().forEach(window => {
                         if (!window.isDestroyed()) {
-                            window.webContents.send('mcp:ui-resource-available', data);
+                            // Strip non-serializable fields before IPC
+                            const { onAction, ...payload } = data;
+                            // Only send to AskView and other relevant windows, not all of them
+                            if (window.title !== 'Main Header') {
+                              window.webContents.send('mcp:ui-resource-available', payload);
+                            }
                         }
                     });
                 });
@@ -941,7 +954,8 @@ function initializeInvisibilityBridge() {
                 throw new Error('MCP UI Integration not available');
             }
             
-            const actions = service.mcpUIIntegration.getContextualActions(context);
+            // Use async method for LLM-based classification
+            const actions = await service.mcpUIIntegration.getContextualActions(context);
             return { success: true, actions };
         } catch (error) {
             console.error('[InvisibilityBridge] Error getting contextual actions:', error);
@@ -960,6 +974,200 @@ function initializeInvisibilityBridge() {
             return { success: true, result };
         } catch (error) {
             console.error('[InvisibilityBridge] Error executing action:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Paragon Service Management IPC handlers
+    ipcMain.handle('mcp:getParagonServiceStatus', async () => {
+        try {
+            console.log('[InvisibilityBridge] 🚀 Getting Paragon service status...');
+            
+            // Get the current state of individual Paragon services
+            // This would typically come from the MCP client or stored authentication state
+            if (service?.mcpClient) {
+                const paragonStatus = await service.mcpClient.getParagonServiceStatus();
+                return { success: true, services: paragonStatus || {} };
+            }
+            
+            // Return default status if MCP client not available
+            return { 
+                success: true, 
+                services: {
+                    // Match services from LIMIT_TO_INTEGRATIONS in services/paragon-mcp/.env
+                    'gmail': { authenticated: false, toolsCount: 0 },
+                    'googleCalendar': { authenticated: false, toolsCount: 0 },
+                    'googleDrive': { authenticated: false, toolsCount: 0 },
+                    'googleDocs': { authenticated: false, toolsCount: 0 },
+                    'googleSheets': { authenticated: false, toolsCount: 0 },
+                    'googleTasks': { authenticated: false, toolsCount: 0 },
+                    'notion': { authenticated: false, toolsCount: 0 },
+                    'linkedin': { authenticated: false, toolsCount: 0 }
+                }
+            };
+        } catch (error) {
+            console.error('[InvisibilityBridge] ❌ Error getting Paragon service status:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('mcp:authenticateParagonService', async (event, serviceKey, options = {}) => {
+        try {
+            console.log(`[InvisibilityBridge] 🚀 Authenticating Paragon service: ${serviceKey}`);
+            
+            // Instead of manually constructing URLs, use the MCP client to get the proper setup URL
+            // This is the correct approach according to Paragon ActionKit documentation
+            
+            try {
+                // First, check if the service is already authenticated
+                const statusResult = await service.mcpClient.callTool('get_authenticated_services', {});
+                console.log('[InvisibilityBridge] 🔍 Authentication status check:', statusResult);
+                
+                // Parse the status result to check if already authenticated
+                if (statusResult && statusResult.content && statusResult.content[0] && statusResult.content[0].text) {
+                    const services = JSON.parse(statusResult.content[0].text);
+                    const targetService = services.find(s => s.id === serviceKey);
+                    
+                    if (targetService && targetService.status === 'authenticated') {
+                        return {
+                            success: true,
+                            message: `${serviceKey} is already authenticated`,
+                            serviceKey: serviceKey,
+                            alreadyAuthenticated: true
+                        };
+                    }
+                }
+                
+                // Service needs authentication - call the connect_service tool
+                console.log(`[InvisibilityBridge] 🔐 ${serviceKey} requires authentication, generating Connect Portal URL...`);
+                
+                const authResult = await service.mcpClient.callTool('connect_service', {
+                    service: serviceKey,
+                    user_id: options.userId || 'default-user'
+                });
+                
+                console.log(`[InvisibilityBridge] 🔗 Connect service result:`, authResult);
+                
+                // Parse the authentication response
+                if (authResult && authResult.content && authResult.content[0] && authResult.content[0].text) {
+                    const response = JSON.parse(authResult.content[0].text);
+                    
+                    if (response.success && response.authUrl) {
+                        console.log(`[InvisibilityBridge] 🔗 Opening ${serviceKey} Connect Portal: ${response.authUrl}`);
+                        
+                        // Open the Connect Portal in a new browser window
+                        const { shell } = require('electron');
+                        await shell.openExternal(response.authUrl);
+                        
+                        return {
+                            success: true,
+                            message: response.message || `${serviceKey} authentication initiated. Please complete the process in your browser.`,
+                            authUrl: response.authUrl,
+                            serviceKey: serviceKey,
+                            requiresSetup: true
+                        };
+                    } else {
+                        throw new Error(response.message || 'Failed to generate authentication URL');
+                    }
+                } else {
+                    throw new Error('Invalid response from connect_service tool');
+                }
+                
+            } catch (authError) {
+                console.log(`[InvisibilityBridge] 🔐 Authentication tool error:`, authError.message);
+                throw new Error(`Authentication failed for ${serviceKey}: ${authError.message}`);
+            }
+            
+        } catch (error) {
+            console.error(`[InvisibilityBridge] ❌ Error authenticating ${serviceKey}:`, error);
+            
+            // Provide more specific error handling
+            let errorMessage = `Failed to authenticate ${serviceKey}: ${error.message}`;
+            let suggestion = 'Please ensure Paragon MCP server is running and properly configured.';
+            
+            if (error.message.includes('PROJECT_ID')) {
+                errorMessage = `Paragon PROJECT_ID not configured. Please check services/paragon-mcp/.env file.`;
+                suggestion = 'Add a valid PROJECT_ID to services/paragon-mcp/.env and restart the application.';
+            } else if (error.message.includes('ECONNREFUSED')) {
+                errorMessage = `Cannot connect to Paragon MCP server on http://localhost:3002`;
+                suggestion = 'Please ensure the Paragon MCP server is running.';
+            }
+            
+            return { 
+                success: false, 
+                error: errorMessage,
+                serviceKey: serviceKey,
+                suggestion: suggestion
+            };
+        }
+    });
+
+    ipcMain.handle('mcp:disconnectParagonService', async (event, serviceKey) => {
+        try {
+            console.log(`[InvisibilityBridge] 🔌 Disconnecting Paragon service: ${serviceKey}`);
+            
+            // Revoke the service authentication through Paragon
+            if (service?.mcpClient) {
+                const result = await service.mcpClient.disconnectParagonService(serviceKey);
+                return { success: true, message: `${serviceKey} disconnected successfully.` };
+            }
+            
+            // Fallback: just return success for now
+            return { success: true, message: `${serviceKey} disconnected.` };
+            
+        } catch (error) {
+            console.error(`[InvisibilityBridge] ❌ Error disconnecting ${serviceKey}:`, error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Note: Removed manual Connect Portal URL generation 
+    // Now using proper Paragon MCP server setup endpoint approach
+    // The MCP server handles authentication setup via GET /setup endpoint
+
+    // Paragon JWT generation handler
+    ipcMain.handle('paragon:getJWT', async (event) => {
+        try {
+            console.log('[InvisibilityBridge] 📋 Generating Paragon JWT token...');
+            
+            const authService = require('../../common/services/authService');
+            const paragonJwtService = require('./mcp/paragonJwtService');
+            
+            // Get current user
+            const currentUser = authService.getCurrentUser();
+            if (!currentUser) {
+                console.error('[InvisibilityBridge] ❌ No authenticated user for JWT generation');
+                return { success: false, error: 'No authenticated user' };
+            }
+            
+            console.log(`[InvisibilityBridge] 👤 Generating JWT for user: ${currentUser.uid}`);
+            
+            // Initialize JWT service if needed
+            if (!paragonJwtService.initialized) {
+                console.log('[InvisibilityBridge] 🔧 Initializing Paragon JWT service...');
+                const config = {
+                    projectId: process.env.PARAGON_PROJECT_ID || 'db5e019e-0558-4378-93de-f212a73e0606',
+                    signingKey: process.env.PARAGON_SIGNING_KEY
+                };
+                const initialized = paragonJwtService.initialize(config);
+                if (!initialized) {
+                    console.error('[InvisibilityBridge] ❌ Failed to initialize Paragon JWT service');
+                    return { success: false, error: 'Failed to initialize JWT service' };
+                }
+            }
+            
+            // Generate JWT
+            const token = paragonJwtService.generateUserToken(currentUser.uid);
+            if (!token) {
+                console.error('[InvisibilityBridge] ❌ Failed to generate JWT token');
+                return { success: false, error: 'Failed to generate JWT' };
+            }
+            
+            console.log('[InvisibilityBridge] ✅ JWT token generated successfully');
+            return { success: true, token };
+            
+        } catch (error) {
+            console.error('[InvisibilityBridge] ❌ Error generating Paragon JWT:', error);
             return { success: false, error: error.message };
         }
     });
