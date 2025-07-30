@@ -145,9 +145,30 @@ class ToolRegistry extends EventEmitter {
      * Invoke a tool
      */
     async invokeTool(fullName, args) {
-        const toolInfo = this.tools.get(fullName);
+        let toolInfo = this.tools.get(fullName);
+        
+        // If not found with full name, try to find by simple name
         if (!toolInfo) {
-            throw new Error(`Tool not found: ${fullName}`);
+            // Look for a tool that ends with the simple name
+            for (const [registeredName, info] of this.tools) {
+                if (registeredName.endsWith(`.${fullName}`) || registeredName === fullName) {
+                    toolInfo = info;
+                    logger.info('Found tool by simple name lookup', { 
+                        requestedName: fullName, 
+                        registeredName: registeredName 
+                    });
+                    break;
+                }
+            }
+        }
+        
+        if (!toolInfo) {
+            const availableTools = Array.from(this.tools.keys());
+            logger.error('Tool not found', { 
+                requestedName: fullName, 
+                availableTools 
+            });
+            throw new Error(`Tool not found: ${fullName}. Available tools: ${availableTools.join(', ')}`);
         }
 
         logger.info('Invoking tool', { fullName, args });

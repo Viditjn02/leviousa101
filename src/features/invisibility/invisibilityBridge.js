@@ -1025,16 +1025,44 @@ function initializeInvisibilityBridge() {
                 
                 // Parse the status result to check if already authenticated
                 if (statusResult && statusResult.content && statusResult.content[0] && statusResult.content[0].text) {
-                    const services = JSON.parse(statusResult.content[0].text);
-                    const targetService = services.find(s => s.id === serviceKey);
-                    
-                    if (targetService && targetService.status === 'authenticated') {
-                        return {
-                            success: true,
-                            message: `${serviceKey} is already authenticated`,
-                            serviceKey: serviceKey,
-                            alreadyAuthenticated: true
-                        };
+                    try {
+                        // Handle nested MCP response structure
+                        let services;
+                        const responseText = statusResult.content[0].text;
+                        
+                        // Try to parse as nested MCP response first
+                        try {
+                            const mcpResponse = JSON.parse(responseText);
+                            if (mcpResponse.content && mcpResponse.content[0] && mcpResponse.content[0].text) {
+                                services = JSON.parse(mcpResponse.content[0].text);
+                            } else {
+                                // Fallback to direct parsing
+                                services = mcpResponse;
+                            }
+                        } catch (e) {
+                            // Fallback to direct parsing
+                            services = JSON.parse(responseText);
+                        }
+                        
+                        console.log('[InvisibilityBridge] 🔍 Parsed services:', services);
+                        
+                        if (Array.isArray(services)) {
+                            const targetService = services.find(s => s.id === serviceKey);
+                            
+                            if (targetService && targetService.status === 'authenticated') {
+                                return {
+                                    success: true,
+                                    message: `${serviceKey} is already authenticated`,
+                                    serviceKey: serviceKey,
+                                    alreadyAuthenticated: true
+                                };
+                            }
+                        } else {
+                            console.log('[InvisibilityBridge] ⚠️ Services is not an array:', services);
+                        }
+                    } catch (parseError) {
+                        console.log('[InvisibilityBridge] ⚠️ Failed to parse services response:', parseError.message);
+                        // Continue with authentication attempt even if parsing fails
                     }
                 }
                 
@@ -1050,24 +1078,47 @@ function initializeInvisibilityBridge() {
                 
                 // Parse the authentication response
                 if (authResult && authResult.content && authResult.content[0] && authResult.content[0].text) {
-                    const response = JSON.parse(authResult.content[0].text);
-                    
-                    if (response.success && response.authUrl) {
-                        console.log(`[InvisibilityBridge] 🔗 Opening ${serviceKey} Connect Portal: ${response.authUrl}`);
+                    try {
+                        // Handle nested MCP response structure for connect_service
+                        let response;
+                        const responseText = authResult.content[0].text;
                         
-                        // Open the Connect Portal in a new browser window
-                        const { shell } = require('electron');
-                        await shell.openExternal(response.authUrl);
+                        // Try to parse as nested MCP response first
+                        try {
+                            const mcpResponse = JSON.parse(responseText);
+                            if (mcpResponse.content && mcpResponse.content[0] && mcpResponse.content[0].text) {
+                                response = JSON.parse(mcpResponse.content[0].text);
+                            } else {
+                                // Fallback to direct parsing
+                                response = mcpResponse;
+                            }
+                        } catch (e) {
+                            // Fallback to direct parsing
+                            response = JSON.parse(responseText);
+                        }
                         
-                        return {
-                            success: true,
-                            message: response.message || `${serviceKey} authentication initiated. Please complete the process in your browser.`,
-                            authUrl: response.authUrl,
-                            serviceKey: serviceKey,
-                            requiresSetup: true
-                        };
-                    } else {
-                        throw new Error(response.message || 'Failed to generate authentication URL');
+                        console.log('[InvisibilityBridge] 🔍 Parsed connect_service response:', response);
+                        
+                        if (response.success && response.authUrl) {
+                            console.log(`[InvisibilityBridge] 🔗 Opening ${serviceKey} Connect Portal: ${response.authUrl}`);
+                            
+                            // Open the Connect Portal in a new browser window
+                            const { shell } = require('electron');
+                            await shell.openExternal(response.authUrl);
+                            
+                            return {
+                                success: true,
+                                message: response.message || `${serviceKey} authentication initiated. Please complete the process in your browser.`,
+                                authUrl: response.authUrl,
+                                serviceKey: serviceKey,
+                                requiresSetup: true
+                            };
+                        } else {
+                            throw new Error(response.message || 'Failed to generate authentication URL');
+                        }
+                    } catch (parseError) {
+                        console.log('[InvisibilityBridge] ⚠️ Failed to parse connect_service response:', parseError.message);
+                        throw new Error('Failed to parse authentication response');
                     }
                 } else {
                     throw new Error('Invalid response from connect_service tool');

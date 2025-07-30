@@ -57,6 +57,14 @@ const LEGACY_SERVER_DEFINITIONS = {
         args: ['-y', '@modelcontextprotocol/server-sqlite'],
         description: 'Database interaction and business intelligence capabilities',
         capabilities: ['list_tables', 'describe_table', 'query', 'execute']
+    },
+    paragon: {
+        command: 'node',
+        args: [path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs')],
+        description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
+        capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],
+        transport: 'stdio',
+        authProvider: 'paragon'
     }
 };
 
@@ -86,6 +94,16 @@ class ServerRegistry extends EventEmitter {
                     
                     // Only add as server definition if it has serverConfig
                     if (service.serverConfig && (service.serverConfig.command || service.serverConfig.executable)) {
+                        // Skip OAuth registry definition for Paragon - use our legacy definition instead
+                        if (serviceKey === 'paragon') {
+                            logger.info('Skipping OAuth registry definition for Paragon - using legacy stdio definition', { 
+                                service: serviceKey, 
+                                oauthCommand: service.serverConfig.command,
+                                legacyCommand: this.serverDefinitions[serviceKey]?.command 
+                            });
+                            continue;
+                        }
+                        
                         this.serverDefinitions[serviceKey] = {
                             command: service.serverConfig.command,
                             args: service.serverConfig.args,
@@ -233,22 +251,16 @@ class ServerRegistry extends EventEmitter {
             let transportOptions = { env, cwd: serverState.config.cwd };
             
             if (name === 'paragon' || serverState.config.authProvider === 'paragon') {
-                // For Paragon MCP, use SSE transport
-                transportOptions.transportType = 'sse';
-                transportOptions.sseUrl = 'http://localhost:3001/sse';
+                // For Paragon MCP, use stdio transport (compatible with Node.js 18+)
+                transportOptions.transportType = 'stdio';
                 
-                // Add user information for JWT generation
-                // In production, this should come from authenticated user context
-                transportOptions.userId = 'default-user';
-                
-                logger.info('Using SSE transport for Paragon MCP', { 
+                logger.info('Using stdio transport for Paragon MCP', { 
                     name, 
-                    url: transportOptions.sseUrl,
-                    userId: transportOptions.userId 
+                    transport: 'stdio',
+                    nodeVersion: process.version 
                 });
                 
-                // Start the Paragon HTTP server first
-                await this.startParagonServer(serverState.config, env);
+                // Note: No need to start HTTP server for stdio transport
             }
 
             // Create MCP adapter

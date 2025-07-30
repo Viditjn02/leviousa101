@@ -4,6 +4,9 @@ const nextConfig = {
   swcMinify: true,
   output: 'export',
   images: { unoptimized: true },
+  env: {
+    NEXT_PUBLIC_PARAGON_PROJECT_ID: process.env.PARAGON_PROJECT_ID,
+  },
 }
 
 module.exports = nextConfig 
