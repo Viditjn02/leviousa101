@@ -840,29 +840,60 @@ async function handleOAuthCallback(pathname, params) {
             throw new Error('MCP client not available - service initialization may have failed');
         }
         
-        // Get the invisibility service and MCP client
-        console.log('[OAuth] Using initialized invisibility service for OAuth processing');
-        const result = await global.invisibilityService.mcpClient.handleOAuthCallback(code, state);
-        
-        if (result.success) {
-            console.log('[OAuth] OAuth callback processed successfully');
+        // Check if this is a Paragon OAuth callback
+        if (state && state.startsWith('paragon_')) {
+            console.log('[OAuth] Processing Paragon OAuth callback');
             
-            // Send success notification to UI
-            const { windowPool: oauthSuccessWindowPool } = require('./window/windowManager.js');
-            const header = oauthSuccessWindowPool.get('header');
-            if (header) {
-                header.webContents.send('mcp:auth-status-updated', {
-                    success: true,
-                    message: 'Authentication completed successfully!'
-                });
+            // Use Paragon bridge for Paragon-specific callbacks
+            const { ipcMain } = require('electron');
+            const paragonResult = await new Promise((resolve) => {
+                ipcMain.emit('paragon:handleOAuthCallback', { reply: resolve }, code, state);
+            });
+            
+            if (paragonResult.success) {
+                console.log('[OAuth] Paragon OAuth callback processed successfully');
+                
+                // Send success notification to UI
+                const { windowPool: paragonSuccessWindowPool } = require('./window/windowManager.js');
+                const header = paragonSuccessWindowPool.get('header');
+                if (header) {
+                    header.webContents.send('paragon:auth-status-updated', {
+                        success: true,
+                        message: 'Paragon authentication completed successfully!'
+                    });
+                    
+                    // Focus the app window
+                    if (header.isMinimized()) header.restore();
+                    header.focus();
+                }
+            } else {
+                throw new Error(paragonResult.error || 'Paragon OAuth callback processing failed');
             }
-            
-            // Focus the app window
-            if (header.isMinimized()) header.restore();
-            header.focus();
-            
         } else {
-            throw new Error(result.error || 'OAuth callback processing failed');
+            // Use existing MCP client for other OAuth callbacks
+            console.log('[OAuth] Using initialized invisibility service for OAuth processing');
+            const result = await global.invisibilityService.mcpClient.handleOAuthCallback(code, state);
+            
+            if (result.success) {
+                console.log('[OAuth] OAuth callback processed successfully');
+                
+                // Send success notification to UI
+                const { windowPool: oauthSuccessWindowPool } = require('./window/windowManager.js');
+                const header = oauthSuccessWindowPool.get('header');
+                if (header) {
+                    header.webContents.send('mcp:auth-status-updated', {
+                        success: true,
+                        message: 'Authentication completed successfully!'
+                    });
+                }
+                
+                // Focus the app window
+                if (header.isMinimized()) header.restore();
+                header.focus();
+                
+            } else {
+                throw new Error(result.error || 'OAuth callback processing failed');
+            }
         }
         
     } catch (error) {

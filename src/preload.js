@@ -30,6 +30,14 @@ contextBridge.exposeInMainWorld('api', {
     authenticateParagonService: (serviceKey, options) => ipcRenderer.invoke('mcp:authenticateParagonService', serviceKey, options),
     disconnectParagonService: (serviceKey) => ipcRenderer.invoke('mcp:disconnectParagonService', serviceKey),
     
+    // Paragon Connect Portal Integration
+    paragon: {
+      authenticate: (service) => ipcRenderer.invoke('paragon:authenticate', service),
+      disconnect: (service) => ipcRenderer.invoke('paragon:disconnect', service),
+      getStatus: (service) => ipcRenderer.invoke('paragon:status', service),
+      handleOAuthCallback: (code, state) => ipcRenderer.invoke('paragon:handleOAuthCallback', code, state),
+    },
+    
     // Authentication
     openOAuthWindow: (authUrl, provider, service) => ipcRenderer.invoke('mcp:openOAuthWindow', authUrl, provider, service),
     handleOAuthCallback: (code, state) => ipcRenderer.invoke('mcp:handleOAuthCallback', code, state),
