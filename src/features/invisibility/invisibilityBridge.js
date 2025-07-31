@@ -493,12 +493,24 @@ function initializeInvisibilityBridge() {
             console.log(`[InvisibilityBridge] 📡 Calling shell.openExternal...`);
             
             // Open OAuth URL in default browser
+            // If this is Paragon Connect Portal, launch in-app overlay instead of external browser
+            if (authUrl.includes('passport.useparagon.com/oauth')) {
+                console.log(`[InvisibilityBridge] 🌐 Launching Paragon Connect Portal in-app for ${service}`);
+                const { BrowserWindow } = require('electron');
+                const win = BrowserWindow.getAllWindows()[0];
+                // Execute Paragon SDK connect in renderer
+                await win.webContents.executeJavaScript(
+                    `paragon.connect("${service}")`
+                );
+                return {
+                    success: true,
+                    message: `Paragon Connect Portal launched in-app for ${service}`
+                };
+            }
+            // Fallback for non-Paragon OAuth
             const openResult = await shell.openExternal(authUrl);
             console.log(`[InvisibilityBridge] 📥 shell.openExternal result:`, openResult);
-            
-            // shell.openExternal resolves with void on success, so check for exceptions
             console.log(`[InvisibilityBridge] ✅ OAuth URL opened successfully in browser`);
-            
             return { 
                 success: true, 
                 message: `OAuth flow started for ${provider}:${service}`,
@@ -674,22 +686,7 @@ function initializeInvisibilityBridge() {
         }
     });
     
-    // Tool operations
-    ipcMain.handle('mcp:callTool', async (event, toolName, args) => {
-        try {
-            const service = getInvisibilityService();
-            if (!service || !service.mcpClient) {
-                throw new Error('MCP client not available');
-            }
-            
-            // The migration bridge now handles the tool call directly
-            const result = await service.mcpClient.callTool(toolName, args);
-            return { success: true, result };
-        } catch (error) {
-            console.error('[InvisibilityBridge] Error calling tool:', error);
-            return { success: false, error: error.message };
-        }
-    });
+    // Tool operations - handled by leviousaBridge.js
     
     ipcMain.handle('mcp:getAvailableTools', async () => {
         try {
@@ -1069,9 +1066,17 @@ function initializeInvisibilityBridge() {
                 // Service needs authentication - call the connect_service tool
                 console.log(`[InvisibilityBridge] 🔐 ${serviceKey} requires authentication, generating Connect Portal URL...`);
                 
+                // Get the real authenticated user ID from auth service
+                const authService = require('../common/services/authService');
+                const realUserId = authService.getCurrentUserId();
+                const customerUserId = options.userId || realUserId || 'default-user';
+                
+                console.log(`[InvisibilityBridge] 🔑 Using customer ID: ${customerUserId}`);
+                
                 const authResult = await service.mcpClient.callTool('connect_service', {
                     service: serviceKey,
-                    user_id: options.userId || 'default-user'
+                    user_id: customerUserId,
+                    // redirectUrl override removed to use MCP default ('https://passport.useparagon.com/oauth')
                 });
                 
                 console.log(`[InvisibilityBridge] 🔗 Connect service result:`, authResult);
@@ -1100,18 +1105,199 @@ function initializeInvisibilityBridge() {
                         console.log('[InvisibilityBridge] 🔍 Parsed connect_service response:', response);
                         
                         if (response.success && response.authUrl) {
-                            console.log(`[InvisibilityBridge] 🔗 Opening ${serviceKey} Connect Portal: ${response.authUrl}`);
+                            console.log(`[InvisibilityBridge] 🔗 Opening Paragon Connect Portal for ${serviceKey}`);
                             
-                            // Open the Connect Portal in a new browser window
-                            const { shell } = require('electron');
-                            await shell.openExternal(response.authUrl);
-                            
+                            // Directly load the Paragon Connect Portal URL in a modal window
+                            const { BrowserWindow } = require('electron');
+                            const path = require('path');
+                            const webAppUrl = process.env.LEVIOUSA_WEB_URL || process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
+                            const authUrl = response.authUrl;
+                            const parentWindow = BrowserWindow.getAllWindows()[0];
+
+                            const authWindow = new BrowserWindow({
+                                parent: parentWindow,
+                                modal: true,
+                                width: 800,
+                                height: 600,
+                                webPreferences: {
+                                    preload: path.join(__dirname, '../../preload.js'),
+                                    contextIsolation: true,
+                                    nodeIntegration: false,
+                                    webSecurity: false // Allow OAuth flows
+                                }
+                            });
+
+                            // Load the Paragon Connect Portal directly
+                            authWindow.loadURL(authUrl);
+
+                            // Listen for Paragon Connect Portal completion events
+                            authWindow.webContents.on('did-finish-load', () => {
+                                // Inject listener for Paragon completion events
+                                authWindow.webContents.executeJavaScript(`
+                                    window.addEventListener('message', (event) => {
+                                        if (event.origin === 'https://passport.useparagon.com') {
+                                            console.log('Paragon Connect Portal event:', event.data);
+                                            if (event.data.type === 'paragon:connected' || event.data.connectionId) {
+                                                console.log('✅ Paragon authentication completed:', event.data);
+                                                // Auto-close window on successful authentication
+                                                setTimeout(() => window.close(), 1000);
+                                            }
+                                        }
+                                    });
+                                `).catch(err => console.error('Failed to inject Paragon listener:', err));
+                            });
+
+                            // Handle OAuth callback completion
+                            authWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+                                console.log(`[InvisibilityBridge] 🧭 Navigation to: ${navigationUrl}`);
+                                // If OAuth callback with code parameter, authentication is complete
+                                if (navigationUrl.includes('passport.useparagon.com/oauth') && navigationUrl.includes('code=')) {
+                                    console.log(`[InvisibilityBridge] ✅ Paragon OAuth callback detected for ${serviceKey}`);
+                                    // Allow callback to complete, then close window
+                                    setTimeout(() => {
+                                        if (!authWindow.isDestroyed()) {
+                                            authWindow.close();
+                                        }
+                                    }, 2000);
+                                }
+                                // Also close if returning to integrations page
+                                if (navigationUrl.includes(`${webAppUrl}/integrations`)) {
+                                    authWindow.close();
+                                }
+                            });
+
                             return {
                                 success: true,
-                                message: response.message || `${serviceKey} authentication initiated. Please complete the process in your browser.`,
-                                authUrl: response.authUrl,
+                                message: `Paragon Connect Portal launched for ${serviceKey}`,
+                                serviceKey: serviceKey
+                            };
+                        } else if (response.action_required === 'connect_integration') {
+                            // Handle the case where user needs to connect integration first using real Paragon SDK
+                            console.log(`[InvisibilityBridge] 🔗 User needs to connect ${serviceKey} integration first - using real Paragon SDK`);
+                            
+                            const { BrowserWindow } = require('electron');
+                            const path = require('path');
+                            const parentWindow = BrowserWindow.getAllWindows()[0];
+
+                            const connectWindow = new BrowserWindow({
+                                parent: parentWindow,
+                                modal: true,
+                                width: 1000,
+                                height: 700,
+                                webPreferences: {
+                                    preload: path.join(__dirname, '../../preload.js'),
+                                    nodeIntegration: false,
+                                    contextIsolation: true,
+                                    webSecurity: false // Allow Paragon OAuth flows
+                                }
+                            });
+
+                            // Create a real Paragon Connect Portal page
+                            const connectPageContent = `
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <title>Connect ${serviceKey}</title>
+                                
+                                <style>
+                                    body { 
+                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                                        padding: 40px; 
+                                        text-align: center; 
+                                        background: #f8f9fa;
+                                        margin: 0;
+                                    }
+                                    .container { 
+                                        max-width: 600px; 
+                                        margin: 0 auto; 
+                                        background: white; 
+                                        padding: 40px; 
+                                        border-radius: 12px; 
+                                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                                    }
+                                    .loading { margin: 20px 0; color: #666; }
+                                    .error { color: #e74c3c; margin: 20px 0; padding: 15px; background: #fdf2f2; border-radius: 8px; }
+                                    .success { color: #27ae60; margin: 20px 0; padding: 15px; background: #f2fdf5; border-radius: 8px; }
+                                    h2 { color: #2c3e50; margin-bottom: 20px; }
+                                    .service-name { color: #3498db; text-transform: capitalize; }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="container">
+                                    <h2>Connect to <span class="service-name">${serviceKey}</span></h2>
+                                    <div id="loading" class="loading">Initializing Paragon Connect Portal...</div>
+                                    <div id="error" class="error" style="display: none;"></div>
+                                    <div id="success" class="success" style="display: none;"></div>
+                                </div>
+                                
+                                <script>
+                                    async function initParagon() {
+                                        try {
+                                            // Get credentials from the main process via IPC
+                                            const credentials = await window.electronAPI?.getParagonCredentials?.('${customerUserId}');
+                                            
+                                            if (!credentials || !credentials.PROJECT_ID || !credentials.userToken) {
+                                                throw new Error('Paragon credentials not available. Please check your authentication setup.');
+                                            }
+                                            
+                                            console.log('🔑 Initializing Paragon with Project ID:', credentials.PROJECT_ID);
+                                            
+                                            // Use parent window SDK if available
+                                            if (!window.paragonSDK && window.parent && window.parent.paragonSDK) {
+                                                window.paragonSDK = window.parent.paragonSDK;
+                                            }
+
+                                            // Ensure headless mode is enabled then authenticate with Paragon
+                                            if (window.paragonSDK.setHeadless) {
+                                                window.paragonSDK.setHeadless();
+                                            }
+                                            await window.paragonSDK.authenticate(credentials.PROJECT_ID, credentials.userToken);
+                                            
+                                            document.getElementById('loading').textContent = 'Opening Connect Portal for ${serviceKey}...';
+                                            
+                                            // Open Connect Portal for the specific service
+                                            window.paragonSDK.installIntegration('${serviceKey}', {
+                                                onSuccess: (event, user) => {
+                                                    console.log('✅ Paragon integration connected:', event);
+                                                    document.getElementById('loading').style.display = 'none';
+                                                    document.getElementById('success').textContent = 'Successfully connected ${serviceKey}!';
+                                                    document.getElementById('success').style.display = 'block';
+                                                    setTimeout(() => window.close(), 2000);
+                                                },
+                                                onError: (error) => {
+                                                    console.error('❌ Paragon connection error:', error);
+                                                    document.getElementById('loading').style.display = 'none';
+                                                    document.getElementById('error').innerHTML = 'Connection failed: ' + (error.message || error);
+                                                    document.getElementById('error').style.display = 'block';
+                                                },
+                                                onClose: () => {
+                                                    console.log('🚪 Paragon Connect Portal closed');
+                                                }
+                                            });
+                                            
+                                        } catch (error) {
+                                            console.error('❌ Paragon initialization error:', error);
+                                            document.getElementById('loading').style.display = 'none';
+                                            document.getElementById('error').innerHTML = 'Initialization failed: ' + (error.message || error);
+                                            document.getElementById('error').style.display = 'block';
+                                        }
+                                    }
+                                    
+                                    // Initialize when page loads
+                                    window.addEventListener('DOMContentLoaded', initParagon);
+                                </script>
+                            </body>
+                            </html>
+                            `;
+
+                            // Load the real Paragon Connect Portal page
+                            connectWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(connectPageContent)}`);
+
+                            return {
+                                success: true,
+                                message: `Please connect ${serviceKey} integration via Paragon Connect Portal`,
                                 serviceKey: serviceKey,
-                                requiresSetup: true
+                                action_required: 'connect_integration'
                             };
                         } else {
                             throw new Error(response.message || 'Failed to generate authentication URL');

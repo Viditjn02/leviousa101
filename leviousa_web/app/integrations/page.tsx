@@ -1,17 +1,46 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ParagonIntegration from '../../components/ParagonIntegration'
 
-export default function IntegrationsPage() {
+function IntegrationsContent() {
+  const searchParams = useSearchParams()
+  const serviceToConnect = searchParams?.get('service')
+  const action = searchParams?.get('action')
+  const triggerAuthRef = useRef<{ [key: string]: () => void }>({})
+
   const handleSuccess = (service: string) => {
     console.log(`✅ ${service} connected successfully!`)
     // You could add toast notifications or other success handling here
+    
+    // Clear URL parameters after successful connection
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('service')
+      url.searchParams.delete('action')
+      window.history.replaceState({}, '', url.toString())
+    }
   }
 
   const handleError = (error: any) => {
     console.error('❌ Integration error:', error)
     // You could add error notifications here
+  }
+
+  // Auto-trigger authentication if service is specified in URL
+  useEffect(() => {
+    if (serviceToConnect && action === 'connect' && triggerAuthRef.current[serviceToConnect]) {
+      console.log(`🚀 Auto-triggering authentication for ${serviceToConnect}`)
+      // Small delay to ensure components are mounted
+      setTimeout(() => {
+        triggerAuthRef.current[serviceToConnect]?.()
+      }, 1000)
+    }
+  }, [serviceToConnect, action])
+
+  const registerTrigger = (service: string, triggerFn: () => void) => {
+    triggerAuthRef.current[service] = triggerFn
   }
 
   return (
@@ -33,12 +62,16 @@ export default function IntegrationsPage() {
                 displayName="Gmail"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'gmail' && action === 'connect'}
               />
               <ParagonIntegration
                 service="outlook"
                 displayName="Microsoft Outlook"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'outlook' && action === 'connect'}
               />
             </div>
           </div>
@@ -51,12 +84,16 @@ export default function IntegrationsPage() {
                 displayName="Salesforce"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'salesforce' && action === 'connect'}
               />
               <ParagonIntegration
                 service="hubspot"
                 displayName="HubSpot"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'hubspot' && action === 'connect'}
               />
             </div>
           </div>
@@ -69,12 +106,16 @@ export default function IntegrationsPage() {
                 displayName="Slack"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'slack' && action === 'connect'}
               />
               <ParagonIntegration
                 service="notion"
                 displayName="Notion"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'notion' && action === 'connect'}
               />
             </div>
           </div>
@@ -87,12 +128,16 @@ export default function IntegrationsPage() {
                 displayName="Google Drive"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'googledrive' && action === 'connect'}
               />
               <ParagonIntegration
                 service="dropbox"
                 displayName="Dropbox"
                 onSuccess={handleSuccess}
                 onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={serviceToConnect === 'dropbox' && action === 'connect'}
               />
             </div>
           </div>
@@ -111,5 +156,24 @@ export default function IntegrationsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
+            <p className="mt-2 text-gray-600">
+              Loading integrations...
+            </p>
+          </div>
+        </div>
+      </div>
+    }>
+      <IntegrationsContent />
+    </Suspense>
   )
 }

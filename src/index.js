@@ -303,6 +303,10 @@ app.whenReady().then(async () => {
         const { initializeInvisibilityBridge } = require('./features/invisibility/invisibilityBridge');
         initializeInvisibilityBridge();  // Initialize invisibility mode handlers
 
+        // Initialize Paragon bridge for integration authentication
+        const { initializeParagonBridge } = require('./features/paragon/paragonBridge');
+        initializeParagonBridge();  // Initialize Paragon integration handlers
+
         // Initialize voice agent service
         const VoiceAgentService = require('./features/voiceAgent/voiceAgentService');
         global.voiceAgentService = new VoiceAgentService();
@@ -324,6 +328,10 @@ app.whenReady().then(async () => {
         // Start web server and create windows ONLY after all initializations are successful
         WEB_PORT = await startWebStack();
         console.log('>>> [index.js] Web stack started successfully');
+        
+        // Initialize Paragon OAuth callback server
+        await initializeParagonOAuthServer();
+        console.log('>>> [index.js] Paragon OAuth callback server initialized successfully');
         
         const isDev = !app.isPackaged;
         if (isDev) {
@@ -972,6 +980,94 @@ async function startWebStack() {
    API:      http://localhost:${apiPort} (Local)`);
 
   return frontendPort;
+}
+
+// Paragon OAuth callback server
+let paragonOAuthServer = null;
+const PARAGON_OAUTH_PORT = 54321; // Dedicated port for Paragon OAuth callbacks
+
+async function initializeParagonOAuthServer() {
+    console.log('[ParagonOAuth] Initializing OAuth callback server...');
+    
+    const paragonApp = express();
+    
+    // Handle Paragon OAuth callback
+    paragonApp.get('/paragon/callback', (req, res) => {
+        console.log('[ParagonOAuth] 🔗 Received OAuth callback');
+        console.log('[ParagonOAuth] Query params:', req.query);
+        
+        try {
+            // Get the query string
+            const queryString = new URLSearchParams(req.query).toString();
+            console.log('[ParagonOAuth] Query string:', queryString);
+            
+            // Immediately redirect back to Paragon with the same query parameters
+            // This completes the OAuth flow as required by Paragon
+            const redirectUrl = `https://passport.useparagon.com/oauth?${queryString}`;
+            console.log('[ParagonOAuth] 🔀 Redirecting back to Paragon:', redirectUrl);
+            
+            res.redirect(redirectUrl);
+            
+            // Also notify any listening windows about the successful callback
+            const { BrowserWindow } = require('electron');
+            const allWindows = BrowserWindow.getAllWindows();
+            allWindows.forEach(window => {
+                try {
+                    window.webContents.send('paragon:oauth-callback-received', {
+                        success: true,
+                        query: req.query,
+                        redirectUrl: redirectUrl
+                    });
+                } catch (err) {
+                    console.warn('[ParagonOAuth] Failed to notify window:', err.message);
+                }
+            });
+            
+        } catch (error) {
+            console.error('[ParagonOAuth] ❌ Error processing OAuth callback:', error);
+            res.status(500).send('OAuth callback processing failed');
+        }
+    });
+    
+    // Health check endpoint
+    paragonApp.get('/paragon/health', (req, res) => {
+        res.json({ status: 'ok', service: 'paragon-oauth-callback' });
+    });
+    
+    // Start the OAuth callback server
+    return new Promise((resolve, reject) => {
+        paragonOAuthServer = paragonApp.listen(PARAGON_OAUTH_PORT, '127.0.0.1', (err) => {
+            if (err) {
+                console.error('[ParagonOAuth] ❌ Failed to start OAuth callback server:', err);
+                reject(err);
+            } else {
+                console.log(`[ParagonOAuth] ✅ OAuth callback server listening on http://127.0.0.1:${PARAGON_OAUTH_PORT}`);
+                console.log(`[ParagonOAuth] Callback URL: http://127.0.0.1:${PARAGON_OAUTH_PORT}/paragon/callback`);
+                
+                // Store the callback URL in a global variable for use by other parts of the app
+                global.PARAGON_OAUTH_CALLBACK_URL = `http://127.0.0.1:${PARAGON_OAUTH_PORT}/paragon/callback`;
+                
+                resolve();
+            }
+        });
+        
+        // Handle server errors
+        paragonOAuthServer.on('error', (error) => {
+            console.error('[ParagonOAuth] OAuth callback server error:', error);
+            if (error.code === 'EADDRINUSE') {
+                console.error(`[ParagonOAuth] Port ${PARAGON_OAUTH_PORT} is already in use. Trying next port...`);
+                // Could implement port auto-increment here if needed
+            }
+        });
+        
+        // Cleanup on app exit
+        app.once('before-quit', () => {
+            if (paragonOAuthServer) {
+                console.log('[ParagonOAuth] Closing OAuth callback server...');
+                paragonOAuthServer.close();
+            }
+        });
+    });
 }
 
 // Auto-update initialization

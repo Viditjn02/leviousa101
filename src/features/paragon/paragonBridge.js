@@ -13,35 +13,56 @@ function initializeParagonBridge() {
         try {
             console.log('[ParagonBridge] Starting Paragon authentication for service:', service);
             
-            const mcpService = getParagonService();
-            if (!mcpService || !mcpService.mcpClient) {
-                throw new Error('MCP client not available');
+            // Get the main window and trigger Paragon Connect Portal directly
+            const { BrowserWindow } = require('electron');
+            const mainWindow = BrowserWindow.getAllWindows().find(win => !win.isDestroyed());
+            
+            if (!mainWindow) {
+                throw new Error('Main window not found');
             }
             
-            // Use MCP client to call Paragon service
-            const result = await mcpService.mcpClient.invokeTool('paragon-mcp', 'authenticate_service', {
-                service: service
-            });
+            // Execute paragon.connect() directly in the renderer process
+            const executeScript = `
+                (async () => {
+                    try {
+                        console.log('🚀 Executing paragon.connect("${service}") in renderer...');
+                        
+                        // Ensure paragon is available
+                        if (typeof paragon === 'undefined') {
+                            throw new Error('Paragon SDK not loaded');
+                        }
+                        
+                        // Call paragon.connect() which will open the Connect Portal
+                        await paragon.connect("${service}", {
+                                overrideRedirectUrl: 'http://127.0.0.1:54321/paragon/callback',
+                            onOpen: () => {
+                                console.log('🌐 Paragon Connect Portal opened for ${service}');
+                            },
+                            onInstall: () => {
+                                console.log('✅ ${service} integration installed successfully');
+                            },
+                            onError: (error) => {
+                                console.error('❌ Paragon Connect Portal error:', error);
+                            },
+                            onClose: () => {
+                                console.log('🔒 Paragon Connect Portal closed');
+                            }
+                        });
+                        
+                        return { success: true, message: 'Paragon Connect Portal launched' };
+                    } catch (error) {
+                        console.error('❌ Failed to execute paragon.connect():', error);
+                        return { success: false, error: error.message };
+                    }
+                })();
+            `;
             
-            console.log('[ParagonBridge] Paragon authentication initiated:', result);
+            // Execute the script in the main window
+            const result = await mainWindow.webContents.executeJavaScript(executeScript);
             
-            // If we have an auth URL, open it in the default browser
-            if (result && result.content && result.content[0]) {
-                const response = JSON.parse(result.content[0].text);
-                if (response.authUrl) {
-                    // Open in default browser
-                    const { shell } = require('electron');
-                    await shell.openExternal(response.authUrl);
-                    
-                    return {
-                        success: true,
-                        authUrl: response.authUrl,
-                        message: 'Authentication URL opened in browser'
-                    };
-                }
-            }
+            console.log('[ParagonBridge] Paragon Connect Portal result:', result);
             
-            return { success: true, result };
+            return result || { success: true, message: 'Paragon Connect Portal triggered' };
         } catch (error) {
             console.error('[ParagonBridge] Error starting Paragon authentication:', error);
             return { success: false, error: error.message };

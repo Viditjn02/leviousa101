@@ -521,7 +521,104 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.send(channel, data);
       }
     }
+  },
+  // Expose listener for Paragon connect triggers
+  onTriggerConnect: (listener) => {
+    ipcRenderer.on('mcp:trigger-connect', (_event, serviceKey) => {
+      listener(serviceKey);
+    });
+  },
+  authenticateParagonService: (serviceKey, options) => ipcRenderer.invoke('mcp:authenticateParagonService', serviceKey, options)
+});
+
+// Ensure browser environment is complete before loading Paragon SDK
+function setupBrowserEnvironment() {
+  // Ensure localStorage exists (it should in Electron, but add fallback)
+  if (!window.localStorage) {
+    const mockStorage = {
+      data: {},
+      getItem: function(key) { return this.data[key] || null; },
+      setItem: function(key, value) { this.data[key] = value; },
+      removeItem: function(key) { delete this.data[key]; },
+      clear: function() { this.data = {}; },
+      get length() { return Object.keys(this.data).length; },
+      key: function(index) { return Object.keys(this.data)[index] || null; }
+    };
+    window.localStorage = mockStorage;
+    window.sessionStorage = mockStorage;
   }
+
+  // Ensure DOM methods exist
+  if (!document.querySelector) {
+    document.querySelector = () => null;
+    document.querySelectorAll = () => [];
+    document.getElementById = () => null;
+  }
+
+  // Ensure window dimensions are available
+  if (!window.innerHeight) {
+    window.innerHeight = 600;
+    window.innerWidth = 800;
+  }
+}
+
+// Load Paragon SDK from node_modules (Headless Connect Portal approach)
+let paragonSDK = null;
+try {
+  console.log('[Preload] 🔧 Setting up browser environment for Paragon SDK...');
+  setupBrowserEnvironment();
+  
+  console.log('[Preload] 📦 Loading Paragon SDK from node_modules...');
+  // Import the paragon SDK from the installed npm package
+  const paragonModule = require('@useparagon/connect');
+  paragonSDK = paragonModule.paragon || paragonModule.default || paragonModule;
+  console.log('[Preload] ✅ Paragon SDK loaded successfully from node_modules');
+} catch (error) {
+  console.error('[Preload] ❌ Failed to load Paragon SDK:', error.message);
+  console.error('[Preload] Stack trace:', error.stack);
+}
+
+// Expose Paragon headless SDK to the renderer with safety checks
+contextBridge.exposeInMainWorld('paragonSDK', {
+  authenticate: async (...args) => {
+    if (!paragonSDK?.authenticate) throw new Error('Paragon SDK not available');
+    return await paragonSDK.authenticate(...args);
+  },
+  installIntegration: async (...args) => {
+    if (!paragonSDK?.installIntegration) throw new Error('Paragon SDK not available');
+    return await paragonSDK.installIntegration(...args);
+  },
+  uninstallIntegration: async (...args) => {
+    if (!paragonSDK?.uninstallIntegration) throw new Error('Paragon SDK not available');
+    return await paragonSDK.uninstallIntegration(...args);
+  },
+  getIntegrationMetadata: async (...args) => {
+    if (!paragonSDK?.getIntegrationMetadata) throw new Error('Paragon SDK not available');
+    return await paragonSDK.getIntegrationMetadata(...args);
+  },
+  getUser: async () => {
+    if (!paragonSDK?.getUser) throw new Error('Paragon SDK not available');
+    return await paragonSDK.getUser();
+  },
+  subscribe: (callback) => {
+    if (!paragonSDK?.subscribe) throw new Error('Paragon SDK not available');
+    return paragonSDK.subscribe(callback);
+  },
+  unsubscribe: (subscription) => {
+    if (!paragonSDK?.unsubscribe) throw new Error('Paragon SDK not available');
+    return paragonSDK.unsubscribe(subscription);
+  },
+  setHeadless: () => {
+    if (!paragonSDK?.setHeadless) throw new Error('Paragon SDK not available');
+    return paragonSDK.setHeadless(true);
+  },
+  isAvailable: () => !!paragonSDK
+});
+
+// Expose ElectronAPI for Paragon SDK integration
+contextBridge.exposeInMainWorld('electronAPI', {
+  getParagonCredentials: (userId) => ipcRenderer.invoke('paragon:getCredentials', userId),
+  callMCPTool: (tool, args) => ipcRenderer.invoke('mcp:callTool', tool, args)
 });
 
 // OAuth server management for MCP
