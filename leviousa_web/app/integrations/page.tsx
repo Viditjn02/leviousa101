@@ -4,11 +4,33 @@ import React, { useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ParagonIntegration from '../../components/ParagonIntegration'
 
-function IntegrationsContent() {
+import { ParagonAuthProvider } from '../../context/ParagonAuthContext'
+
+function IntegrationsContentInner() {
   const searchParams = useSearchParams()
   const serviceToConnect = searchParams?.get('service')
   const action = searchParams?.get('action')
+  const userId = searchParams?.get('userId') // Get user ID from URL
+  // Handle Electron app authentication requests
+  const authenticateService = searchParams?.get('authenticate')
+  const connectService = searchParams?.get('connect')
   const triggerAuthRef = useRef<{ [key: string]: () => void }>({})
+
+  // Debug logging for user ID
+  useEffect(() => {
+    console.log('🔍 [IntegrationsContent] URL params debug:')
+    console.log('  serviceToConnect:', serviceToConnect)
+    console.log('  action:', action)
+    console.log('  userId:', userId)
+    console.log('  authenticateService:', authenticateService)
+    console.log('  connectService:', connectService)
+    
+    if (userId) {
+      console.log('✅ [IntegrationsContent] User ID received from Electron:', userId)
+    } else {
+      console.warn('⚠️ [IntegrationsContent] No user ID received - authentication will use default-user')
+    }
+  }, [serviceToConnect, action, userId, authenticateService, connectService])
 
   const handleSuccess = (service: string) => {
     console.log(`✅ ${service} connected successfully!`)
@@ -19,6 +41,8 @@ function IntegrationsContent() {
       const url = new URL(window.location.href)
       url.searchParams.delete('service')
       url.searchParams.delete('action')
+      url.searchParams.delete('authenticate')
+      url.searchParams.delete('connect')
       window.history.replaceState({}, '', url.toString())
     }
   }
@@ -30,17 +54,31 @@ function IntegrationsContent() {
 
   // Auto-trigger authentication if service is specified in URL
   useEffect(() => {
-    if (serviceToConnect && action === 'connect' && triggerAuthRef.current[serviceToConnect]) {
-      console.log(`🚀 Auto-triggering authentication for ${serviceToConnect}`)
+    const targetService = serviceToConnect || authenticateService || connectService
+    const shouldTrigger = 
+      (serviceToConnect && action === 'connect') ||
+      authenticateService ||
+      connectService
+    
+    if (targetService && shouldTrigger && triggerAuthRef.current[targetService]) {
+      console.log(`🚀 Auto-triggering authentication for ${targetService} (from Electron app)`)
       // Small delay to ensure components are mounted
       setTimeout(() => {
-        triggerAuthRef.current[serviceToConnect]?.()
+        triggerAuthRef.current[targetService]?.()
       }, 1000)
     }
-  }, [serviceToConnect, action])
+  }, [serviceToConnect, action, authenticateService, connectService])
 
   const registerTrigger = (service: string, triggerFn: () => void) => {
     triggerAuthRef.current[service] = triggerFn
+  }
+
+  const shouldAutoConnect = (service: string) => {
+    return (
+      (serviceToConnect === service && action === 'connect') ||
+      authenticateService === service ||
+      connectService === service
+    )
   }
 
   return (
@@ -56,14 +94,15 @@ function IntegrationsContent() {
         <div className="space-y-6">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Email & Communication</h2>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <ParagonIntegration
                 service="gmail"
                 displayName="Gmail"
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'gmail' && action === 'connect'}
+                autoConnect={shouldAutoConnect('gmail')}
+                userId={userId || undefined}
               />
               <ParagonIntegration
                 service="outlook"
@@ -71,7 +110,17 @@ function IntegrationsContent() {
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'outlook' && action === 'connect'}
+                autoConnect={shouldAutoConnect('outlook')}
+                userId={userId || undefined}
+              />
+              <ParagonIntegration
+                service="slack"
+                displayName="Slack"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('slack')}
+                userId={userId || undefined}
               />
             </div>
           </div>
@@ -85,7 +134,8 @@ function IntegrationsContent() {
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'salesforce' && action === 'connect'}
+                autoConnect={shouldAutoConnect('salesforce')}
+                userId={userId || undefined}
               />
               <ParagonIntegration
                 service="hubspot"
@@ -93,43 +143,56 @@ function IntegrationsContent() {
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'hubspot' && action === 'connect'}
+                autoConnect={shouldAutoConnect('hubspot')}
+                userId={userId || undefined}
               />
             </div>
           </div>
 
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Productivity</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <ParagonIntegration
-                service="slack"
-                displayName="Slack"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'slack' && action === 'connect'}
-              />
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <ParagonIntegration
                 service="notion"
                 displayName="Notion"
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'notion' && action === 'connect'}
+                autoConnect={shouldAutoConnect('notion')}
+                userId={userId || undefined}
+              />
+              <ParagonIntegration
+                service="googlecalendar"
+                displayName="Google Calendar"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('googlecalendar')}
+                userId={userId || undefined}
+              />
+              <ParagonIntegration
+                service="linkedin"
+                displayName="LinkedIn"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('linkedin')}
+                userId={userId || undefined}
               />
             </div>
           </div>
 
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Cloud Storage</h2>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <ParagonIntegration
                 service="googledrive"
                 displayName="Google Drive"
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'googledrive' && action === 'connect'}
+                autoConnect={shouldAutoConnect('googledrive')}
+                userId={userId || undefined}
               />
               <ParagonIntegration
                 service="dropbox"
@@ -137,7 +200,17 @@ function IntegrationsContent() {
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={serviceToConnect === 'dropbox' && action === 'connect'}
+                autoConnect={shouldAutoConnect('dropbox')}
+                userId={userId || undefined}
+              />
+              <ParagonIntegration
+                service="onedrive"
+                displayName="OneDrive"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('onedrive')}
+                userId={userId || undefined}
               />
             </div>
           </div>
@@ -160,6 +233,9 @@ function IntegrationsContent() {
 }
 
 export default function IntegrationsPage() {
+  const searchParams = useSearchParams();
+  const userIdParam = searchParams?.get('userId') || undefined;
+
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 py-8">
@@ -173,7 +249,9 @@ export default function IntegrationsPage() {
         </div>
       </div>
     }>
-      <IntegrationsContent />
+      <ParagonAuthProvider userId={userIdParam}>
+      <IntegrationsContentInner />
+    </ParagonAuthProvider>
     </Suspense>
   )
 }

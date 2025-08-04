@@ -59,9 +59,21 @@ class ToolRegistry extends EventEmitter {
     }
 
     /**
-     * Register a tool from a server
+     * Register a tool from a server - PARAGON-ONLY
+     * Only tools from Paragon servers should be registered
      */
     registerServerTool(serverName, toolName, config) {
+        // PARAGON-ONLY: Only register tools from Paragon servers
+        // All other service tools should come through Paragon integration
+        if (serverName !== 'paragon') {
+            logger.warn('Tool registration blocked for non-Paragon server', {
+                serverName,
+                toolName,
+                reason: 'Only Paragon server tools should be registered directly. Other services should be accessed via Paragon integration.'
+            });
+            return;
+        }
+        
         const fullName = this.getFullToolName(serverName, toolName);
         
         const toolInfo = {
@@ -121,9 +133,18 @@ class ToolRegistry extends EventEmitter {
     }
 
     /**
-     * Refresh tools from a server
+     * Refresh tools from a server - PARAGON-ONLY
      */
     async refreshServerTools(serverName) {
+        // PARAGON-ONLY: Only refresh tools from Paragon servers
+        if (serverName !== 'paragon') {
+            logger.warn('Tool refresh blocked for non-Paragon server', {
+                serverName,
+                reason: 'Only Paragon server tools should be refreshed. Other services should be accessed via Paragon integration.'
+            });
+            return;
+        }
+        
         try {
             const tools = this.serverRegistry.getServerTools(serverName);
             
@@ -180,10 +201,7 @@ class ToolRegistry extends EventEmitter {
                 throw new Error(`Server not running: ${toolInfo.serverName}`);
             }
 
-            // The actual tool invocation would go through the MCP protocol
-            // For now, we'll need to implement this based on the SDK's client capabilities
-            // This is a placeholder - in reality we'd need to handle the MCP protocol communication
-            
+            // Invoke the tool through the MCP protocol
             const result = await this.invokeToolThroughMCP(
                 serverState.adapter,
                 toolInfo.name,
@@ -203,8 +221,7 @@ class ToolRegistry extends EventEmitter {
     }
 
     /**
-     * Invoke tool through MCP protocol
-     * This is a placeholder - actual implementation would use MCP client
+     * Invoke tool through MCP protocol using the adapter's MCP client
      */
     async invokeToolThroughMCP(adapter, toolName, args) {
         // Use the MCP client's callTool method

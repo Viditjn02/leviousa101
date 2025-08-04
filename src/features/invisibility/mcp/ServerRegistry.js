@@ -87,53 +87,23 @@ class ServerRegistry extends EventEmitter {
             const registryContent = await fs.readFile(registryPath, 'utf-8');
             OAUTH_SERVICES_REGISTRY = JSON.parse(registryContent);
             
-            // Convert OAuth services to server definitions
+            // PARAGON-ONLY: Skip loading individual OAuth service definitions
+            // All OAuth services should be accessed through Paragon integration, not as separate servers
+            logger.info('OAuth services registry loaded but service definitions skipped - use Paragon integration instead', {
+                totalServices: OAUTH_SERVICES_REGISTRY.metadata.totalServices,
+                enabledServices: OAUTH_SERVICES_REGISTRY.metadata.enabledServices,
+                reason: 'Individual OAuth services should not be startable as separate servers'
+            });
+            
+            // Load OAuth services for reference but don't add them as startable server definitions
             for (const [serviceKey, service] of Object.entries(OAUTH_SERVICES_REGISTRY.services)) {
                 if (service.enabled) {
-                    logger.info('Loading OAuth service', { service: serviceKey, name: service.name, enabled: service.enabled });
-                    
-                    // Only add as server definition if it has serverConfig
-                    if (service.serverConfig && (service.serverConfig.command || service.serverConfig.executable)) {
-                        // Skip OAuth registry definition for Paragon - use our legacy definition instead
-                        if (serviceKey === 'paragon') {
-                            logger.info('Skipping OAuth registry definition for Paragon - using legacy stdio definition', { 
-                                service: serviceKey, 
-                                oauthCommand: service.serverConfig.command,
-                                legacyCommand: this.serverDefinitions[serviceKey]?.command 
-                            });
-                            continue;
-                        }
-                        
-                        this.serverDefinitions[serviceKey] = {
-                            command: service.serverConfig.command,
-                            args: service.serverConfig.args,
-                            description: service.description,
-                            capabilities: service.capabilities,
-                            requiresAuth: true,
-                            authProvider: service.oauth.provider,
-                            tokenEnvVar: service.serverConfig.envMapping ? 
-                                Object.values(service.serverConfig.envMapping)[0] : null,
-                            oauthConfig: service.oauth,
-                            priority: service.priority,
-                            icon: service.icon,
-                            documentation: service.documentation,
-                            requiresDocker: service.serverConfig.requiresDocker || false,
-                            requiresManualSetup: service.serverConfig.requiresManualSetup || false
-                        };
-                        logger.info('Added OAuth service to server definitions', { 
-                            service: serviceKey, 
-                            command: service.serverConfig.command,
-                            args: service.serverConfig.args,
-                            enabled: service.enabled,
-                            hasServerConfig: !!service.serverConfig
-                        });
-                    } else {
-                        logger.warn('OAuth service missing serverConfig', {
-                            service: serviceKey,
-                            hasServerConfig: !!service.serverConfig,
-                            hasCommand: !!(service.serverConfig && service.serverConfig.command)
-                        });
-                    }
+                    logger.info('OAuth service found but not added as server definition - use Paragon instead', { 
+                        service: serviceKey, 
+                        name: service.name,
+                        provider: service.oauth?.provider,
+                        reason: 'All OAuth services should be accessed via Paragon integration'
+                    });
                 }
             }
             
@@ -215,9 +185,20 @@ class ServerRegistry extends EventEmitter {
     }
 
     /**
-     * Start a server
+     * Start a server - PARAGON-ONLY
+     * Only Paragon servers can be started directly. All other services should be accessed via Paragon integration.
      */
     async start(name) {
+        // PARAGON-ONLY: Block starting of non-Paragon servers
+        if (name !== 'paragon') {
+            logger.warn('Server start blocked - only Paragon servers can be started directly', {
+                serverName: name,
+                reason: 'All other services should be accessed via Paragon integration',
+                suggestion: 'Use Paragon integration to access this service'
+            });
+            throw new Error(`Server ${name} cannot be started directly. Use Paragon integration to access this service.`);
+        }
+        
         const serverState = this.servers.get(name);
         if (!serverState) {
             throw new Error(`Server ${name} not found`);
@@ -488,8 +469,8 @@ class ServerRegistry extends EventEmitter {
             if (!paragonEnv.error && paragonEnv.parsed) {
                 processEnv = { ...processEnv, ...paragonEnv.parsed };
                 logger.info('Loaded Paragon .env file for process', { 
-                    hasProjectId: !!paragonEnv.parsed.PROJECT_ID,
-                    hasSigningKey: !!paragonEnv.parsed.SIGNING_KEY
+                    hasProjectId: !!paragonEnv.parsed.PARAGON_PROJECT_ID,
+                    hasSigningKey: !!paragonEnv.parsed.PARAGON_JWT_SECRET
                 });
             } else {
                 logger.warn('Failed to load Paragon .env file', { error: paragonEnv.error?.message });
@@ -574,88 +555,44 @@ class ServerRegistry extends EventEmitter {
         // Special handling for Paragon - ensure environment variables are loaded
         if (config.authProvider === 'paragon') {
             const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
-            require('dotenv').config({ path: paragonEnvPath });
+            const paragonEnv = require('dotenv').config({ path: paragonEnvPath });
             
             // Add Paragon-specific environment variables directly to server environment
-            env['PROJECT_ID'] = process.env.PROJECT_ID;
-            env['SIGNING_KEY'] = process.env.SIGNING_KEY;
+            // Map from the actual .env variable names to what the server expects
+            env['PARAGON_PROJECT_ID'] = process.env.PARAGON_PROJECT_ID || paragonEnv.parsed?.PARAGON_PROJECT_ID;
+            env['PARAGON_JWT_SECRET'] = process.env.PARAGON_JWT_SECRET || paragonEnv.parsed?.PARAGON_JWT_SECRET;
+            env['PARAGON_WEB_URL'] = process.env.PARAGON_WEB_URL || paragonEnv.parsed?.PARAGON_WEB_URL || 'http://localhost:3000';
             env['MCP_SERVER_URL'] = process.env.MCP_SERVER_URL || 'http://localhost:3002';
             env['NODE_ENV'] = process.env.NODE_ENV || 'development';
             env['PORT'] = process.env.PORT || '3002';
             
             logger.info('Added Paragon environment variables', { 
                 serverName, 
-                hasProjectId: !!env['PROJECT_ID'],
-                hasSigningKey: !!env['SIGNING_KEY']
+                hasProjectId: !!env['PARAGON_PROJECT_ID'],
+                hasSigningKey: !!env['PARAGON_JWT_SECRET']
             });
         }
 
-        // Add authentication tokens if required
+        // PARAGON-ONLY AUTHENTICATION: Only add OAuth tokens for non-Paragon services in specific cases
+        // All service authentication should go through Paragon, not individual OAuth tokens
         if (config.requiresAuth && config.authProvider) {
-            const token = await this.oauthManager.getValidToken(config.authProvider);
-            
-            // Check if server config specifies a custom environment variable name
-            let envVar;
-            if (config.tokenEnvVar) {
-                // Use server-specific environment variable name
-                envVar = config.tokenEnvVar;
-            } else {
-                // Fall back to default mapping
-                const tokenEnvMap = {
-                    'notion': 'NOTION_API_TOKEN',
-                    'google': 'GOOGLE_OAUTH_CLIENT_ID'
-                };
-                envVar = tokenEnvMap[config.authProvider];
+            // Skip OAuth token handling for individual services - they should be authenticated via Paragon
+            // Only allow Paragon itself to have authentication setup
+            if (config.authProvider !== 'paragon') {
+                logger.info('Skipping OAuth token setup for non-Paragon service - should be authenticated via Paragon', { 
+                    serverName, 
+                    authProvider: config.authProvider 
+                });
+                // Don't add any OAuth tokens - this service should only work through Paragon
+                return env;
             }
             
-            if (envVar && token) {
-                // Handle different token formats for different services
-                if (envVar === 'GOOGLE_OAUTH_CLIENT_ID') {
-                    // For workspace-mcp-http, we need OAuth client credentials from environment
-                    // The server expects GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
-                    // We'll provide the token as access token for now, but this should be configured properly
-                    env[envVar] = token && token.access_token ? token.access_token : token;
-                } else if (envVar === 'NOTION_API_TOKEN') {
-                    // For Notion, we need the raw token string
-                    env[envVar] = token && token.access_token ? token.access_token : token;
-                } else {
-                    // Generic handling for other services
-                    env[envVar] = token && token.access_token ? token.access_token : token;
-                }
-                logger.info('Added authentication token to environment', { serverName, envVar: envVar });
-            }
-
-            // Add Google OAuth client credentials if needed for workspace-mcp-http
-            if (config.authProvider === 'google') {
-                // Load OAuth client credentials from oauth manager's config
-                const clientId = this.oauthManager.configManager.getCredential('google_client_id');
-                const clientSecret = this.oauthManager.configManager.getCredential('google_client_secret');
-                
-                if (clientId) {
-                    env['GOOGLE_OAUTH_CLIENT_ID'] = clientId;
-                    logger.info('Added Google OAuth client ID to environment', { serverName });
-                }
-                if (clientSecret) {
-                    env['GOOGLE_OAUTH_CLIENT_SECRET'] = clientSecret;
-                    logger.info('Added Google OAuth client secret to environment', { serverName });
-                }
-                
-                // Also add access and refresh tokens
-                if (token) {
-                    const tokens = typeof token === 'string' ? JSON.parse(token) : token;
-                    if (tokens.access_token) {
-                        env['GOOGLE_ACCESS_TOKEN'] = tokens.access_token;
-                        logger.info('Added Google access token to environment', { serverName });
-                    }
-                    if (tokens.refresh_token) {
-                        env['GOOGLE_REFRESH_TOKEN'] = tokens.refresh_token;
-                        logger.info('Added Google refresh token to environment', { serverName });
-                    }
-                }
-                
-                // Enable insecure transport for development
-                env['OAUTHLIB_INSECURE_TRANSPORT'] = '1';
-            }
+            // If this is specifically a legacy test server that needs OAuth (very rare case)
+            // we could handle it here, but for now, skip all non-Paragon OAuth
+            logger.info('Non-Paragon service authentication skipped - use Paragon integration instead', {
+                serverName,
+                authProvider: config.authProvider
+            });
         }
 
         return env;
@@ -923,38 +860,20 @@ class ServerRegistry extends EventEmitter {
     }
     
     /**
-     * Register an OAuth-only service (no actual server to start, just mark as authenticated)
+     * Register an OAuth-only service - DISABLED for Paragon-only authentication
+     * All services should be authenticated through Paragon, not as individual OAuth servers
      */
     registerOAuthService(serviceName) {
-        logger.info('Registering OAuth-only service', { serviceName });
-        
-        // Create a virtual server entry for OAuth services
-        const serverState = {
-            name: serviceName,
-            status: ServerStatus.RUNNING,
-            type: 'oauth',
-            authenticated: true,
-            startTime: Date.now(),
-            tools: [],
-            resources: [],
-            prompts: [],
-            capabilities: {
-                oauth: true,
-                authenticated: true
-            }
-        };
-        
-        this.servers.set(serviceName, serverState);
-        
-        // Emit server started event
-        this.emit('serverStarted', {
-            serverName: serviceName,
-            status: ServerStatus.RUNNING,
-            type: 'oauth'
+        logger.warn('OAuth service registration blocked - use Paragon integration instead', { 
+            serviceName,
+            reason: 'Individual OAuth services should not be registered as authenticated servers'
         });
         
-        logger.info('OAuth service registered successfully', { serviceName });
-        return serverState;
+        // DO NOT create virtual server entries for OAuth services
+        // All authentication should go through Paragon
+        
+        // Return null to indicate service was not registered
+        return null;
     }
 
     /**

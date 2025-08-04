@@ -36,14 +36,26 @@ contextBridge.exposeInMainWorld('api', {
       disconnect: (service) => ipcRenderer.invoke('paragon:disconnect', service),
       getStatus: (service) => ipcRenderer.invoke('paragon:status', service),
       handleOAuthCallback: (code, state) => ipcRenderer.invoke('paragon:handleOAuthCallback', code, state),
+      // Listen for OAuth callback events from main process
+      onOAuthCallback: (callback) => {
+        const wrappedCallback = (event, data) => callback(data);
+        ipcRenderer.on('paragon:oauth-callback-received', wrappedCallback);
+        // Return cleanup function
+        return () => ipcRenderer.removeListener('paragon:oauth-callback-received', wrappedCallback);
+      },
     },
     
     // Authentication
     openOAuthWindow: (authUrl, provider, service) => ipcRenderer.invoke('mcp:openOAuthWindow', authUrl, provider, service),
+    openExternalUrl: (url) => ipcRenderer.invoke('open-external', url),
     handleOAuthCallback: (code, state) => ipcRenderer.invoke('mcp:handleOAuthCallback', code, state),
     getAuthenticationStatus: () => ipcRenderer.invoke('mcp:getAuthenticationStatus'),
     setCredential: (key, value) => ipcRenderer.invoke('mcp:setCredential', key, value),
     validateConfiguration: () => ipcRenderer.invoke('mcp:validateConfiguration'),
+    
+    // Authentication completion notifications
+    notifyAuthenticationComplete: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationComplete', data),
+    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data),
     
     // Protocol and connectivity testing
     testProtocolHandling: () => ipcRenderer.invoke('mcp:testProtocolHandling'),

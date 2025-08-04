@@ -3,8 +3,40 @@
  * For development and Firebase deployment compatibility
  */
 
+// Token cache to prevent multiple concurrent requests
+const tokenCache = new Map<string, { token: string; expiry: number }>();
+
+// Function to clear expired tokens from cache
+export function clearExpiredTokens(): void {
+  const now = Date.now();
+  for (const [key, value] of tokenCache.entries()) {
+    if (value.expiry <= now) {
+      console.log('🗑️ [ParagonTokenGenerator] Clearing expired token for', key);
+      tokenCache.delete(key);
+    }
+  }
+}
+
+// Function to force clear all tokens (useful for debugging)
+export function clearAllTokens(): void {
+  console.log('🗑️ [ParagonTokenGenerator] Clearing all cached tokens');
+  tokenCache.clear();
+}
+
 // Function to generate Paragon user token on client-side
-export async function generateParagonToken(): Promise<string> {
+export async function generateParagonToken(userId?: string): Promise<string> {
+  const cacheKey = userId || 'default-user';
+  
+  // Check cache first (but with shorter validity to avoid expired token issues)
+  const cached = tokenCache.get(cacheKey);
+  const cacheValid = cached && cached.expiry > Date.now() + (5 * 60 * 1000); // Invalidate 5 min before expiry
+  if (cacheValid) {
+    console.log('🔄 [ParagonTokenGenerator] Using cached token for', cacheKey);
+    return cached.token;
+  } else if (cached) {
+    console.log('🔄 [ParagonTokenGenerator] Cached token near expiry, generating new one for', cacheKey);
+    tokenCache.delete(cacheKey); // Clear expired cache
+  }
   // In production/Firebase, we'll use a simple demo token
   // In development with API routes available, use the API
   
@@ -23,19 +55,29 @@ export async function generateParagonToken(): Promise<string> {
     // Note: This is NOT secure for production - it's just for testing Firebase deployment
     const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
     const payload = btoa(JSON.stringify({
-      sub: 'demo-user',
+      sub: userId || 'demo-user',
       aud: `useparagon.com/${projectId}`,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
       demo: true
     }));
     
-    return `${header}.${payload}.demo-signature`;
+    const token = `${header}.${payload}.demo-signature`;
+    
+    // Cache the token (expires in 50 minutes)
+    tokenCache.set(cacheKey, {
+      token,
+      expiry: Date.now() + (50 * 60 * 1000)
+    });
+    
+    return token;
   }
   
   // Development mode - use API route
   try {
-    const response = await fetch('/api/paragonToken');
+    console.log('🔄 [ParagonTokenGenerator] Generating new token from API for', cacheKey);
+    const url = userId ? `/api/paragonToken?userId=${encodeURIComponent(userId)}` : '/api/paragonToken';
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -43,6 +85,13 @@ export async function generateParagonToken(): Promise<string> {
     if (!data.userToken) {
       throw new Error('No user token received from API');
     }
+    
+    // Cache the token (expires in 50 minutes)
+    tokenCache.set(cacheKey, {
+      token: data.userToken,
+      expiry: Date.now() + (50 * 60 * 1000)
+    });
+    
     return data.userToken;
   } catch (error) {
     console.error('Failed to get Paragon user token from API:', error);

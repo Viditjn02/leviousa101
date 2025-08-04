@@ -79,11 +79,67 @@ const leviousaBridge = require('./bridge/leviousaBridge');
 global.listenService = listenService;
 global.askService = askService;
 
-
 // Global variables
 const eventBridge = new EventEmitter();
 let WEB_PORT = 3000;
 let isShuttingDown = false; // Flag to prevent infinite shutdown loop
+
+// Add authentication notification method to eventBridge
+eventBridge.notifyAuthenticationComplete = function(data) {
+    console.log(`[EventBridge] 🔔 Authentication notification received for ${data.serviceKey}:`, data);
+    
+    // Forward to invisibility bridge to update MCP status
+    if (global.invisibilityService && global.invisibilityService.mcpClient) {
+        console.log(`[EventBridge] 📡 Forwarding authentication notification to MCP client`);
+        
+        // Add a small delay to ensure Paragon has processed the authentication
+        setTimeout(async () => {
+            try {
+                // Force refresh of Paragon service status
+                console.log(`[EventBridge] 🔄 Forcing refresh of Paragon service status for ${data.serviceKey}`);
+                
+                // Refresh server status to pick up new authentication
+                const serverStatus = global.invisibilityService.mcpClient.getServerStatus();
+                console.log(`[EventBridge] 🔄 Refreshed MCP server status`);
+                
+                // Also call get_authenticated_services to verify the authentication
+                try {
+                    // Use the authenticated user ID to check proper status
+                    const realUserId = authService.getCurrentUserId();
+                    const userIdForCheck = realUserId || 'default-user';
+                    console.log(`[EventBridge] 📡 Checking authentication status for user: ${userIdForCheck}`);
+                    
+                    const authResult = await global.invisibilityService.mcpClient.callTool('get_authenticated_services', { user_id: userIdForCheck });
+                    console.log(`[EventBridge] 📊 Latest authentication status:`, authResult);
+                } catch (toolError) {
+                    console.error(`[EventBridge] ❌ Error checking authentication status:`, toolError);
+                }
+                
+                // Notify all windows of authentication update
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    if (!window.isDestroyed()) {
+                        window.webContents.send('mcp:auth-status-updated', {
+                            serviceKey: data.serviceKey,
+                            status: data.status || 'authenticated',
+                            timestamp: data.timestamp,
+                            source: data.source || 'unknown'
+                        });
+                        
+                        // Also send a general refresh event
+                        window.webContents.send('mcp:servers-updated', { refreshParagon: true });
+                    }
+                });
+                
+                console.log(`[EventBridge] ✅ Notified all windows of ${data.serviceKey} authentication`);
+            } catch (error) {
+                console.error(`[EventBridge] ❌ Error forwarding authentication notification:`, error);
+            }
+        }, 1000); // 1 second delay for API consistency
+    } else {
+        console.warn(`[EventBridge] ⚠️ Invisibility service or MCP client not available for authentication notification`);
+    }
+};
 
 //////// after_modelStateService ////////
 global.modelStateService = modelStateService;
@@ -237,7 +293,175 @@ setupProtocolHandling();
 // Set the app name for System Preferences and other native dialogs
 app.setName('Leviousa');
 
+// Inject PARAGON_PROJECT_ID from runtime config if not present
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const runtimePath = path.join(__dirname, '../leviousa_web/public/runtime-config.json');
+  if (!process.env.PARAGON_PROJECT_ID && fs.existsSync(runtimePath)) {
+    const runtimeCfg = JSON.parse(fs.readFileSync(runtimePath, 'utf-8'));
+    if (runtimeCfg.PARAGON_PROJECT_ID) {
+      process.env.PARAGON_PROJECT_ID = runtimeCfg.PARAGON_PROJECT_ID;
+      console.log('[ParagonEnv] PARAGON_PROJECT_ID injected from runtime-config.json');
+    }
+  }
+} catch (err) {
+  console.warn('[ParagonEnv] Failed to inject PARAGON_PROJECT_ID:', err.message);
+}
+
+// Set up CSP interception BEFORE app is ready to ensure it applies to all windows
+function setupCSPInterception() {
+    console.log('🔧 [CSP] Setting up CSP interception...');
+    
+    // Debug: Log ALL requests to see what's happening
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://*/*', 'http://*/*'] }, (details, callback) => {
+        if (details.url.includes('useparagon.com')) {
+            console.log('🔍 [DEBUG] All Paragon requests:', details.url, 'Type:', details.resourceType);
+        }
+        callback({});
+    });
+
+    // Debug: Log CSP header modifications
+    session.defaultSession.webRequest.onHeadersReceived({ urls: ['https://*/*'] }, (details, callback) => {
+        if (details.url.includes('useparagon.com')) {
+            const originalCSP = details.responseHeaders?.['content-security-policy'] || details.responseHeaders?.['Content-Security-Policy'];
+            if (originalCSP) {
+                console.log('🔍 [DEBUG] Original CSP found for:', details.url);
+                console.log('🔍 [DEBUG] Original CSP:', originalCSP);
+            }
+        }
+        callback({});
+    });
+
+    // 🚀 BULLET-PROOF PARAGON CSP FIX (o3 suggested)
+    const paragonFilter = { urls: ['https://connect.useparagon.com/*','https://*.useparagon.com/*','https://passport.useparagon.com/*'] };
+    const localhostFilter = { urls: ['http://localhost:3000/*'] };
+
+    // Fix user agent for Paragon domains to avoid Electron detection 
+    session.defaultSession.webRequest.onBeforeSendHeaders(paragonFilter, (details, cb) => {
+        if (details.url.includes('useparagon.com') || details.url.includes('passport.useparagon.com')) {
+            const originalUA = details.requestHeaders['User-Agent'] || '';
+            if (originalUA.includes('Electron')) {
+                // Remove Electron and app name from user agent
+                const cleanUA = originalUA
+                    .replace(/Electron\/[^\s]+\s/, '')
+                    .replace(/leviousa\/[^\s]+\s/, '')
+                    .trim();
+                details.requestHeaders['User-Agent'] = cleanUA;
+                console.log(`[ParagonUA] Modified user agent for Paragon domain`);
+            }
+        }
+        cb({ cancel: false, requestHeaders: details.requestHeaders });
+    });
+
+    // 1️⃣ Strip all CSP headers & tell Chromium to unzip body for us
+    session.defaultSession.webRequest.onHeadersReceived(paragonFilter, (details, callback) => {
+        const h = Object.fromEntries(
+            Object.entries(details.responseHeaders ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+        );
+        
+        // Strip all CSP headers
+        delete h['content-security-policy'];
+        delete h['content-security-policy-report-only'];
+        
+        // Keep content-encoding so gzipped content displays properly
+        // delete h['content-encoding']; // Commented out to prevent binary corruption
+        
+        // Add relaxed header CSP with blob: support
+        h['content-security-policy'] = [
+            "default-src 'self' https: http: blob: data:; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http:; " +
+            "connect-src 'self' https: http: ws: wss: blob:; " +
+            "img-src 'self' data: blob: https: http:; " +
+            "style-src 'self' 'unsafe-inline' https: http:; " +
+            "font-src 'self' data: https: http:; " +
+            "frame-src 'self' https: http: blob:; " +
+            "worker-src 'self' blob:; " +
+            "child-src 'self' https: http: blob:; " +
+            "object-src 'self' blob: https: http:;"
+        ];
+
+        console.log('[CSPPatch] ✅ Bullet-proof CSP fix applied to:', details.url);
+        console.log('[CSPPatch] 🔒 New CSP applied:', h['content-security-policy']);
+        callback({ responseHeaders: h });
+    });
+
+    // Removed streaming CSP meta removal filter to avoid asset corruption;
+    // relying solely on connect-preload.js to scrub CSP meta tags in the page DOM.
+
+    // Apply same CSP fixes to localhost for development - OVERRIDE Next.js CSP completely
+    session.defaultSession.webRequest.onHeadersReceived(localhostFilter, (details, callback) => {
+        const h = Object.fromEntries(
+            Object.entries(details.responseHeaders ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+        );
+        
+        // Remove any existing CSP headers (including Next.js ones)
+        delete h['content-security-policy'];
+        delete h['content-security-policy-report-only'];
+        // Keep content-encoding to avoid corruption
+        // delete h['content-encoding'];
+        
+        // Set a VERY permissive CSP specifically for Paragon integration
+        h['content-security-policy'] = [
+            "default-src 'self' https: http: blob: data: 'unsafe-inline' 'unsafe-eval'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: data: 'wasm-unsafe-eval' 'unsafe-hashes' https://*.useparagon.com https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com; " +
+            "connect-src 'self' https: http: ws: wss: blob: data:; " +
+            "img-src 'self' data: blob: https: http:; " +
+            "style-src 'self' 'unsafe-inline' https: http: data:; " +
+            "font-src 'self' data: https: http:; " +
+            "frame-src 'self' https: http: blob: data:; " +
+            "worker-src 'self' blob: data:; " +
+            "child-src 'self' https: http: blob: data:; " +
+            "object-src 'self' blob: https: http: data:;"
+        ];
+
+        console.log('[CSPPatch] ✅ Overrode Next.js CSP for localhost:', details.url);
+        console.log('[CSPPatch] 🔒 New localhost CSP:', h['content-security-policy']);
+        callback({ responseHeaders: h });
+    });
+
+    session.defaultSession.webRequest.onBeforeRequest(localhostFilter, (details, callback) => {
+        if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return callback({});
+
+        const filter = session.defaultSession.webRequest.filterResponseData(details.id);
+        const chunks = [];
+        
+        filter.on('data', buffer => chunks.push(buffer));
+        filter.on('end', () => {
+            const html = Buffer.concat(chunks).toString('utf8')
+                .replace(/<meta[^>]+http-equiv=[\"'](?:Content-Security-Policy|X-Content-Security-Policy)[\"'][^>]*>/ig, '');
+            filter.write(Buffer.from(html, 'utf8'));
+            filter.end();
+        });
+
+        callback({});
+    });
+
+    // Block service worker and CSS maps
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://connect.useparagon.com/service-worker.js*', 'https://connect.useparagon.com/sw.js*'] }, (details, callback) => {
+        console.log('[CSPPatch] Blocking Paragon service worker:', details.url);
+        return callback({ cancel: true });
+    });
+    
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css.map'] }, (details, callback) => {
+        console.log('[CSPPatch] Blocking map file:', details.url);
+        return callback({ cancel: true });
+    });
+
+    console.log('✅ [CSP] CSP interception setup complete');
+}
+
 app.whenReady().then(async () => {
+    // Set up CSP interception FIRST, before any other session configuration
+    console.log('🚀 [MAIN] App ready, calling setupCSPInterception()...');
+    setupCSPInterception();
+    console.log('✅ [MAIN] setupCSPInterception() completed successfully');
+
+    // User agent handling is now done in setupCSPInterception() function above
+
+    // CSP interception is now handled ONLY in setupCSPInterception() function above
+
+    // All CSP handling is done in setupCSPInterception() function above
 
     // Setup native loopback audio capture for Windows
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {

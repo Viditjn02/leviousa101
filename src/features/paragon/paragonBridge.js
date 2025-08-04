@@ -13,56 +13,35 @@ function initializeParagonBridge() {
         try {
             console.log('[ParagonBridge] Starting Paragon authentication for service:', service);
             
-            // Get the main window and trigger Paragon Connect Portal directly
-            const { BrowserWindow } = require('electron');
-            const mainWindow = BrowserWindow.getAllWindows().find(win => !win.isDestroyed());
+            // Open integrations flow in-app to allow CSP patching
+            const { BrowserWindow, session } = require('electron');
+            const path = require('path');
+            const authUrl = `http://localhost:3000/integrations?service=${service}&action=connect`;
+            console.log(`[ParagonBridge] 🌐 Opening working Paragon integration in-window: ${authUrl}`);
+            const connectWin = new BrowserWindow({
+              width: 1200,
+              height: 800,
+              show: true,
+              parent: require('../../window/windowManager').windowPool.header,
+              modal: true,
+              webPreferences: {
+                preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
+                contextIsolation: true,
+                nodeIntegration: false,
+                // Use the default session which already has CSP patches
+                session: session.defaultSession
+              }
+            });
             
-            if (!mainWindow) {
-                throw new Error('Main window not found');
-            }
+            console.log(`[ParagonBridge] 🔧 Connect window using session with CSP patches`);
+            await connectWin.loadURL(authUrl);
             
-            // Execute paragon.connect() directly in the renderer process
-            const executeScript = `
-                (async () => {
-                    try {
-                        console.log('🚀 Executing paragon.connect("${service}") in renderer...');
-                        
-                        // Ensure paragon is available
-                        if (typeof paragon === 'undefined') {
-                            throw new Error('Paragon SDK not loaded');
-                        }
-                        
-                        // Call paragon.connect() which will open the Connect Portal
-                        await paragon.connect("${service}", {
-                                overrideRedirectUrl: 'http://127.0.0.1:54321/paragon/callback',
-                            onOpen: () => {
-                                console.log('🌐 Paragon Connect Portal opened for ${service}');
-                            },
-                            onInstall: () => {
-                                console.log('✅ ${service} integration installed successfully');
-                            },
-                            onError: (error) => {
-                                console.error('❌ Paragon Connect Portal error:', error);
-                            },
-                            onClose: () => {
-                                console.log('🔒 Paragon Connect Portal closed');
-                            }
-                        });
-                        
-                        return { success: true, message: 'Paragon Connect Portal launched' };
-                    } catch (error) {
-                        console.error('❌ Failed to execute paragon.connect():', error);
-                        return { success: false, error: error.message };
-                    }
-                })();
-            `;
-            
-            // Execute the script in the main window
-            const result = await mainWindow.webContents.executeJavaScript(executeScript);
-            
-            console.log('[ParagonBridge] Paragon Connect Portal result:', result);
-            
-            return result || { success: true, message: 'Paragon Connect Portal triggered' };
+            // Return success immediately - the external browser will handle the auth
+            return { 
+                success: true, 
+                message: `Opening ${service} authentication in browser...`,
+                authUrl: authUrl
+            };
         } catch (error) {
             console.error('[ParagonBridge] Error starting Paragon authentication:', error);
             return { success: false, error: error.message };

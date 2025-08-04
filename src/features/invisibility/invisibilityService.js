@@ -55,42 +55,94 @@ class InvisibilityService extends EventEmitter {
             });
             this.mcpUIIntegration = mcpUIIntegrationService;
 
-            console.log('[InvisibilityService] Initializing QuestionDetector...');
-            await this.questionDetector.initialize();
-            console.log('[InvisibilityService] ✅ QuestionDetector initialized');
+            // Initialize components with graceful failure handling
+            const componentResults = {};
+            
+            try {
+                console.log('[InvisibilityService] Initializing QuestionDetector...');
+                await this.questionDetector.initialize();
+                console.log('[InvisibilityService] ✅ QuestionDetector initialized');
+                componentResults.questionDetector = true;
+            } catch (error) {
+                console.error('[InvisibilityService] ❌ QuestionDetector failed to initialize:', error.message);
+                componentResults.questionDetector = false;
+                this.questionDetector = null;
+            }
 
-            console.log('[InvisibilityService] Initializing FieldFinder...');
-            await this.fieldFinder.initialize();
-            console.log('[InvisibilityService] ✅ FieldFinder initialized');
+            try {
+                console.log('[InvisibilityService] Initializing FieldFinder...');
+                await this.fieldFinder.initialize();
+                console.log('[InvisibilityService] ✅ FieldFinder initialized');
+                componentResults.fieldFinder = true;
+            } catch (error) {
+                console.error('[InvisibilityService] ❌ FieldFinder failed to initialize:', error.message);
+                console.warn('[InvisibilityService] ⚠️ Field finding functionality will be disabled (accessibility permissions may be required)');
+                componentResults.fieldFinder = false;
+                this.fieldFinder = null;
+            }
 
-            console.log('[InvisibilityService] Initializing HumanTyper...');
-            await this.humanTyper.initialize();
-            console.log('[InvisibilityService] ✅ HumanTyper initialized');
+            try {
+                console.log('[InvisibilityService] Initializing HumanTyper...');
+                await this.humanTyper.initialize();
+                console.log('[InvisibilityService] ✅ HumanTyper initialized');
+                componentResults.humanTyper = true;
+            } catch (error) {
+                console.error('[InvisibilityService] ❌ HumanTyper failed to initialize:', error.message);
+                componentResults.humanTyper = false;
+                this.humanTyper = null;
+            }
 
-            console.log('[InvisibilityService] Initializing MCPClient...');
-            await this.mcpClient.initialize();
-            console.log('[InvisibilityService] ✅ MCPClient initialized');
+            // MCP Client is critical - this must succeed for Paragon authentication to work
+            try {
+                console.log('[InvisibilityService] Initializing MCPClient...');
+                await this.mcpClient.initialize();
+                console.log('[InvisibilityService] ✅ MCPClient initialized');
+                componentResults.mcpClient = true;
+            } catch (error) {
+                console.error('[InvisibilityService] ❌ MCPClient failed to initialize:', error.message);
+                componentResults.mcpClient = false;
+                // MCP Client failure is critical - we need to throw here
+                throw new Error(`Critical MCP Client initialization failed: ${error.message}`);
+            }
             
             // Connect MCP UI Integration to MCP Client
             console.log('[InvisibilityService] Connecting MCP UI Integration...');
             this.mcpUIIntegration.setMCPClient(this.mcpClient);
             console.log('[InvisibilityService] ✅ MCP UI Integration connected');
 
-            console.log('[InvisibilityService] All dependent services initialized successfully');
+            // Report initialization results
+            const successCount = Object.values(componentResults).filter(Boolean).length;
+            const totalCount = Object.keys(componentResults).length;
+            
+            console.log(`[InvisibilityService] Initialization complete: ${successCount}/${totalCount} components initialized successfully`);
+            console.log('[InvisibilityService] Component status:', componentResults);
+            
+            if (componentResults.mcpClient) {
+                console.log('[InvisibilityService] ✅ Critical MCP functionality available for Paragon authentication');
+            }
             
             // Ensure overlay is visible after initialization (unless explicitly hidden)
-            await this.ensureOverlayVisible();
+            if (componentResults.fieldFinder) {
+                try {
+                    await this.ensureOverlayVisible();
+                } catch (overlayError) {
+                    console.warn('[InvisibilityService] ⚠️ Overlay visibility setup failed:', overlayError.message);
+                }
+            } else {
+                console.log('[InvisibilityService] ⚠️ Overlay functionality disabled due to FieldFinder failure');
+            }
             
             return true;
         } catch (error) {
-            console.error('[InvisibilityService] Initialization failed:', error);
+            console.error('[InvisibilityService] Critical initialization failed:', error);
             console.error('[InvisibilityService] Error stack:', error.stack);
             
-            // Reset all services to null on failure
+            // Reset all services to null on critical failure
             this.questionDetector = null;
             this.fieldFinder = null;
             this.humanTyper = null;
             this.mcpClient = null;
+            this.mcpUIIntegration = null;
             
             // Re-throw the error so the main application knows initialization failed
             throw new Error(`InvisibilityService initialization failed: ${error.message}`);
@@ -425,6 +477,11 @@ class InvisibilityService extends EventEmitter {
             }
 
             // Step 2: Detect questions on screen
+            if (!this.questionDetector) {
+                console.log('[InvisibilityService] ❌ QuestionDetector not available - cannot analyze screen for questions');
+                return;
+            }
+            
             console.log('[InvisibilityService] 🔍 Analyzing screen for questions...');
             const detectedQuestions = await this.questionDetector.detectQuestions(screenshot);
             
@@ -436,6 +493,11 @@ class InvisibilityService extends EventEmitter {
             console.log(`[InvisibilityService] ✅ Found ${detectedQuestions.length} question(s)`);
             
             // Step 3: Find input fields
+            if (!this.fieldFinder) {
+                console.log('[InvisibilityService] ❌ FieldFinder not available - cannot locate input fields');
+                return;
+            }
+            
             console.log('[InvisibilityService] 🎯 Locating input fields...');
             const inputFields = await this.fieldFinder.findInputFields();
             
@@ -447,6 +509,11 @@ class InvisibilityService extends EventEmitter {
             console.log(`[InvisibilityService] ✅ Found ${inputFields.length} input field(s)`);
 
             // Step 4: Get answers for each question (OPTIMIZED: Process in parallel)
+            if (!this.mcpClient) {
+                console.log('[InvisibilityService] ❌ MCPClient not available - cannot generate answers');
+                return;
+            }
+            
             console.log('[InvisibilityService] 🚀 Generating answers in parallel for faster response...');
             
             // Generate all answers in parallel to reduce response time
@@ -491,6 +558,10 @@ class InvisibilityService extends EventEmitter {
                     try {
                         if (typingMode === 'human') {
                             // Use human-like typing
+                            if (!this.humanTyper) {
+                                console.log('[InvisibilityService] ❌ HumanTyper not available - cannot use human-like typing');
+                                return;
+                            }
                             await this.humanTyper.typeText(result.answer, {
                                 humanLike: true,
                                 includeErrors: false,  // Don't introduce errors in answers
@@ -500,12 +571,20 @@ class InvisibilityService extends EventEmitter {
                             console.log('[InvisibilityService] ✅ Answer typed successfully via human-like typing');
                         } else {
                             // Use bolt (instant) typing
+                            if (!this.fieldFinder) {
+                                console.log('[InvisibilityService] ❌ FieldFinder not available - cannot use bolt typing');
+                                return;
+                            }
                             const typingSuccess = await this.fieldFinder.typeInField(inputField, result.answer);
                             
                             if (typingSuccess) {
                                 console.log('[InvisibilityService] ✅ Answer typed successfully via bolt typing');
                             } else {
                                 console.log('[InvisibilityService] ⚠️ Bolt typing failed, falling back to HumanTyper');
+                                if (!this.humanTyper) {
+                                    console.log('[InvisibilityService] ❌ HumanTyper not available - cannot use fallback typing');
+                                    return;
+                                }
                                 await this.humanTyper.typeText(result.answer, {
                                     humanLike: false,
                                     includeErrors: false,
@@ -660,7 +739,6 @@ class InvisibilityService extends EventEmitter {
         
         try {
             // Stop monitoring
-            this.stopRemoteAccessDetection();
             this.stopScreenMonitoring();
             
             // Shutdown MCP services

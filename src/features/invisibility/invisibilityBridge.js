@@ -1,4 +1,5 @@
 const { ipcMain } = require('electron');
+const authService = require('../common/services/authService');
 
 function initializeInvisibilityBridge() {
     console.log('[InvisibilityBridge] Initializing IPC handlers');
@@ -493,18 +494,61 @@ function initializeInvisibilityBridge() {
             console.log(`[InvisibilityBridge] 📡 Calling shell.openExternal...`);
             
             // Open OAuth URL in default browser
-            // If this is Paragon Connect Portal, launch in-app overlay instead of external browser
-            if (authUrl.includes('passport.useparagon.com/oauth')) {
-                console.log(`[InvisibilityBridge] 🌐 Launching Paragon Connect Portal in-app for ${service}`);
+            // If this is Paragon Connect Portal, create a proper OAuth window with modified user agent
+            if (authUrl.includes('passport.useparagon.com') || authUrl.includes('connect.useparagon.com')) {
+                console.log(`[InvisibilityBridge] 🌐 Creating OAuth window for Paragon Connect Portal for ${service}`);
                 const { BrowserWindow } = require('electron');
-                const win = BrowserWindow.getAllWindows()[0];
-                // Execute Paragon SDK connect in renderer
-                await win.webContents.executeJavaScript(
-                    `paragon.connect("${service}")`
-                );
+                
+                // Create a new browser window specifically for Paragon OAuth
+                const oauthWindow = new BrowserWindow({
+                    width: 500,
+                    height: 700,
+                    show: true,
+                    webPreferences: {
+                        nodeIntegration: false,
+                        contextIsolation: true,
+                        enableRemoteModule: false,
+                        webSecurity: true
+                    },
+                    title: `Connect ${service}`,
+                    modal: true,
+                    parent: BrowserWindow.getAllWindows()[0]
+                });
+                
+                // Set user agent to avoid Electron detection by Paragon Connect Portal
+                // This prevents the "this browser or app may not be secure" error
+                const originalUserAgent = oauthWindow.webContents.getUserAgent();
+                const chromeUserAgent = originalUserAgent.replace(/Electron\/[^\s]+\s/, '').replace(/leviousa\/[^\s]+\s/, '');
+                oauthWindow.webContents.setUserAgent(chromeUserAgent);
+                
+                console.log(`[InvisibilityBridge] 🔧 Original UA: ${originalUserAgent}`);
+                console.log(`[InvisibilityBridge] 🔧 Modified UA: ${chromeUserAgent}`);
+                
+                // Load the Paragon Connect Portal
+                oauthWindow.loadURL(authUrl);
+                
+                // Handle the OAuth callback by listening for navigation to callback URL
+                oauthWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+                    console.log(`[InvisibilityBridge] 🔄 Navigation to: ${navigationUrl}`);
+                    
+                    if (navigationUrl.includes('127.0.0.1:54321/paragon/callback')) {
+                        console.log(`[InvisibilityBridge] ✅ OAuth callback detected for ${service}`);
+                        // Close the OAuth window
+                        oauthWindow.close();
+                        
+                        // The callback will be handled by our callback server
+                        event.preventDefault();
+                    }
+                });
+                
+                // Handle window closed
+                oauthWindow.on('closed', () => {
+                    console.log(`[InvisibilityBridge] 🔒 OAuth window closed for ${service}`);
+                });
+                
                 return {
                     success: true,
-                    message: `Paragon Connect Portal launched in-app for ${service}`
+                    message: `Paragon Connect Portal OAuth window opened for ${service}`
                 };
             }
             // Fallback for non-Paragon OAuth
@@ -980,18 +1024,324 @@ function initializeInvisibilityBridge() {
         try {
             console.log('[InvisibilityBridge] 🚀 Getting Paragon service status...');
             
-            // Get the current state of individual Paragon services
-            // This would typically come from the MCP client or stored authentication state
+            // Get the current state of individual Paragon services by calling the MCP tool
             if (service?.mcpClient) {
-                const paragonStatus = await service.mcpClient.getParagonServiceStatus();
-                return { success: true, services: paragonStatus || {} };
+                try {
+                    // Get the current authenticated user ID to check proper authentication status
+                    const statusRealUserId = authService.getCurrentUserId();
+                    // Try to get real user ID from Firebase auth or use email as fallback
+        let userIdForCheck = statusRealUserId;
+        
+        if (!userIdForCheck) {
+            // Try Firebase auth first
+            try {
+                const authService = require('../common/services/authService');
+                const currentUser = await authService.getCurrentUser();
+                if (currentUser && currentUser.uid) {
+                    userIdForCheck = currentUser.uid;
+                    console.log(`[InvisibilityBridge] 🔍 Using Firebase user ID: ${userIdForCheck}`);
+                } else if (currentUser && currentUser.email) {
+                    userIdForCheck = currentUser.email;
+                    console.log(`[InvisibilityBridge] 🔍 Using Firebase email as user ID: ${userIdForCheck}`);
+                }
+            } catch (authError) {
+                console.log(`[InvisibilityBridge] ⚠️ Could not get Firebase user:`, authError.message);
             }
             
-            // Return default status if MCP client not available
-            return { 
-                success: true, 
-                services: {
-                    // Match services from LIMIT_TO_INTEGRATIONS in services/paragon-mcp/.env
+            // Final fallback to default-user
+            if (!userIdForCheck) {
+                userIdForCheck = 'default-user';
+                console.log(`[InvisibilityBridge] ⚠️ Using fallback user ID: ${userIdForCheck}`);
+            }
+        }
+                    
+                    console.log(`[InvisibilityBridge] 📡 Calling get_authenticated_services tool for user: ${userIdForCheck}...`);
+                    console.log(`[InvisibilityBridge] 🔍 DEBUG: User ID being sent to Paragon API: "${userIdForCheck}"`);
+                    const authResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userIdForCheck });
+                    console.log('[InvisibilityBridge] 📥 get_authenticated_services result:', authResult);
+                    
+                    if (authResult && authResult.content && authResult.content[0] && authResult.content[0].text) {
+                        try {
+                            // Parse the nested response structure
+                            let servicesData;
+                            const responseText = authResult.content[0].text;
+                            
+                            try {
+                                const mcpResponse = JSON.parse(responseText);
+                                if (mcpResponse.content && mcpResponse.content[0] && mcpResponse.content[0].text) {
+                                    servicesData = JSON.parse(mcpResponse.content[0].text);
+                                } else {
+                                    servicesData = mcpResponse;
+                                }
+                            } catch (e) {
+                                servicesData = JSON.parse(responseText);
+                            }
+                            
+                            console.log('[InvisibilityBridge] 📊 Parsed services data:', servicesData);
+                            console.log(`[InvisibilityBridge] 🔍 DEBUG: Paragon API returned authenticated_services:`, servicesData.authenticated_services);
+                            
+                            // Convert to status format - use only authenticated services from Paragon
+                            const serviceStatus = {};
+                            
+                            // Don't use hardcoded list - dynamically get services from authenticated_services
+                            const authenticatedServices = servicesData.authenticated_services || [];
+                            console.log('[InvisibilityBridge] 🔍 Authenticated services from Paragon:', authenticatedServices);
+                            
+                            // Initialize service status - map raw Paragon service names to UI names
+                            const serviceNameMapping = {
+                                'googledrive': 'googleDrive',
+                                'googlesheets': 'googleSheets',
+                                'googlecalendar': 'googleCalendar',
+                                'googledocs': 'googleDocs',
+                                'googletasks': 'googleTasks'
+                            };
+                            
+                            // Map each raw service name and dedupe
+                            const allPossibleServices = [...new Set(
+                                authenticatedServices.map(rawName => 
+                                    serviceNameMapping[rawName.toLowerCase()] || rawName
+                                )
+                            )];
+                            
+                            // Initialize with false/default
+                            allPossibleServices.forEach(mappedName => {
+                                serviceStatus[mappedName] = { authenticated: false, toolsCount: 0 };
+                            });
+                            
+                            // Update status for authenticated services
+                            if (servicesData.authenticated_services && Array.isArray(servicesData.authenticated_services)) {
+                                for (const serviceName of servicesData.authenticated_services) {
+                                        // The authenticated_services array may contain either plain strings or rich objects.
+                                        let rawName;
+                                        let connectionCount = -1; // -1 means "unknown, needs verification"
+                                        
+                                    if (typeof serviceName === 'string') {
+                                            rawName = serviceName;
+                                            // For string services, the Paragon MCP server should have already filtered
+                                            // out services with no connected users, so we tentatively trust it
+                                            console.log(`[InvisibilityBridge] 🔍 String service ${serviceName} - trusting Paragon MCP filtering`);
+                                        } else if (typeof serviceName === 'object' && serviceName !== null) {
+                                            rawName = serviceName.key || serviceName.name || serviceName.service || '';
+                                            connectionCount = serviceName.connected_users || serviceName.connectedUsers || serviceName.userCount || 0;
+                                        }
+                                        
+                                        if (!rawName) {
+                                            console.log(`[InvisibilityBridge] ⚠️ Skipping service with no name:`, serviceName);
+                                            continue;
+                                        }
+
+                                        // Map service names from MCP server format to UI format
+                                        const serviceNameMapping = {
+                                            'googledrive': 'googleDrive',
+                                            'googlesheets': 'googleSheets',
+                                            'googlecalendar': 'googleCalendar',
+                                            'googledocs': 'googleDocs',
+                                            'googletasks': 'googleTasks'
+                                        };
+                                        const mappedServiceName = serviceNameMapping[rawName.toLowerCase()] || rawName;
+
+                                        // Skip services with explicitly 0 connected users
+                                        if (connectionCount === 0) {
+                                            console.log(`[InvisibilityBridge] ⚠️ ${mappedServiceName} has 0 connected users – skipping authentication`);
+                                            continue;
+                                        }
+                                        
+                                        console.log(`[InvisibilityBridge] ✅ Processing service ${mappedServiceName} with ${connectionCount} connected users (or unknown)`);
+                                        
+                                        if (serviceStatus[mappedServiceName]) {
+                                            // Get actual tool count by discovering tools from MCP server
+                                            let toolsCount = 0;
+                                            try {
+                                                if (service?.mcpClient) {
+                                                    console.log(`[InvisibilityBridge] 🔍 Discovering tools for ${serviceName}...`);
+                                                    
+                                                    // Use proper MCP tool call to list tools
+                                                    const toolsResult = await service.mcpClient.callTool('list_tools', {});
+                                                    
+                                                    if (toolsResult && toolsResult.content && toolsResult.content[0]) {
+                                                        let toolsData;
+                                                        
+                                                        // Debug the raw response structure
+                                                        console.log(`[InvisibilityBridge] 🔍 Raw tools response for ${serviceName}:`, {
+                                                            hasContent: !!toolsResult.content,
+                                                            contentLength: toolsResult.content ? toolsResult.content.length : 0,
+                                                            firstItemKeys: toolsResult.content[0] ? Object.keys(toolsResult.content[0]) : [],
+                                                            firstItemType: toolsResult.content[0] ? toolsResult.content[0].type : 'undefined',
+                                                            hasText: toolsResult.content[0] ? !!toolsResult.content[0].text : false
+                                                        });
+                                                        
+                                                        try {
+                                                            // Extract the text from the MCP response format
+                                                            const textContent = toolsResult.content[0].text;
+                                                            if (!textContent) {
+                                                                throw new Error('No text content found in response');
+                                                            }
+                                                            
+                                                            console.log(`[InvisibilityBridge] 🔍 Attempting to parse JSON for ${serviceName}...`);
+                                                            console.log(`[InvisibilityBridge] 🔍 Text content sample for ${serviceName}:`, textContent.substring(0, 200) + '...');
+                                                            
+                                                            // First parse the outer JSON structure
+                                                            const outerParsed = JSON.parse(textContent);
+                                                            
+                                                            // Check for nested structures (can be double or triple-nested)
+                                                            let actualToolsData;
+                                                            if (outerParsed.content && Array.isArray(outerParsed.content) && outerParsed.content[0] && outerParsed.content[0].text) {
+                                                                console.log(`[InvisibilityBridge] 🔍 Found double-nested structure for ${serviceName}, extracting inner JSON...`);
+                                                                const innerParsed = JSON.parse(outerParsed.content[0].text);
+                                                                
+                                                                // Check if there's another layer of nesting
+                                                                if (innerParsed.content && Array.isArray(innerParsed.content) && innerParsed.content[0] && innerParsed.content[0].text) {
+                                                                    console.log(`[InvisibilityBridge] 🔍 Found triple-nested structure for ${serviceName}, extracting deepest JSON...`);
+                                                                    actualToolsData = JSON.parse(innerParsed.content[0].text);
+                                                                } else {
+                                                                    actualToolsData = innerParsed;
+                                                                }
+                                                            } else if (outerParsed.tools) {
+                                                                console.log(`[InvisibilityBridge] 🔍 Found direct tools structure for ${serviceName}`);
+                                                                actualToolsData = outerParsed;
+                                                            } else if (outerParsed.authenticated_services) {
+                                                                console.log(`[InvisibilityBridge] 🔍 Found authenticated_services structure for ${serviceName}`);
+                                                                actualToolsData = outerParsed;
+                                                            } else {
+                                                                console.log(`[InvisibilityBridge] 🔍 Unknown structure for ${serviceName}, using as-is`);
+                                                                actualToolsData = outerParsed;
+                                                            }
+                                                            
+                                                            toolsData = actualToolsData;
+                                                            
+                                                            console.log(`[InvisibilityBridge] 🔍 Successfully parsed JSON object for ${serviceName}:`, {
+                                                                success: actualToolsData.success,
+                                                                hasTools: !!actualToolsData.tools,
+                                                                toolsType: typeof actualToolsData.tools,
+                                                                toolsIsArray: Array.isArray(actualToolsData.tools),
+                                                                toolsLength: actualToolsData.tools ? actualToolsData.tools.length : 'N/A',
+                                                                keys: Object.keys(actualToolsData)
+                                                            });
+                                                            
+                                                            console.log(`[InvisibilityBridge] 🔍 Final toolsData for ${serviceName}:`, {
+                                                                success: toolsData.success,
+                                                                hasTools: !!toolsData.tools,
+                                                                toolsType: typeof toolsData.tools,
+                                                                toolsIsArray: Array.isArray(toolsData.tools),
+                                                                toolsLength: toolsData.tools ? toolsData.tools.length : 'N/A',
+                                                                keys: Object.keys(toolsData)
+                                                            });
+                                                        } catch (parseError) {
+                                                            console.error(`[InvisibilityBridge] ❌ Failed to parse tools response for ${serviceName}:`, {
+                                                                error: parseError.message,
+                                                                rawContent: toolsResult.content[0],
+                                                                textContent: toolsResult.content[0] ? toolsResult.content[0].text : 'undefined'
+                                                            });
+                                                            // Don't fall back to raw content, set toolsData to null to trigger proper error handling
+                                                            toolsData = null;
+                                                        }
+                                                        
+                                                        if (toolsData && toolsData.authenticated_services && Array.isArray(toolsData.authenticated_services)) {
+                                                            // Check if the current service is in the authenticated services list
+                                                            const isAuthenticated = toolsData.authenticated_services.some(authService => {
+                                                                const authServiceLower = authService.toLowerCase();
+                                                                const serviceNameLower = serviceName.toLowerCase();
+                                                                const mappedServiceLower = mappedServiceName.toLowerCase();
+                                                                
+                                                                return authServiceLower === serviceNameLower || 
+                                                                       authServiceLower === mappedServiceLower ||
+                                                                       // Handle variations like 'googlecalendar' vs 'googleCalendar'
+                                                                       authServiceLower.replace(/[^a-z]/g, '') === serviceNameLower.replace(/[^a-z]/g, '') ||
+                                                                       authServiceLower.replace(/[^a-z]/g, '') === mappedServiceLower.replace(/[^a-z]/g, '');
+                                                            });
+                                                            
+                                                            if (isAuthenticated) {
+                                                                toolsCount = 1; // Service is authenticated, set tools count to 1
+                                                                console.log(`[InvisibilityBridge] 🔧 Service ${serviceName} is authenticated in Paragon`);
+                                                            } else {
+                                                                toolsCount = 0;
+                                                                console.log(`[InvisibilityBridge] ⚠️ Service ${serviceName} not found in authenticated services:`, toolsData.authenticated_services);
+                                                            }
+                                                        } else if (toolsData && toolsData.tools && Array.isArray(toolsData.tools)) {
+                                                            // DEBUG: Log all available tools first
+                                                            console.log(`[InvisibilityBridge] 🔍 DEBUG: All available tools for ${mappedServiceName}:`, 
+                                                                      toolsData.tools.map(t => ({ name: t.name, description: t.description })));
+                                                            
+                                                            // Filter tools that are relevant to this specific service
+                                                            const serviceSpecificTools = toolsData.tools.filter(tool => {
+                                                                const toolNameRaw = tool.name.toLowerCase();
+                                                                const descriptionRaw = tool.description?.toLowerCase() || '';
+                                                                const serviceNameClean = mappedServiceName.toLowerCase().replace(/[^a-z]/g, '');
+                                                                const toolNameClean = toolNameRaw.replace(/[^a-z]/g, '');
+                                                                
+                                                                // DEBUG: Log matching attempts
+                                                                const directMatch = toolNameRaw.includes(mappedServiceName.toLowerCase());
+                                                                const cleanMatch = toolNameClean.includes(serviceNameClean);
+                                                                const descMatch = descriptionRaw.includes(mappedServiceName.toLowerCase());
+                                                                
+                                                                if (directMatch || cleanMatch || descMatch) {
+                                                                    console.log(`[InvisibilityBridge] 🎯 MATCH for ${mappedServiceName}: tool="${tool.name}" (direct:${directMatch}, clean:${cleanMatch}, desc:${descMatch})`);
+                                                                }
+                                                                
+                                                                // Match raw names or cleaned (hyphen/underscore removed) names
+                                                                return directMatch || cleanMatch || descMatch;
+                                                            });
+                                                            
+                                                            toolsCount = serviceSpecificTools.length;
+                                                            console.log(`[InvisibilityBridge] 🔧 Found ${toolsCount} tools for ${mappedServiceName} (${serviceName}):`, 
+                                                                      serviceSpecificTools.map(t => t.name));
+                                                            
+                                                            if (toolsCount === 0) {
+                                                                console.log(`[InvisibilityBridge] ⚠️  No tools found for ${mappedServiceName}. This service is authenticated in Paragon but no tools are implemented in the MCP server.`);
+                                                            }
+                                                        } else if (toolsData && Array.isArray(toolsData)) {
+                                                            // Direct array of tools
+                                                            const serviceSpecificTools = toolsData.filter(tool => {
+                                                                const toolName = tool.name.toLowerCase();
+                                                                const serviceNameLower = serviceName.toLowerCase();
+                                                                const mappedServiceLower = mappedServiceName.toLowerCase();
+                                                                
+                                                                return toolName.includes(serviceNameLower) || 
+                                                                       toolName.includes(mappedServiceLower) ||
+                                                                       (tool.description && tool.description.toLowerCase().includes(serviceNameLower));
+                                                            });
+                                                            
+                                                            toolsCount = serviceSpecificTools.length;
+                                                            console.log(`[InvisibilityBridge] 🔧 Found ${toolsCount} tools for ${serviceName}:`, 
+                                                                      serviceSpecificTools.map(t => t.name));
+                                                        } else {
+                                                            console.log(`[InvisibilityBridge] ⚠️ No tools array found in response for ${serviceName}:`, toolsData);
+                                                        }
+                                                    } else {
+                                                        console.log(`[InvisibilityBridge] ⚠️ No tools content returned from MCP server for ${serviceName}`);
+                                                    }
+                                                } else {
+                                                    console.log(`[InvisibilityBridge] ⚠️ No MCP client available for tool discovery`);
+                                                }
+                                            } catch (toolDiscoveryError) {
+                                                console.error(`[InvisibilityBridge] ❌ Tool discovery failed for ${serviceName}:`, toolDiscoveryError.message);
+                                            }
+                                            
+                                            serviceStatus[mappedServiceName] = {
+                                                authenticated: true,  // Service is in the authenticated list
+                                                toolsCount: toolsCount  // Actual discovered tool count
+                                            };
+                                            console.log(`[InvisibilityBridge] ✅ Service ${serviceName} -> ${mappedServiceName} is authenticated with ${toolsCount} discovered tools`);
+                                        } else {
+                                            console.log(`[InvisibilityBridge] ⚠️ Service ${serviceName} (mapped to ${mappedServiceName}) not found in serviceStatus`);
+                                        }
+
+                                }
+                            }
+                            
+                            console.log('[InvisibilityBridge] 📊 Final service status:', serviceStatus);
+                            return { success: true, services: serviceStatus };
+                        } catch (parseError) {
+                            console.error('[InvisibilityBridge] ❌ Error parsing authentication response:', parseError);
+                        }
+                    }
+                } catch (toolError) {
+                    console.error('[InvisibilityBridge] ❌ Error calling get_authenticated_services:', toolError);
+                }
+            }
+            
+            // Return default status if MCP client not available or error occurred
+            const defaultStatus = {
                     'gmail': { authenticated: false, toolsCount: 0 },
                     'googleCalendar': { authenticated: false, toolsCount: 0 },
                     'googleDrive': { authenticated: false, toolsCount: 0 },
@@ -1000,8 +1350,10 @@ function initializeInvisibilityBridge() {
                     'googleTasks': { authenticated: false, toolsCount: 0 },
                     'notion': { authenticated: false, toolsCount: 0 },
                     'linkedin': { authenticated: false, toolsCount: 0 }
-                }
             };
+            
+            console.log('[InvisibilityBridge] 📊 Returning default status:', defaultStatus);
+            return { success: true, services: defaultStatus };
         } catch (error) {
             console.error('[InvisibilityBridge] ❌ Error getting Paragon service status:', error);
             return { success: false, error: error.message };
@@ -1017,7 +1369,31 @@ function initializeInvisibilityBridge() {
             
             try {
                 // First, check if the service is already authenticated
-                const statusResult = await service.mcpClient.callTool('get_authenticated_services', {});
+                // Get the real authenticated user ID for consistent checking
+                const authCheckRealUserId = authService.getCurrentUserId();
+                // Try to get real user ID from Firebase auth or use email as fallback
+        let userIdForStatusCheck = authCheckRealUserId;
+        
+        if (!userIdForStatusCheck) {
+            try {
+                const authService = require('../common/services/authService');
+                const currentUser = await authService.getCurrentUser();
+                if (currentUser && currentUser.uid) {
+                    userIdForStatusCheck = currentUser.uid;
+                } else if (currentUser && currentUser.email) {
+                    userIdForStatusCheck = currentUser.email;
+                }
+            } catch (authError) {
+                console.log(`[InvisibilityBridge] ⚠️ Could not get Firebase user for status check:`, authError.message);
+            }
+            
+            if (!userIdForStatusCheck) {
+                userIdForStatusCheck = 'default-user';
+            }
+        }
+                
+                console.log(`[InvisibilityBridge] 🔍 Checking authentication status for user: ${userIdForStatusCheck}`);
+                const statusResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userIdForStatusCheck });
                 console.log('[InvisibilityBridge] 🔍 Authentication status check:', statusResult);
                 
                 // Parse the status result to check if already authenticated
@@ -1067,9 +1443,8 @@ function initializeInvisibilityBridge() {
                 console.log(`[InvisibilityBridge] 🔐 ${serviceKey} requires authentication, generating Connect Portal URL...`);
                 
                 // Get the real authenticated user ID from auth service
-                const authService = require('../common/services/authService');
-                const realUserId = authService.getCurrentUserId();
-                const customerUserId = options.userId || realUserId || 'default-user';
+                const connectRealUserId = authService.getCurrentUserId();
+                const customerUserId = options.userId || connectRealUserId || 'default-user';
                 
                 console.log(`[InvisibilityBridge] 🔑 Using customer ID: ${customerUserId}`);
                 
@@ -1105,200 +1480,134 @@ function initializeInvisibilityBridge() {
                         console.log('[InvisibilityBridge] 🔍 Parsed connect_service response:', response);
                         
                         if (response.success && response.authUrl) {
-                            console.log(`[InvisibilityBridge] 🔗 Opening Paragon Connect Portal for ${serviceKey}`);
+                            console.log(`[InvisibilityBridge] 🔗 Using web app authentication for ${serviceKey}`);
                             
-                            // Directly load the Paragon Connect Portal URL in a modal window
-                            const { BrowserWindow } = require('electron');
-                            const path = require('path');
-                            const webAppUrl = process.env.LEVIOUSA_WEB_URL || process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
-                            const authUrl = response.authUrl;
-                            const parentWindow = BrowserWindow.getAllWindows()[0];
-
-                            const authWindow = new BrowserWindow({
-                                parent: parentWindow,
-                                modal: true,
-                                width: 800,
-                                height: 600,
-                                webPreferences: {
-                                    preload: path.join(__dirname, '../../preload.js'),
-                                    contextIsolation: true,
-                                    nodeIntegration: false,
-                                    webSecurity: false // Allow OAuth flows
-                                }
-                            });
-
-                            // Load the Paragon Connect Portal directly
-                            authWindow.loadURL(authUrl);
-
-                            // Listen for Paragon Connect Portal completion events
-                            authWindow.webContents.on('did-finish-load', () => {
-                                // Inject listener for Paragon completion events
-                                authWindow.webContents.executeJavaScript(`
-                                    window.addEventListener('message', (event) => {
-                                        if (event.origin === 'https://passport.useparagon.com') {
-                                            console.log('Paragon Connect Portal event:', event.data);
-                                            if (event.data.type === 'paragon:connected' || event.data.connectionId) {
-                                                console.log('✅ Paragon authentication completed:', event.data);
-                                                // Auto-close window on successful authentication
-                                                setTimeout(() => window.close(), 1000);
-                                            }
-                                        }
+                            try {
+                                // Open system browser instead of redirecting Electron window
+                                // Use localhost:3000 where the working Paragon auth is running
+                                const { shell } = require('electron');
+                                const webAppUrl = 'http://localhost:3000'; // Working Paragon auth location
+                                
+                                // Check if localhost:3000 is likely available by testing the URL first
+                                try {
+                                    const http = require('http');
+                                    const testReq = http.request({
+                                        hostname: 'localhost',
+                                        port: 3000,
+                                        path: '/integrations',
+                                        method: 'HEAD',
+                                        timeout: 2000
+                                    }, (res) => {
+                                        console.log(`[InvisibilityBridge] ✅ localhost:3000 is available (status: ${res.statusCode})`);
                                     });
-                                `).catch(err => console.error('Failed to inject Paragon listener:', err));
-                            });
-
-                            // Handle OAuth callback completion
-                            authWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-                                console.log(`[InvisibilityBridge] 🧭 Navigation to: ${navigationUrl}`);
-                                // If OAuth callback with code parameter, authentication is complete
-                                if (navigationUrl.includes('passport.useparagon.com/oauth') && navigationUrl.includes('code=')) {
-                                    console.log(`[InvisibilityBridge] ✅ Paragon OAuth callback detected for ${serviceKey}`);
-                                    // Allow callback to complete, then close window
-                                    setTimeout(() => {
-                                        if (!authWindow.isDestroyed()) {
-                                            authWindow.close();
-                                        }
-                                    }, 2000);
-                                }
-                                // Also close if returning to integrations page
-                                if (navigationUrl.includes(`${webAppUrl}/integrations`)) {
-                                    authWindow.close();
-                                }
-                            });
-
-                            return {
-                                success: true,
-                                message: `Paragon Connect Portal launched for ${serviceKey}`,
-                                serviceKey: serviceKey
-                            };
-                        } else if (response.action_required === 'connect_integration') {
-                            // Handle the case where user needs to connect integration first using real Paragon SDK
-                            console.log(`[InvisibilityBridge] 🔗 User needs to connect ${serviceKey} integration first - using real Paragon SDK`);
-                            
-                            const { BrowserWindow } = require('electron');
-                            const path = require('path');
-                            const parentWindow = BrowserWindow.getAllWindows()[0];
-
-                            const connectWindow = new BrowserWindow({
-                                parent: parentWindow,
-                                modal: true,
-                                width: 1000,
-                                height: 700,
-                                webPreferences: {
-                                    preload: path.join(__dirname, '../../preload.js'),
-                                    nodeIntegration: false,
-                                    contextIsolation: true,
-                                    webSecurity: false // Allow Paragon OAuth flows
-                                }
-                            });
-
-                            // Create a real Paragon Connect Portal page
-                            const connectPageContent = `
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <title>Connect ${serviceKey}</title>
-                                
-                                <style>
-                                    body { 
-                                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                                        padding: 40px; 
-                                        text-align: center; 
-                                        background: #f8f9fa;
-                                        margin: 0;
-                                    }
-                                    .container { 
-                                        max-width: 600px; 
-                                        margin: 0 auto; 
-                                        background: white; 
-                                        padding: 40px; 
-                                        border-radius: 12px; 
-                                        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                                    }
-                                    .loading { margin: 20px 0; color: #666; }
-                                    .error { color: #e74c3c; margin: 20px 0; padding: 15px; background: #fdf2f2; border-radius: 8px; }
-                                    .success { color: #27ae60; margin: 20px 0; padding: 15px; background: #f2fdf5; border-radius: 8px; }
-                                    h2 { color: #2c3e50; margin-bottom: 20px; }
-                                    .service-name { color: #3498db; text-transform: capitalize; }
-                                </style>
-                            </head>
-                            <body>
-                                <div class="container">
-                                    <h2>Connect to <span class="service-name">${serviceKey}</span></h2>
-                                    <div id="loading" class="loading">Initializing Paragon Connect Portal...</div>
-                                    <div id="error" class="error" style="display: none;"></div>
-                                    <div id="success" class="success" style="display: none;"></div>
-                                </div>
-                                
-                                <script>
-                                    async function initParagon() {
-                                        try {
-                                            // Get credentials from the main process via IPC
-                                            const credentials = await window.electronAPI?.getParagonCredentials?.('${customerUserId}');
-                                            
-                                            if (!credentials || !credentials.PROJECT_ID || !credentials.userToken) {
-                                                throw new Error('Paragon credentials not available. Please check your authentication setup.');
-                                            }
-                                            
-                                            console.log('🔑 Initializing Paragon with Project ID:', credentials.PROJECT_ID);
-                                            
-                                            // Use parent window SDK if available
-                                            if (!window.paragonSDK && window.parent && window.parent.paragonSDK) {
-                                                window.paragonSDK = window.parent.paragonSDK;
-                                            }
-
-                                            // Ensure headless mode is enabled then authenticate with Paragon
-                                            if (window.paragonSDK.setHeadless) {
-                                                window.paragonSDK.setHeadless();
-                                            }
-                                            await window.paragonSDK.authenticate(credentials.PROJECT_ID, credentials.userToken);
-                                            
-                                            document.getElementById('loading').textContent = 'Opening Connect Portal for ${serviceKey}...';
-                                            
-                                            // Open Connect Portal for the specific service
-                                            window.paragonSDK.installIntegration('${serviceKey}', {
-                                                onSuccess: (event, user) => {
-                                                    console.log('✅ Paragon integration connected:', event);
-                                                    document.getElementById('loading').style.display = 'none';
-                                                    document.getElementById('success').textContent = 'Successfully connected ${serviceKey}!';
-                                                    document.getElementById('success').style.display = 'block';
-                                                    setTimeout(() => window.close(), 2000);
-                                                },
-                                                onError: (error) => {
-                                                    console.error('❌ Paragon connection error:', error);
-                                                    document.getElementById('loading').style.display = 'none';
-                                                    document.getElementById('error').innerHTML = 'Connection failed: ' + (error.message || error);
-                                                    document.getElementById('error').style.display = 'block';
-                                                },
-                                                onClose: () => {
-                                                    console.log('🚪 Paragon Connect Portal closed');
-                                                }
-                                            });
-                                            
-                                        } catch (error) {
-                                            console.error('❌ Paragon initialization error:', error);
-                                            document.getElementById('loading').style.display = 'none';
-                                            document.getElementById('error').innerHTML = 'Initialization failed: ' + (error.message || error);
-                                            document.getElementById('error').style.display = 'block';
-                                        }
-                                    }
                                     
-                                    // Initialize when page loads
-                                    window.addEventListener('DOMContentLoaded', initParagon);
-                                </script>
-                            </body>
-                            </html>
-                            `;
-
-                            // Load the real Paragon Connect Portal page
-                            connectWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(connectPageContent)}`);
+                                    testReq.on('error', (err) => {
+                                        console.warn(`[InvisibilityBridge] ⚠️ localhost:3000 may not be running:`, err.message);
+                                    });
+                                    
+                                    testReq.end();
+                                } catch (testError) {
+                                    console.warn(`[InvisibilityBridge] ⚠️ Could not test localhost:3000:`, testError.message);
+                                }
+                                
+                                // Navigate to integrations page with service context
+                                const integrationsUrl = `${webAppUrl}/integrations?authenticate=${serviceKey}`;
+                                console.log(`[InvisibilityBridge] 🌐 Opening dedicated BrowserWindow to: ${integrationsUrl}`);
+                                
+                                // Open in dedicated BrowserWindow with CSP patches (like quick-debug)
+                                const { BrowserWindow, session } = require('electron');
+                                const path = require('path');
+                                
+                                const connectWin = new BrowserWindow({
+                                  width: 1200,
+                                  height: 800,
+                                  show: true,
+                                  webPreferences: {
+                                    preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
+                                    contextIsolation: true,
+                                    nodeIntegration: false,
+                                    // CRITICAL: Use the same session as main app to get CSP patches
+                                    session: session.defaultSession
+                                  }
+                                });
+                                
+                                console.log(`[InvisibilityBridge] 🔧 Connect window using session with CSP patches`);
+                                await connectWin.loadURL(integrationsUrl);
+                                console.log(`[InvisibilityBridge] ✅ Dedicated window opened successfully`);
 
                             return {
                                 success: true,
-                                message: `Please connect ${serviceKey} integration via Paragon Connect Portal`,
+                                    message: `Opened system browser for ${serviceKey} authentication. Make sure Next.js dev server is running on localhost:3000.`,
+                                    serviceKey: serviceKey,
+                                    redirectUrl: integrationsUrl
+                                };
+                            } catch (openError) {
+                                console.error(`[InvisibilityBridge] ❌ Failed to open system browser:`, openError);
+                                
+                                let errorMsg = `Failed to open browser for ${serviceKey}: ${openError.message}`;
+                                let suggestion = 'Make sure Next.js dev server is running: cd leviousa_web && npm run dev';
+                                
+                                return {
+                                    success: false,
+                                    error: errorMsg,
+                                    suggestion: suggestion,
+                                    serviceKey: serviceKey
+                                };
+                            }
+                        } else if (response.action_required === 'connect_integration') {
+                            // Handle the case where user needs to connect integration first
+                            console.log(`[InvisibilityBridge] 🔗 User needs to connect ${serviceKey} integration first - redirecting to web app`);
+                            
+                            try {
+                                // Open system browser instead of redirecting Electron window
+                                const { shell } = require('electron');
+                                const webAppUrl = 'http://localhost:3000'; // Working Paragon auth location
+                                
+                                // Navigate to integrations page with service context for connection
+                                const integrationsUrl = `${webAppUrl}/integrations?connect=${serviceKey}`;
+                                console.log(`[InvisibilityBridge] 🌐 Opening dedicated BrowserWindow to: ${integrationsUrl}`);
+                                
+                                // Open in dedicated BrowserWindow with CSP patches (like quick-debug)
+                                const { BrowserWindow, session } = require('electron');
+                                const path = require('path');
+                                
+                                const connectWin = new BrowserWindow({
+                                  width: 1200,
+                                  height: 800,
+                                  show: true,
+                                  webPreferences: {
+                                    preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
+                                    contextIsolation: true,
+                                    nodeIntegration: false,
+                                    // CRITICAL: Use the same session as main app to get CSP patches
+                                    session: session.defaultSession
+                                  }
+                                });
+                                
+                                console.log(`[InvisibilityBridge] 🔧 Connect window using session with CSP patches`);
+                                await connectWin.loadURL(integrationsUrl);
+                                console.log(`[InvisibilityBridge] ✅ Dedicated window opened successfully`);
+
+                            return {
+                                success: true,
+                                    message: `Opened system browser to connect ${serviceKey} integration. Make sure Next.js dev server is running on localhost:3000.`,
                                 serviceKey: serviceKey,
-                                action_required: 'connect_integration'
-                            };
+                                    action_required: 'connect_integration',
+                                    redirectUrl: integrationsUrl
+                                };
+                            } catch (openError) {
+                                console.error(`[InvisibilityBridge] ❌ Failed to open system browser:`, openError);
+                                
+                                let errorMsg = `Failed to open browser for ${serviceKey}: ${openError.message}`;
+                                let suggestion = 'Make sure Next.js dev server is running: cd leviousa_web && npm run dev';
+                                
+                                return {
+                                    success: false,
+                                    error: errorMsg,
+                                    suggestion: suggestion,
+                                    serviceKey: serviceKey
+                                };
+                            }
                         } else {
                             throw new Error(response.message || 'Failed to generate authentication URL');
                         }
@@ -1362,12 +1671,78 @@ function initializeInvisibilityBridge() {
     // Now using proper Paragon MCP server setup endpoint approach
     // The MCP server handles authentication setup via GET /setup endpoint
 
+    // Handle authentication completion notifications from web app
+    ipcMain.handle('mcp:notifyAuthenticationComplete', async (event, data) => {
+        try {
+            console.log(`[InvisibilityBridge] 🎉 Authentication completed for service: ${data.serviceKey}`);
+            
+            const service = getInvisibilityService();
+            if (service && service.mcpClient) {
+                // Refresh server status to pick up new authentication
+                const serverStatus = service.mcpClient.getServerStatus();
+                
+                // CRITICAL: Force refresh of authenticated services cache
+                console.log(`[InvisibilityBridge] 🔄 Force refreshing authenticated services cache for ${data.serviceKey}`)
+                try {
+                    // Call get_authenticated_services to refresh the cache
+                    const userId = data.userId || global.currentUserId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2'
+                    const refreshResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userId })
+                    console.log(`[InvisibilityBridge] ✅ Refreshed authenticated services:`, refreshResult)
+                } catch (refreshError) {
+                    console.warn(`[InvisibilityBridge] ⚠️ Failed to refresh authenticated services:`, refreshError.message)
+                }
+                
+                // Notify all windows of authentication update
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    if (!window.isDestroyed()) {
+                        window.webContents.send('mcp:auth-status-updated', {
+                            serviceKey: data.serviceKey,
+                            status: 'authenticated',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                });
+                
+                console.log(`[InvisibilityBridge] ✅ Notified all windows of ${data.serviceKey} authentication`);
+            }
+            
+            return { success: true };
+        } catch (error) {
+            console.error('[InvisibilityBridge] ❌ Error handling authentication completion:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('mcp:notifyAuthenticationFailed', async (event, data) => {
+        try {
+            console.log(`[InvisibilityBridge] ❌ Authentication failed for service: ${data.serviceKey}`);
+            
+            // Notify all windows of authentication failure
+            const { BrowserWindow } = require('electron');
+            BrowserWindow.getAllWindows().forEach(window => {
+                if (!window.isDestroyed()) {
+                    window.webContents.send('mcp:auth-status-updated', {
+                        serviceKey: data.serviceKey,
+                        status: 'failed',
+                        error: data.error,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+            
+            return { success: true };
+        } catch (error) {
+            console.error('[InvisibilityBridge] ❌ Error handling authentication failure:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // Paragon JWT generation handler
     ipcMain.handle('paragon:getJWT', async (event) => {
         try {
             console.log('[InvisibilityBridge] 📋 Generating Paragon JWT token...');
             
-            const authService = require('../../common/services/authService');
             const paragonJwtService = require('./mcp/paragonJwtService');
             
             // Get current user
@@ -1383,7 +1758,7 @@ function initializeInvisibilityBridge() {
             if (!paragonJwtService.initialized) {
                 console.log('[InvisibilityBridge] 🔧 Initializing Paragon JWT service...');
                 const config = {
-                    projectId: process.env.PARAGON_PROJECT_ID || 'db5e019e-0558-4378-93de-f212a73e0606',
+                    projectId: process.env.PARAGON_PROJECT_ID, // Must be defined in environment
                     signingKey: process.env.PARAGON_SIGNING_KEY
                 };
                 const initialized = paragonJwtService.initialize(config);

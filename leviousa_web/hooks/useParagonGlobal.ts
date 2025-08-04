@@ -13,6 +13,20 @@ export default function useParagonGlobal() {
     try {
       // Ensure SDK is available
       if (typeof paragon !== 'undefined' && paragon) {
+        // Force production hosts when running inside Electron (file:// or localhost)
+        try {
+          if (!(paragon as any)._configuredElectron) {
+            paragon.configureGlobal({
+              host: 'useparagon.com',
+              apiHost: 'https://api.useparagon.com',
+              connectHost: 'https://connect.useparagon.com'
+            });
+            (paragon as any)._configuredElectron = true;
+            console.log('[ParagonSDK] configureGlobal applied for Electron runtime');
+          }
+        } catch (cfgErr) {
+          console.warn('[ParagonSDK] Failed to apply configureGlobal:', (cfgErr as Error).message);
+        }
         setIsLoaded(true);
       } else {
         throw new Error('Paragon SDK not available');

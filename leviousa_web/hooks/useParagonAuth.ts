@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { paragon, AuthenticatedConnectUser, SDK_EVENT } from '@useparagon/connect';
 
-import { generateParagonToken } from '../utils/paragonTokenGenerator';
+import { generateParagonToken, clearExpiredTokens } from '../utils/paragonTokenGenerator';
+import { authPersistenceReady } from '../utils/firebase';
 
 /**
  * Hook for Paragon authentication
  * Based on the Paragon documentation tutorial
  */
-export default function useParagonAuth(): { 
+export default function useParagonAuth(userId?: string): { 
   user?: AuthenticatedConnectUser; 
   error?: Error; 
   isLoading: boolean;
@@ -17,13 +18,36 @@ export default function useParagonAuth(): {
   const [error, setError] = useState<Error | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get token on mount
+  // Debug logging for userId
   useEffect(() => {
-    generateParagonToken()
-      .then(setToken)
-      .catch(setError)
-      .finally(() => setIsLoading(false));
+    console.log('🔍 [useParagonAuth] Hook initialized with userId:', userId || 'undefined')
   }, []);
+
+  // Get token on mount - but wait for Firebase persistence first
+  useEffect(() => {
+    console.log('🔍 [useParagonAuth] Generating token with userId:', userId || 'undefined')
+    
+    // CRITICAL: Wait for Firebase auth persistence to be ready
+    // This prevents auth state loss during OAuth flows
+    authPersistenceReady
+      .then(() => {
+        console.log('✅ [useParagonAuth] Firebase persistence ready, generating token...')
+        // Clear any expired tokens first
+        clearExpiredTokens();
+        return generateParagonToken(userId);
+      })
+      .then((token) => {
+        console.log('✅ [useParagonAuth] Token generated successfully')
+        console.log('🔍 [useParagonAuth] Token payload (decoded):', 
+          JSON.parse(atob(token.split('.')[1])))
+        setToken(token)
+      })
+      .catch((err) => {
+        console.error('❌ [useParagonAuth] Token generation failed:', err)
+        setError(err)
+      })
+      .finally(() => setIsLoading(false));
+  }, [userId]);
 
   // Listen for account state changes
   useEffect(() => {

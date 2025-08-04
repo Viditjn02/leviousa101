@@ -140,17 +140,21 @@ class OAuthManager extends EventEmitter {
 
     /**
      * Check if we have client credentials for a provider
+     * NOTE: OAuth authentication is disabled - all authentication goes through Paragon
      */
     hasClientCredentials(provider) {
-        return this.configManager.hasOAuthClientCredentials(provider);
+        // Return false since all authentication is now handled by Paragon
+        return false;
     }
 
     /**
      * Get a valid access token (refresh if needed)
+     * NOTE: OAuth authentication is disabled - all authentication goes through Paragon
      */
     async getValidToken(provider) {
-        // Only use provider token (avoid legacy service-specific token keys)
-        return await this.configManager.getValidAccessToken(provider);
+        // Return null since all authentication is now handled by Paragon
+        // This prevents false positives from OAuth credentials being used
+        return null;
     }
 
     /**
@@ -803,54 +807,22 @@ class OAuthManager extends EventEmitter {
 
     /**
      * Get current authentication status for all providers
+     * NOTE: OAuth authentication is disabled - all authentication goes through Paragon
      */
     getStatus() {
-        const status = {};
-        
-        for (const provider of Object.keys(this.oauthProviders)) {
-            // Get token from config manager (where they're actually saved)
-            const tokenData = this.configManager.getCredential(`${provider}_token`);
-            let token = null;
-            
-            if (tokenData) {
-                try {
-                    token = JSON.parse(tokenData);
-                } catch (e) {
-                    // Invalid token data
-                }
-            }
-            
-            status[provider] = {
-                hasValidToken: !!token && !!token.access_token,
-                expiresAt: token ? token.expires_at : null
-            };
-        }
-        
-        return status;
+        // Return empty status since all authentication is now handled by Paragon
+        // This prevents false positives from OAuth tokens showing as valid
+        return {};
     }
 
     /**
      * Get authentication status for all providers (detailed)
+     * NOTE: OAuth authentication is disabled - all authentication goes through Paragon
      */
     async getAuthenticationStatus() {
-        const status = {};
-        
-        for (const provider of Object.keys(this.oauthProviders)) {
-            const hasCredentials = this.hasClientCredentials(provider);
-            const hasToken = !!(await this.getValidToken(provider));
-            const config = this.getProviderConfig(provider);
-            
-            status[provider] = {
-                hasClientCredentials: hasCredentials,
-                isAuthenticated: hasToken,
-                canAuthenticate: hasCredentials && !hasToken,
-                needsSetup: !hasCredentials,
-                name: config?.name || provider,
-                description: config?.description
-            };
-        }
-        
-        return status;
+        // Return empty status since all authentication is now handled by Paragon
+        // This prevents false positives from OAuth credentials showing as "authenticated"
+        return {};
     }
 
     /**
