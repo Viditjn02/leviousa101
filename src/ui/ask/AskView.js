@@ -1,6 +1,7 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
 import './MCPActionBar.js';
+import '../mcp-ui/MCPUIResourceHandler.js';
 // Remove any old mcp-ui-integration imports
 
 export class AskView extends LitElement {
@@ -1926,6 +1927,9 @@ export class AskView extends LitElement {
                         </span>
                     </button>
                 </div>
+
+                <!-- MCP UI Resource Handler for modals (email composer, etc.) -->
+                <mcp-ui-resource-handler></mcp-ui-resource-handler>
             </div>
         `;
     }
