@@ -718,35 +718,63 @@ Return [] if no high-confidence UI triggers are detected.`;
             resource,
             type: 'modal',
             onAction: async (tool, params) => {
+                console.log('[MCPUIIntegrationService] OnAction called:', { tool, params });
+                
                 if (tool === 'gmail.send') {
-                    // Determine the full tool name with server prefix
-                    const activeServers = this.mcpClient.serverRegistry.getActiveServers();
-                    const serverName = activeServers[0]?.name || activeServers[0]?.serverName || 'paragon';
-                    const fullToolName = `${serverName}.GMAIL_SEND_EMAIL`;
-                    
-                    // Use correct Paragon API parameter names
-                    const result = await this.mcpClient.callTool(fullToolName, {
-                        toRecipients: [{ emailAddress: { address: params.to[0] } }],
-                        from: { emailAddress: { address: 'user@gmail.com' } }, // Will use authenticated user's email
-                        messageContent: {
-                            subject: params.subject,
-                            body: {
-                                content: params.body,
-                                contentType: 'text'
+                    try {
+                        // Determine the full tool name with server prefix
+                        const activeServers = this.mcpClient.serverRegistry.getActiveServers();
+                        const serverName = activeServers[0]?.name || activeServers[0]?.serverName || 'paragon';
+                        const fullToolName = `${serverName}.GMAIL_SEND_EMAIL`;
+                        
+                        console.log('[MCPUIIntegrationService] Using tool:', fullToolName);
+                        console.log('[MCPUIIntegrationService] Active servers:', activeServers);
+                        
+                        // Handle both array and string formats for recipients
+                        const toAddresses = Array.isArray(params.to) ? params.to : [params.to];
+                        const ccAddresses = Array.isArray(params.cc) ? params.cc : (params.cc ? [params.cc] : []);
+                        const bccAddresses = Array.isArray(params.bcc) ? params.bcc : (params.bcc ? [params.bcc] : []);
+                        
+                        // Use correct Paragon API parameter names
+                        const toolParams = {
+                            toRecipients: toAddresses.map(addr => ({ emailAddress: { address: addr } })),
+                            messageContent: {
+                                subject: params.subject,
+                                body: {
+                                    content: params.body,
+                                    contentType: 'text'
+                                }
+                            }
+                        };
+                        
+                        // Add CC and BCC if present
+                        if (ccAddresses.length > 0) {
+                            toolParams.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+                        }
+                        if (bccAddresses.length > 0) {
+                            toolParams.bccRecipients = bccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+                        }
+                        
+                        console.log('[MCPUIIntegrationService] Calling MCP tool with params:', toolParams);
+                        
+                        const result = await this.mcpClient.callTool(fullToolName, toolParams);
+                        
+                        console.log('[MCPUIIntegrationService] MCP tool result:', result);
+                        
+                        // Check if the result contains an error
+                        if (result.content && result.content[0] && result.content[0].text) {
+                            const responseText = result.content[0].text;
+                            if (responseText.includes('"error"')) {
+                                const errorData = JSON.parse(responseText);
+                                throw new Error(`Email sending failed: ${errorData.error}`);
                             }
                         }
-                    });
-                    
-                    // Check if the result contains an error
-                    if (result.content && result.content[0] && result.content[0].text) {
-                        const responseText = result.content[0].text;
-                        if (responseText.includes('"error"')) {
-                            const errorData = JSON.parse(responseText);
-                            throw new Error(`Email sending failed: ${errorData.error}`);
-                        }
+                        
+                        return { success: true, result };
+                    } catch (error) {
+                        console.error('[MCPUIIntegrationService] Email sending error:', error);
+                        return { success: false, error: error.message };
                     }
-                    
-                    return result;
                 }
             }
         });
