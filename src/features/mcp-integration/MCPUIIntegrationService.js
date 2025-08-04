@@ -710,13 +710,18 @@ Return [] if no high-confidence UI triggers are detected.`;
         // Generate email composer UI resource
         const resource = UIResourceGenerator.generateEmailComposer(emailData);
         
-        // Emit event for UI to handle with context
+        // Use inline form instead of modal for better theme integration
         this.emit('ui-resource-ready', {
             actionId: action.id,
             serverId: 'paragon',
-            tool: 'paragon.GMAIL_SEND_EMAIL',
+            tool: 'gmail.send',
+            context: {
+                recipients: context.recipients || '',
+                subject: context.subject || '',
+                body: context.body || ''
+            },
             resource,
-            type: 'modal',
+            type: 'inline',
             onAction: async (tool, params) => {
                 console.log('[MCPUIIntegrationService] OnAction called:', { tool, params });
                 

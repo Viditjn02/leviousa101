@@ -1,7 +1,6 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
 import './MCPActionBar.js';
-import '../mcp-ui/MCPUIResourceHandler.js';
 // Remove any old mcp-ui-integration imports
 
 export class AskView extends LitElement {
@@ -1927,9 +1926,6 @@ export class AskView extends LitElement {
                         </span>
                     </button>
                 </div>
-
-                <!-- MCP UI Resource Handler for modals (email composer, etc.) -->
-                <mcp-ui-resource-handler></mcp-ui-resource-handler>
             </div>
         `;
     }
@@ -1990,14 +1986,28 @@ export class AskView extends LitElement {
 
     /** Handle incoming UI resource events */
     handleUIResource(data) {
+      console.log('[AskView] handleUIResource called with:', data);
+      
       if (data.tool === 'gmail.send' && data.context) {
+        console.log('[AskView] Email context received:', data.context);
+        
         this.emailData = {
           to: data.context.recipients || '',
           subject: data.context.subject || '',
-          body: data.context.body || ''
+          body: data.context.body || '',
+          cc: data.context.cc || '',
+          bcc: data.context.bcc || ''
         };
+        
+        console.log('[AskView] Setting emailData:', this.emailData);
+        
         this.showEmailForm = true;
         this.requestUpdate();
+        
+        // Adjust window height to accommodate the email form
+        this.adjustWindowHeightThrottled();
+      } else {
+        console.log('[AskView] UI resource not handled - tool:', data.tool, 'hasContext:', !!data.context);
       }
     }
 
