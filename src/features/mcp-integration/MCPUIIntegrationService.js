@@ -99,6 +99,10 @@ class MCPUIIntegrationService extends EventEmitter {
           console.log('[MCPUIIntegrationService] Remapping paragon.gmail_send to email.send');
           action.type = 'email.send';
           action.id = 'gmail-send';
+        } else if (action.type === 'gmail.send') {
+          console.log('[MCPUIIntegrationService] Remapping gmail.send to email.send');
+          action.type = 'email.send';
+          action.id = 'gmail-send';
         }
         return action;
       });
