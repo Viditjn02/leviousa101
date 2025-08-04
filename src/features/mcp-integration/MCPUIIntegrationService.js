@@ -89,10 +89,14 @@ class MCPUIIntegrationService extends EventEmitter {
         }
         return action;
       });
-      // Remap email.compose to email.send for handler compatibility
+      // Remap email action types to email.send for handler compatibility
       actions = actions.map(action => {
         if (action.type === 'email.compose') {
           console.log('[MCPUIIntegrationService] Remapping email.compose to email.send');
+          action.type = 'email.send';
+          action.id = 'gmail-send';
+        } else if (action.type === 'paragon.gmail_send') {
+          console.log('[MCPUIIntegrationService] Remapping paragon.gmail_send to email.send');
           action.type = 'email.send';
           action.id = 'gmail-send';
         }
