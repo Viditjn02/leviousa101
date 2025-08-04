@@ -117,10 +117,18 @@ class MCPUIIntegrationService extends EventEmitter {
         await this.executeAction(action.id, context);
       }
 
-      return actions;
+      return {
+        actions,
+        autoTriggered: autoActions.length > 0,
+        autoTriggeredTypes: autoActions.map(action => action.type)
+      };
     } catch (error) {
       console.error('[MCPUIIntegrationService] Error in LLM-based action classification:', error);
-      return [];
+      return {
+        actions: [],
+        autoTriggered: false,
+        autoTriggeredTypes: []
+      };
     }
   }
 
