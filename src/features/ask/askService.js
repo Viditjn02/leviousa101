@@ -595,7 +595,24 @@ class AskService {
                                 };
                                 
                                 // This will auto-trigger UI if high-confidence intent is detected
-                                await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                                const uiResult = await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                                
+                                // If UI was auto-triggered, modify the response to be more contextual
+                                if (uiResult && uiResult.autoTriggered) {
+                                    console.log(`[AskService] UI auto-triggered for: ${uiResult.autoTriggeredTypes.join(', ')}`);
+                                    
+                                    // Modify response for email composer
+                                    if (uiResult.autoTriggeredTypes.includes('email.send')) {
+                                        responseText = "I've prepared an email composer for you below. Please review the pre-filled information and click 'Send Email' when ready.";
+                                    }
+                                } else if (Array.isArray(uiResult) && uiResult.length > 0) {
+                                    // Handle backwards compatibility with old array format
+                                    const autoTriggered = uiResult.some(action => action.confidence > 0.8 && action.autoTrigger);
+                                    if (autoTriggered) {
+                                        console.log('[AskService] UI auto-triggered (legacy format detected)');
+                                        responseText = "I've prepared a contextual interface for you below.";
+                                    }
+                                }
                             }
                         } catch (uiError) {
                             console.warn('[AskService] UI analysis failed, continuing without UI:', uiError);

@@ -2022,8 +2022,8 @@ export class AskView extends LitElement {
     try {
       console.log('[AskView] Attempting to send email via Paragon MCP...');
       
-      // Use the correct Paragon MCP tool with proper parameter mapping
-      const toolName = 'paragon.GMAIL_SEND_EMAIL';
+      // Use the correct Gmail tool name from Paragon MCP
+      const toolName = 'gmail_send_email';
       
       const result = await window.api.mcp.callTool(toolName, {
         toRecipients: [{ emailAddress: { address: to } }],
