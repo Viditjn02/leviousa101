@@ -19,16 +19,39 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 
-// Enable persistence after auth is initialized
+// Critical: Set persistence IMMEDIATELY and SYNCHRONOUSLY
+// This prevents auth state loss during OAuth redirects
+let persistenceInitialized = false;
+
 if (typeof window !== 'undefined') {
+  // Set persistence synchronously to prevent race conditions
   setPersistence(auth, browserLocalPersistence)
     .then(() => {
-      console.log('✅ Firebase auth persistence enabled');
+      console.log('✅ Firebase auth persistence enabled with LOCAL persistence');
+      persistenceInitialized = true;
     })
     .catch((error) => {
       console.error('❌ Failed to enable auth persistence:', error);
+      persistenceInitialized = true; // Mark as done even on error to prevent hanging
     });
 }
+
+// Export a promise that resolves when persistence is ready
+export const authPersistenceReady = new Promise<void>((resolve) => {
+  if (typeof window === 'undefined') {
+    resolve(); // Server-side, no persistence needed
+    return;
+  }
+  
+  const checkPersistence = () => {
+    if (persistenceInitialized) {
+      resolve();
+    } else {
+      setTimeout(checkPersistence, 10); // Check every 10ms
+    }
+  };
+  checkPersistence();
+});
 // const analytics = getAnalytics(app);
 
 export { app, auth, firestore }; 

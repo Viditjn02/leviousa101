@@ -1,6 +1,6 @@
 class ParagonAuth {
     constructor() {
-        this.projectId = 'db5e019e-0558-4378-93de-f212a73e0606'; // Your project ID from env
+        this.projectId = process.env.NEXT_PUBLIC_PARAGON_PROJECT_ID || process.env.PARAGON_PROJECT_ID;
         this.authenticated = false;
         this.paragon = null;
     }

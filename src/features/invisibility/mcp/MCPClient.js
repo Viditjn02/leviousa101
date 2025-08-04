@@ -1202,37 +1202,8 @@ class MCPClient extends EventEmitter {
         }
     }
 
-    /**
-     * Authenticate a Paragon service (placeholder - actual auth happens via Connect Portal)
-     * @param {string} serviceKey - The service to authenticate
-     * @param {Object} authData - Authentication data
-     * @returns {Object} Result of authentication
-     */
-    async authenticateParagonService(serviceKey, authData) {
-        try {
-            logger.info('Processing Paragon service authentication', { serviceKey });
-            
-            // Check if Paragon server is available
-            const paragonServer = this.serverRegistry.servers.get('paragon');
-            if (!paragonServer || !paragonServer.adapter) {
-                throw new Error('Paragon server not available');
-            }
-            
-            // This method would typically store authentication tokens
-            // received from the Connect Portal OAuth flow
-            const result = await paragonServer.adapter.callTool('authenticate_service', {
-                service: serviceKey,
-                authData: authData
-            });
-            
-            logger.info('Paragon service authentication processed', { serviceKey });
-            return result;
-            
-        } catch (error) {
-            logger.error('Failed to process Paragon service authentication:', { serviceKey, error: error.message });
-            throw error;
-        }
-    }
+    // Note: Paragon authentication is handled via the web interface at /integrations
+    // The real flow: invisibilityBridge.js -> opens browser -> ParagonIntegration.tsx -> paragon.connect()
 }
 
 module.exports = MCPClient; 

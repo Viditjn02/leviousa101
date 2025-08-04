@@ -421,24 +421,11 @@ class MCPMigrationBridge extends EventEmitter {
                 };
             }
             
-            // Then, add authenticated OAuth services that have server configurations
-            const authStatus = this.newClient.oauthManager.getStatus();
-            const availableServers = this.newClient.serverRegistry.getAvailableServers();
+            // OAuth authentication disabled - all authentication now goes through Paragon
+            // No longer checking OAuth services to prevent false positives
             
-            for (const serverName of availableServers) {
-                const serverDef = this.newClient.serverRegistry.getServerDefinition(serverName);
-                
-                // If it's an OAuth service that's authenticated but not running
-                if (serverDef?.requiresAuth && authStatus[serverName]?.hasValidToken && !serverStatus[serverName]) {
-                    serverStatus[serverName] = {
-                        status: 'authenticated',
-                        running: false,
-                        tools: [],
-                        authenticated: true,
-                        canStart: true
-                    };
-                }
-            }
+            // Get available servers from the registry
+            const availableServers = this.newClient.serverRegistry.getAvailableServers() || [];
             
             return {
                 servers: serverStatus,
@@ -454,14 +441,11 @@ class MCPMigrationBridge extends EventEmitter {
 
     /**
      * Get authentication status (old API)
+     * NOTE: OAuth authentication disabled - all authentication goes through Paragon
      */
     getAuthenticationStatus() {
-        try {
-            return this.newClient.oauthManager.getStatus();
-        } catch (error) {
-            logger.error('Failed to get auth status', { error: error.message });
-            return {};
-        }
+        // Return empty status since all authentication is now handled by Paragon
+        return {};
     }
 
     /**
@@ -842,26 +826,26 @@ class MCPMigrationBridge extends EventEmitter {
     }
 
     /**
-     * Authenticate a Paragon service
+     * Authenticate a Paragon service - redirects to web interface
      * @param {string} serviceKey - The service to authenticate
-     * @param {Object} authData - Authentication data
-     * @returns {Object} Result of authentication
+     * @param {Object} authData - Authentication data (unused, kept for compatibility)
+     * @returns {Object} Result indicating web interface should be used
      */
     async authenticateParagonService(serviceKey, authData) {
         try {
-            logger.info('Authenticating Paragon service from migration bridge', { serviceKey });
+            logger.info('Paragon authentication requested - directing to web interface', { serviceKey });
             
-            // If we have an actual MCP client, delegate to it
-            if (this.newClient && typeof this.newClient.authenticateParagonService === 'function') {
-                return await this.newClient.authenticateParagonService(serviceKey, authData);
-            }
-            
-            // Otherwise return success
-            logger.warn('MCPClient not available or missing authenticateParagonService method, returning success');
-            return { success: true, message: `${serviceKey} authenticated.`, toolsCount: 5 };
+            // Paragon authentication is handled through the web interface at /integrations
+            // The IPC handler in invisibilityBridge.js will open the browser automatically
+            return { 
+                success: true, 
+                message: `${serviceKey} authentication should be done through the web interface at /integrations`,
+                useWebInterface: true,
+                serviceKey: serviceKey
+            };
             
         } catch (error) {
-            logger.error('Failed to authenticate Paragon service:', { serviceKey, error: error.message });
+            logger.error('Failed to process Paragon service authentication request:', { serviceKey, error: error.message });
             throw error;
         }
     }

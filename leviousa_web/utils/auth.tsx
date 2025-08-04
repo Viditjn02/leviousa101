@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
-import { auth as firebaseAuth } from './firebase'
+import { auth as firebaseAuth, authPersistenceReady } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
 
 interface AuthContextType {
@@ -23,6 +23,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('🔍 AuthProvider: Setting up single auth state listener');
     let mounted = true; // Track if component is still mounted
     
+    // Check if we're on the integrations page with a userId parameter (Electron context)
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const userIdFromUrl = urlParams.get('userId');
+      
+      if (window.location.pathname === '/integrations' && userIdFromUrl) {
+        console.log('🔗 AuthProvider: Integrations page detected with userId, creating temporary auth context');
+        
+        // Create a temporary user profile for the integrations page
+        const tempProfile: UserProfile = {
+          uid: userIdFromUrl,
+          display_name: 'Electron User',
+          email: 'electron-user@leviousa.com',
+        };
+        
+        setUser(tempProfile);
+        setUserInfo(tempProfile);
+        setIsLoading(false);
+        setMode('firebase'); // Set mode to avoid auth loops
+        
+        console.log('✅ AuthProvider: Temporary auth context created for integrations page');
+        
+        // Return cleanup function but don't set up Firebase auth listener
+        return () => {
+          if (mounted) {
+            mounted = false;
+          }
+        };
+      }
+    }
+    
     // Add overall timeout to prevent AuthProvider from hanging forever
     const authProviderTimeout = setTimeout(() => {
       if (mounted) {
@@ -31,7 +62,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 12000); // 12 second timeout for the entire auth provider
     
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
+    // CRITICAL: Wait for Firebase persistence before setting up auth state listener
+    // This prevents the auth state reset issue during OAuth flows
+    let unsubscribe: (() => void) | undefined;
+    
+    authPersistenceReady
+      .then(() => {
+        if (!mounted) return; // Component unmounted before persistence ready
+        
+        console.log('✅ AuthProvider: Firebase persistence ready, setting up auth listener');
+        
+        unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
       console.log('🔔 Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
       
       try {
@@ -91,16 +132,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
          clearTimeout(authProviderTimeout);
        }
      });
-
-    // Check current auth state immediately
-    const currentUser = firebaseAuth.currentUser;
-    console.log('🔑 Current auth state on mount:', currentUser ? currentUser.email : 'No user');
+        
+        // Check current auth state immediately after persistence is ready
+        const currentUser = firebaseAuth.currentUser;
+        console.log('🔑 Current auth state on mount:', currentUser ? currentUser.email : 'No user');
+      })
+      .catch((error) => {
+        console.error('❌ AuthProvider: Failed to initialize Firebase persistence:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       console.log('🚪 AuthProvider: Cleaning up auth state listener');
       mounted = false; // Mark as unmounted
       clearTimeout(authProviderTimeout);
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, []) // Empty dependency array - don't re-run when isLoading changes
 
