@@ -880,14 +880,22 @@ function initializeInvisibilityBridge() {
                     }
 
                     // Forward to all windows
-                    BrowserWindow.getAllWindows().forEach(window => {
+                    const windows = BrowserWindow.getAllWindows();
+                    console.log('[InvisibilityBridge] 🔍 Available windows:', windows.map(w => ({ title: w.title, id: w.id, isDestroyed: w.isDestroyed() })));
+                    
+                    windows.forEach(window => {
                         if (!window.isDestroyed()) {
                             // Strip non-serializable fields before IPC
                             const { onAction, ...payload } = data;
                             // Only send to AskView and other relevant windows, not all of them
                             if (window.title !== 'Main Header') {
+                              console.log(`[InvisibilityBridge] 📤 Sending mcp:ui-resource-available to window "${window.title}" (id: ${window.id})`);
                               window.webContents.send('mcp:ui-resource-available', payload);
+                            } else {
+                              console.log(`[InvisibilityBridge] ⏭️ Skipping window "${window.title}" (Main Header)`);
                             }
+                        } else {
+                            console.log(`[InvisibilityBridge] ⚠️ Skipping destroyed window`);
                         }
                     });
                 });

@@ -703,16 +703,22 @@ class MCPMigrationBridge extends EventEmitter {
      */
     async getProviderApiKey(providerName) {
         try {
-            const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+            // Check if global modelStateService is available
+            if (!global.modelStateService) {
+                logger.warn('ModelStateService not available globally', { provider: providerName });
+                return null;
+            }
+            
+            const modelInfo = await global.modelStateService.getCurrentModelInfo('llm');
             
             // If current model matches the provider, use its key
             if (modelInfo && modelInfo.provider === providerName && modelInfo.apiKey) {
                 return modelInfo.apiKey;
             }
             
-            // Otherwise, try to get provider settings
-            const providerSettings = await modelStateService.getProviderSettings(providerName);
-            return providerSettings?.apiKey || null;
+            // Otherwise, try to get provider API keys from ModelStateService
+            const apiKeys = await global.modelStateService.getAllApiKeys();
+            return apiKeys[providerName] || null;
             
         } catch (error) {
             logger.warn('Failed to get API key for provider', { 

@@ -581,6 +581,7 @@ class AskService {
                         console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
                         
                         // Analyze conversation for contextual UI opportunities
+                        let didUIOverride = false;
                         try {
                             if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
                                 console.log('[AskService] 🎨 Analyzing conversation for contextual UI triggers...');
@@ -594,23 +595,28 @@ class AskService {
                                     timestamp: new Date().toISOString()
                                 };
                                 
-                                // This will auto-trigger UI if high-confidence intent is detected
-                                const uiResult = await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                                // Get contextual actions and track UI override
+                                let uiResult = null;
+                                uiResult = await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
                                 
-                                // If UI was auto-triggered, modify the response to be more contextual
+                                console.log('[AskService] 🔍 DEBUG uiResult:', JSON.stringify(uiResult, null, 2));
                                 if (uiResult && uiResult.autoTriggered) {
                                     console.log(`[AskService] UI auto-triggered for: ${uiResult.autoTriggeredTypes.join(', ')}`);
                                     
                                     // Modify response for email composer
                                     if (uiResult.autoTriggeredTypes.includes('email.send')) {
+                                        console.log('[AskService] 🎯 Modifying response for email composer');
+                                        console.log('[AskService] 🔄 Original responseText length:', responseText.length);
                                         responseText = "I've prepared an email composer for you below. Please review the pre-filled information and click 'Send Email' when ready.";
+                                        console.log('[AskService] ✅ New responseText:', responseText);
+                                        didUIOverride = true;
                                     }
                                 } else if (Array.isArray(uiResult) && uiResult.length > 0) {
                                     // Handle backwards compatibility with old array format
+                                    console.log('[AskService] ❌ uiResult in legacy array format');
                                     const autoTriggered = uiResult.some(action => action.confidence > 0.8 && action.autoTrigger);
                                     if (autoTriggered) {
-                                        console.log('[AskService] UI auto-triggered (legacy format detected)');
-                                        responseText = "I've prepared a contextual interface for you below.";
+                                        didUIOverride = true;
                                     }
                                 }
                             }
@@ -623,7 +629,10 @@ class AskService {
                             console.log(`[AskService] 🎯 NOTION MCP ANSWER SUCCESS: ${mcpAnswer.substring(0, 200)}...`);
                         }
                         
-                        responseText = mcpAnswer;
+                        // Only set default answer if UI did not override
+                        if (!didUIOverride) {
+                            responseText = mcpAnswer;
+                        }
                         
                         // Update conversation session with this exchange
                         this.updateConversationSession(sessionId, userPrompt, questionType, responseText);

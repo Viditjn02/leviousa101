@@ -50,9 +50,17 @@ export class LeviousaApp extends LitElement {
 
     constructor() {
         super();
+        console.log('[LeviousaApp] 🚀 Constructor called, URL:', window.location.href);
         const urlParams = new URLSearchParams(window.location.search);
         this.currentView = urlParams.get('view') || 'listen';
+        console.log('[LeviousaApp] 🎯 URL params:', Object.fromEntries(urlParams));
+        console.log('[LeviousaApp] 🎯 Set currentView to:', this.currentView);
         this.currentResponseIndex = -1;
+        
+        // Ensure AskView is not tree-shaken by referencing it
+        if (AskView && typeof AskView === 'function') {
+            console.log('[LeviousaApp] ✅ AskView loaded successfully');
+        }
         this.selectedProfile = localStorage.getItem('selectedProfile') || 'interview';
         
         // Language format migration for legacy users
@@ -127,6 +135,12 @@ export class LeviousaApp extends LitElement {
 
 
     render() {
+        console.log(`[LeviousaApp] 🎨 Rendering view: "${this.currentView}"`);
+        console.log(`[LeviousaApp] 🔍 Available custom elements:`, {
+            'ask-view': !!customElements.get('ask-view'),
+            'listen-view': !!customElements.get('listen-view'),
+            'settings-view': !!customElements.get('settings-view')
+        });
         switch (this.currentView) {
             case 'listen':
                 return html`<listen-view
@@ -136,6 +150,9 @@ export class LeviousaApp extends LitElement {
                     @response-index-changed=${e => (this.currentResponseIndex = e.detail.index)}
                 ></listen-view>`;
             case 'ask':
+                console.log('[LeviousaApp] 📝 Rendering ask-view component');
+                console.log('[LeviousaApp] 🔍 AskView constructor available?', typeof AskView);
+                console.log('[LeviousaApp] 🔍 Custom element ask-view defined?', !!customElements.get('ask-view'));
                 return html`<ask-view></ask-view>`;
             case 'settings':
                 return html`<settings-view

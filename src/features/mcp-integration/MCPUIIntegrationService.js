@@ -112,16 +112,21 @@ class MCPUIIntegrationService extends EventEmitter {
 
       // Auto-execute high-confidence UI actions
       const autoActions = actions.filter(action => action.confidence > 0.8 && action.autoTrigger);
+      console.log(`[MCPUIIntegrationService] 🎯 Found ${autoActions.length} auto-trigger actions:`, autoActions.map(a => a.type));
+      
       for (const action of autoActions) {
         console.log(`[MCPUIIntegrationService] Auto-triggering UI for: ${action.type}`);
         await this.executeAction(action.id, context);
       }
 
-      return {
+      const result = {
         actions,
         autoTriggered: autoActions.length > 0,
         autoTriggeredTypes: autoActions.map(action => action.type)
       };
+      
+      console.log(`[MCPUIIntegrationService] 📤 Returning result:`, JSON.stringify(result, null, 2));
+      return result;
     } catch (error) {
       console.error('[MCPUIIntegrationService] Error in LLM-based action classification:', error);
       return {
@@ -224,6 +229,27 @@ Analyze the user's message and conversation context to identify if any interacti
 4. **Other tool usage**: Based on available capabilities
 
 For each detected intent, extract specific context details to pre-populate the UI.
+
+**IMPORTANT**: For email actions, you MUST extract and include the following in the action context:
+- Recipients: Extract email addresses or names mentioned (look for "to", "send to", "email to", etc.)  
+- Subject: Extract any subject mentioned (look for "subject:", "about", "re:", etc.)
+- Body: Extract the email content/message (look for quoted text, message content, or main communication intent)
+
+Example email action response:
+{
+  "id": "email-send",
+  "label": "📧 Send Email", 
+  "type": "email.send",
+  "confidence": 0.95,
+  "autoTrigger": true,
+  "context": {
+    "recipients": "john@example.com",
+    "subject": "Meeting Follow-up", 
+    "body": "Hi John, Thanks for the great meeting today. I wanted to follow up on the action items we discussed...",
+    "cc": "",
+    "bcc": ""
+  }
+}
 
 Current conversation context:
 - Message: "${context.message}"
@@ -478,6 +504,84 @@ Return [] if no high-confidence UI triggers are detected.`;
   }
 
   /**
+   * Extract email context from conversation text
+   */
+  extractEmailContext(conversationText) {
+    console.log('[MCPUIIntegrationService] 🔍 Extracting email context from:', conversationText);
+    
+    const context = {
+      recipients: '',
+      subject: '',
+      body: '',
+      cc: '',
+      bcc: ''
+    };
+
+    // Extract recipients (email addresses or "to" patterns)
+    const toPatterns = [
+      /(?:send.*?(?:email|message).*?to|email.*?to|write.*?to|send.*?to)\s+([^\n\.,]+)/gi,
+      /to:\s*([^\n\.,]+)/gi,
+      /recipient[s]?:\s*([^\n\.,]+)/gi
+    ];
+    
+    for (const pattern of toPatterns) {
+      const match = conversationText.match(pattern);
+      if (match && match[1]) {
+        context.recipients = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract subject 
+    const subjectPatterns = [
+      /subject:\s*([^\n]+)/gi,
+      /(?:with.*?subject|about)\s+["']?([^"'\n]+)["']?/gi,
+      /re:\s*([^\n]+)/gi
+    ];
+    
+    for (const pattern of subjectPatterns) {
+      const match = conversationText.match(pattern);
+      if (match && match[1]) {
+        context.subject = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract body content - look for email content in the conversation
+    const bodyPatterns = [
+      /(?:email.*?content|message.*?content|body|write):\s*["']?([^"'\n]{10,})["']?/gi,
+      /(?:say|tell.*?them|message):\s*["']?([^"'\n]{10,})["']?/gi,
+      /content:\s*([^\n]{10,})/gi
+    ];
+    
+    for (const pattern of bodyPatterns) {
+      const match = conversationText.match(pattern);
+      if (match && match[1]) {
+        context.body = match[1].trim();
+        break;
+      }
+    }
+
+    // If no specific body found, try to extract from the overall conversation context
+    if (!context.body) {
+      // Look for quoted text or content that seems like email body
+      const quotedContent = conversationText.match(/["']([^"']{20,})["']/);
+      if (quotedContent && quotedContent[1]) {
+        context.body = quotedContent[1].trim();
+      } else {
+        // Use a relevant portion of the conversation as body suggestion
+        const sentences = conversationText.split(/[.!?]+/).filter(s => s.trim().length > 10);
+        if (sentences.length > 0) {
+          context.body = sentences[0].trim() + (sentences.length > 1 ? '...' : '');
+        }
+      }
+    }
+
+    console.log('[MCPUIIntegrationService] 📧 Extracted email context:', context);
+    return context;
+  }
+
+  /**
    * Fallback intent detection for LLM failures
    */
   async fallbackIntentDetection(context, availableTools) {
@@ -491,19 +595,16 @@ Return [] if no high-confidence UI triggers are detected.`;
       context.message.toLowerCase().includes('compose email') ||
       context.message.toLowerCase().includes('write to')
     )) {
+      // Extract email context from the conversation
+      const emailContext = this.extractEmailContext(context.message + ' ' + (context.conversationHistory || ''));
+      
       actions.push({
         id: 'email-send',
         label: '📧 Send Email',
         type: 'email.send',
         confidence: 0.9,
         autoTrigger: true,
-        context: {
-          recipients: '', // Will be extracted by LLM if needed
-          subject: '', // Will be extracted by LLM if needed
-          body: '', // Will be extracted by LLM if needed
-          cc: '',
-          bcc: ''
-        }
+        context: emailContext
       });
     }
 
@@ -714,6 +815,7 @@ Return [] if no high-confidence UI triggers are detected.`;
    * Email Action Handlers
    */
   async createEmailSendAction(action, context) {
+    console.log('[MCPUIIntegrationService] 🔧 createEmailSendAction called with:', { action, context });
     try {
         const emailData = {
             to: context.recipients || '',
@@ -723,11 +825,12 @@ Return [] if no high-confidence UI triggers are detected.`;
             bcc: context.bcc || ''
         };
 
+        console.log('[MCPUIIntegrationService] 📧 Email data prepared:', emailData);
+
         // Generate email composer UI resource
         const resource = UIResourceGenerator.generateEmailComposer(emailData);
         
-        // Use inline form instead of modal for better theme integration
-        this.emit('ui-resource-ready', {
+        const uiResourcePayload = {
             actionId: action.id,
             serverId: 'paragon',
             tool: 'gmail.send',
@@ -743,52 +846,59 @@ Return [] if no high-confidence UI triggers are detected.`;
                 
                 if (tool === 'gmail.send') {
                     try {
-                        // Determine the full tool name with server prefix
-                        const activeServers = this.mcpClient.serverRegistry.getActiveServers();
-                        const serverName = activeServers[0]?.name || activeServers[0]?.serverName || 'paragon';
-                        const fullToolName = `${serverName}.GMAIL_SEND_EMAIL`;
-                        
-                        console.log('[MCPUIIntegrationService] Using tool:', fullToolName);
-                        console.log('[MCPUIIntegrationService] Active servers:', activeServers);
+                        console.log('[MCPUIIntegrationService] Using tool: gmail_send_email');
                         
                         // Handle both array and string formats for recipients
                         const toAddresses = Array.isArray(params.to) ? params.to : [params.to];
                         const ccAddresses = Array.isArray(params.cc) ? params.cc : (params.cc ? [params.cc] : []);
                         const bccAddresses = Array.isArray(params.bcc) ? params.bcc : (params.bcc ? [params.bcc] : []);
                         
-                        // Use correct Paragon API parameter names
+                        // Use simple Paragon API parameter format like other test files
                         const toolParams = {
-                            toRecipients: toAddresses.map(addr => ({ emailAddress: { address: addr } })),
-                            messageContent: {
-                                subject: params.subject,
-                                body: {
-                                    content: params.body,
-                                    contentType: 'text'
-                                }
-                            }
+                            user_id: 'default-user', // Required for all Paragon service calls
+                            to: toAddresses, // Paragon expects comma-separated string
+                            subject: params.subject,
+                            body: params.body
                         };
                         
                         // Add CC and BCC if present
                         if (ccAddresses.length > 0) {
-                            toolParams.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+                            toolParams.cc = ccAddresses;
                         }
                         if (bccAddresses.length > 0) {
-                            toolParams.bccRecipients = bccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+                            toolParams.bcc = bccAddresses;
                         }
                         
                         console.log('[MCPUIIntegrationService] Calling MCP tool with params:', toolParams);
                         
-                        const result = await this.mcpClient.callTool(fullToolName, toolParams);
+                        const result = await this.mcpClient.callTool('gmail_send_email', toolParams);
                         
                         console.log('[MCPUIIntegrationService] MCP tool result:', result);
                         
-                        // Check if the result contains an error
+                        // Parse and validate the response
                         if (result.content && result.content[0] && result.content[0].text) {
                             const responseText = result.content[0].text;
-                            if (responseText.includes('"error"')) {
-                                const errorData = JSON.parse(responseText);
-                                throw new Error(`Email sending failed: ${errorData.error}`);
+                            let responseData;
+                            
+                            try {
+                                responseData = JSON.parse(responseText);
+                            } catch (parseError) {
+                                throw new Error(`Invalid response format: ${responseText}`);
                             }
+                            
+                            if (responseData.success) {
+                                console.log('✅ Email sent successfully via Paragon!');
+                                return {
+                                    success: true,
+                                    message: `Email sent successfully to ${params.to}`,
+                                    data: responseData
+                                };
+                            } else {
+                                console.log('❌ Email sending failed:', responseData.error);
+                                throw new Error(`Email sending failed: ${responseData.error}`);
+                            }
+                        } else {
+                            throw new Error('No response content received from email service');
                         }
                         
                         return { success: true, result };
@@ -798,7 +908,12 @@ Return [] if no high-confidence UI triggers are detected.`;
                     }
                 }
             }
-        });
+        };
+        
+        console.log('[MCPUIIntegrationService] 📤 Emitting ui-resource-ready with payload:', JSON.stringify(uiResourcePayload, null, 2));
+        
+        // Use inline form instead of modal for better theme integration
+        this.emit('ui-resource-ready', uiResourcePayload);
 
         return { success: true, resourceId: resource.resource.uri };
     } catch (error) {

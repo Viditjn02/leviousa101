@@ -25,32 +25,32 @@ class UIResourceGenerator {
         <form id="email-form">
           <div class="form-group">
             <label for="to">To:</label>
-            <input type="email" id="to" name="to" value="${this._escapeHtml(to)}" 
+            <input type="email" id="to" name="to" value="${UIResourceGenerator._escapeHtml(to)}" 
                    placeholder="recipient@example.com" multiple required>
           </div>
           
           <div class="form-group">
             <label for="cc">CC:</label>
-            <input type="email" id="cc" name="cc" value="${this._escapeHtml(cc)}" 
+            <input type="email" id="cc" name="cc" value="${UIResourceGenerator._escapeHtml(cc)}" 
                    placeholder="cc@example.com" multiple>
           </div>
           
           <div class="form-group">
             <label for="bcc">BCC:</label>
-            <input type="email" id="bcc" name="bcc" value="${this._escapeHtml(bcc)}" 
+            <input type="email" id="bcc" name="bcc" value="${UIResourceGenerator._escapeHtml(bcc)}" 
                    placeholder="bcc@example.com" multiple>
           </div>
           
           <div class="form-group">
             <label for="subject">Subject:</label>
-            <input type="text" id="subject" name="subject" value="${this._escapeHtml(subject)}" 
+            <input type="text" id="subject" name="subject" value="${UIResourceGenerator._escapeHtml(subject)}" 
                    placeholder="Email subject" required>
           </div>
           
           <div class="form-group">
             <label for="body">Message:</label>
             <textarea id="body" name="body" rows="10" 
-                      placeholder="Type your message here..." required>${this._escapeHtml(body)}</textarea>
+                      placeholder="Type your message here..." required>${UIResourceGenerator._escapeHtml(body)}</textarea>
           </div>
           
           ${attachments.length > 0 ? `
@@ -58,7 +58,7 @@ class UIResourceGenerator {
               <label>Attachments:</label>
               <ul class="attachments-list">
                 ${attachments.map((att, i) => `
-                  <li>${this._escapeHtml(att.name)} 
+                  <li>${UIResourceGenerator._escapeHtml(att.name)} 
                     <button type="button" onclick="removeAttachment(${i})">Remove</button>
                   </li>
                 `).join('')}
@@ -178,19 +178,19 @@ class UIResourceGenerator {
         <form id="meeting-form">
           <div class="form-group">
             <label for="title">Meeting Title:</label>
-            <input type="text" id="title" name="title" value="${this._escapeHtml(title)}" 
+            <input type="text" id="title" name="title" value="${UIResourceGenerator._escapeHtml(title)}" 
                    placeholder="Meeting title" required>
           </div>
           
           <div class="form-group">
             <label for="description">Description:</label>
             <textarea id="description" name="description" rows="3" 
-                      placeholder="Meeting description">${this._escapeHtml(description)}</textarea>
+                      placeholder="Meeting description">${UIResourceGenerator._escapeHtml(description)}</textarea>
           </div>
           
           <div class="form-group">
             <label for="location">Location:</label>
-            <input type="text" id="location" name="location" value="${this._escapeHtml(location)}" 
+            <input type="text" id="location" name="location" value="${UIResourceGenerator._escapeHtml(location)}" 
                    placeholder="Meeting location or video link">
           </div>
           
@@ -349,10 +349,10 @@ class UIResourceGenerator {
     const html = `
       <div class="linkedin-profile-card">
         <div class="profile-header">
-          ${photo ? `<img src="${photo}" alt="${this._escapeHtml(name)}" class="profile-photo">` : ''}
+          ${photo ? `<img src="${photo}" alt="${UIResourceGenerator._escapeHtml(name)}" class="profile-photo">` : ''}
           <div class="profile-info">
-            <h2>${this._escapeHtml(name)}</h2>
-            <p class="headline">${this._escapeHtml(headline)}</p>
+            <h2>${UIResourceGenerator._escapeHtml(name)}</h2>
+            <p class="headline">${UIResourceGenerator._escapeHtml(headline)}</p>
             <div class="stats">
               <span>${connections} connections</span>
               <span>${followers} followers</span>
@@ -363,7 +363,7 @@ class UIResourceGenerator {
         ${about ? `
           <div class="section">
             <h3>About</h3>
-            <p>${this._escapeHtml(about)}</p>
+            <p>${UIResourceGenerator._escapeHtml(about)}</p>
           </div>
         ` : ''}
         
@@ -373,8 +373,8 @@ class UIResourceGenerator {
             <ul class="experience-list">
               ${experience.slice(0, 3).map(exp => `
                 <li>
-                  <strong>${this._escapeHtml(exp.title)}</strong>
-                  <br>${this._escapeHtml(exp.company)}
+                  <strong>${UIResourceGenerator._escapeHtml(exp.title)}</strong>
+                  <br>${UIResourceGenerator._escapeHtml(exp.company)}
                   <br><span class="date">${exp.startDate} - ${exp.endDate || 'Present'}</span>
                 </li>
               `).join('')}
@@ -387,7 +387,7 @@ class UIResourceGenerator {
             <h3>Skills</h3>
             <div class="skills-list">
               ${skills.slice(0, 6).map(skill => `
-                <span class="skill-tag">${this._escapeHtml(skill)}</span>
+                <span class="skill-tag">${UIResourceGenerator._escapeHtml(skill)}</span>
               `).join('')}
             </div>
           </div>
@@ -478,7 +478,7 @@ class UIResourceGenerator {
         <form id="notion-form">
           <div class="form-group">
             <label for="title">Page Title:</label>
-            <input type="text" id="title" name="title" value="${this._escapeHtml(title)}" 
+            <input type="text" id="title" name="title" value="${UIResourceGenerator._escapeHtml(title)}" 
                    placeholder="Enter page title" required>
           </div>
           
@@ -489,7 +489,7 @@ class UIResourceGenerator {
                 <option value="">Select workspace</option>
                 ${workspaces.map(ws => `
                   <option value="${ws.id}" ${ws.id === workspace ? 'selected' : ''}>
-                    ${this._escapeHtml(ws.name)}
+                    ${UIResourceGenerator._escapeHtml(ws.name)}
                   </option>
                 `).join('')}
               </select>
@@ -499,13 +499,13 @@ class UIResourceGenerator {
           <div class="form-group">
             <label for="parentPage">Parent Page (optional):</label>
             <input type="text" id="parentPage" name="parentPage" 
-                   value="${this._escapeHtml(parentPage)}" 
+                   value="${UIResourceGenerator._escapeHtml(parentPage)}" 
                    placeholder="Parent page URL or ID">
           </div>
           
           <div class="form-group">
             <label for="content">Content:</label>
-            <textarea id="content" name="content" rows="10" required>${this._escapeHtml(content)}</textarea>
+            <textarea id="content" name="content" rows="10" required>${UIResourceGenerator._escapeHtml(content)}</textarea>
           </div>
           
           <div class="form-group">

@@ -99,8 +99,8 @@ class MCPUIBridge extends EventEmitter {
     }
 
     try {
-      // Invoke the tool directly through the MCP client
-      const result = await this.mcpClient.invokeTool(tool, params);
+      // Invoke the tool directly through the MCP client using the correct method name
+      const result = await this.mcpClient.callTool(tool, params);
       return result;
     } catch (error) {
       console.error('MCPUIBridge: Error invoking MCP tool', error);

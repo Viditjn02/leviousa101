@@ -1179,10 +1179,15 @@ export class AskView extends LitElement {
             console.log('AskView: IPC 이벤트 리스너 등록 완료');
         }
         // Listen for MCP email UI resources
-        window.api?.mcp?.ui?.onResourceAvailable((event, data) => this.handleUIResource(data));
-        // Listen for inline UI resources (email form activation)
+        console.log('[AskView] 🔗 Setting up IPC listeners for UI resources...');
+        console.log('[AskView] 🔍 window.api availability:', !!window.api);
+        console.log('[AskView] 🔍 window.api.mcp availability:', !!window.api?.mcp);
+        console.log('[AskView] 🔍 window.api.mcp.ui availability:', !!window.api?.mcp?.ui);
+        console.log('[AskView] 🔍 window.api.mcp.ui.onResourceAvailable availability:', !!window.api?.mcp?.ui?.onResourceAvailable);
+        
         window.api?.mcp?.ui?.onResourceAvailable((event, data) => {
-            this.handleUIResource(data);
+          console.log('[AskView] 📥 IPC event received: mcp:ui-resource-available');
+          this.handleUIResource(data);
         });
     }
 
@@ -1682,6 +1687,17 @@ export class AskView extends LitElement {
         }
 
         try {
+            // Check if this is an email action that should suppress the AI response
+            if (action.type === 'email.send' || action.label?.includes('Email') || action.id?.includes('email')) {
+                console.log('[AskView] 📧 Email action detected, suppressing AI response and showing composer...');
+                
+                // Replace the AI response with a brief message about opening the email composer
+                this.currentResponse = `📧 Opening email composer...`;
+                this.isStreaming = false;
+                this.isLoading = false;
+                this.requestUpdate();
+            }
+            
             // Execute the action through MCP UI Integration
             const result = await window.api.mcp.executeAction(action.id, {
                 ...action.metadata,
@@ -1986,10 +2002,12 @@ export class AskView extends LitElement {
 
     /** Handle incoming UI resource events */
     handleUIResource(data) {
-      console.log('[AskView] handleUIResource called with:', data);
+      console.log('[AskView] 🔍 handleUIResource called with full data:', JSON.stringify(data, null, 2));
       
       if (data.tool === 'gmail.send' && data.context) {
-        console.log('[AskView] Email context received:', data.context);
+        console.log('[AskView] ✅ Email context received:', data.context);
+        // Store the incoming UI tool for dynamic invocation
+        this.emailTool = data.tool;
         
         this.emailData = {
           to: data.context.recipients || '',
@@ -1999,15 +2017,20 @@ export class AskView extends LitElement {
           bcc: data.context.bcc || ''
         };
         
-        console.log('[AskView] Setting emailData:', this.emailData);
+        console.log('[AskView] 📝 Setting emailData:', this.emailData);
+        console.log('[AskView] 🎯 Setting showEmailForm to true, was:', this.showEmailForm);
         
         this.showEmailForm = true;
         this.requestUpdate();
         
         // Adjust window height to accommodate the email form
         this.adjustWindowHeightThrottled();
+        
+        console.log('[AskView] ✅ Email form should now be visible');
       } else {
-        console.log('[AskView] UI resource not handled - tool:', data.tool, 'hasContext:', !!data.context);
+        console.log('[AskView] ❌ UI resource not handled - tool:', data.tool, 'hasContext:', !!data.context);
+        console.log('[AskView] ❌ Expected tool: gmail.send, received:', data.tool);
+        console.log('[AskView] ❌ Has context:', !!data.context);
       }
     }
 
@@ -2022,20 +2045,46 @@ export class AskView extends LitElement {
     try {
       console.log('[AskView] Attempting to send email via Paragon MCP...');
       
-      // Use the correct Gmail tool name from Paragon MCP
-      const toolName = 'gmail_send_email';
+      // Dynamically find the correct email send tool name
+      const emailToolName = await this.getEmailSendToolName();
+      if (!emailToolName) {
+        throw new Error('No email send tool found');
+      }
       
-      const result = await window.api.mcp.callTool(toolName, {
-        toRecipients: [{ emailAddress: { address: to } }],
-        from: { emailAddress: { address: 'user@gmail.com' } }, // Will use authenticated user's email
-        messageContent: {
+      // Invoke the Paragon email send tool via MCP UI dynamically
+      const actionData = {
+        serverId: 'paragon',
+        tool: emailToolName,
+        params: {
+          to: Array.isArray(to) ? to : [to],
           subject: subject,
-          body: {
-            content: body,
-            contentType: 'text'
-          }
+          body: body,
+          // user_id will be added dynamically below
         }
-      });
+      };
+
+      // Only add cc and bcc if they have values (Gmail API rejects empty strings)
+      if (cc && cc.trim()) {
+        actionData.params.cc = cc;
+      }
+      if (bcc && bcc.trim()) {
+        actionData.params.bcc = bcc;
+      }
+      // Dynamically fetch the authenticated Paragon user_id
+      try {
+        const userState = await window.api.common.getCurrentUser();
+        if (userState && userState.uid) {
+          actionData.params.user_id = userState.uid;
+        } else {
+          console.warn('[AskView] No authenticated user found - using fallback default-user');
+          actionData.params.user_id = 'default-user';
+        }
+      } catch (uidErr) {
+        console.warn('[AskView] Failed to fetch current user for user_id:', uidErr);
+        actionData.params.user_id = 'default-user';
+      }
+
+      const result = await window.api.mcp.ui.invokeAction(actionData);
       
       if (result && result.success) {
         console.log('[AskView] Email sent successfully via Paragon');
@@ -2077,6 +2126,52 @@ export class AskView extends LitElement {
     this.requestUpdate();
   }
   
+  /** Get the actual email send tool name dynamically */
+  async getEmailSendToolName() {
+    try {
+      const result = await window.api.mcp.getAvailableTools();
+      if (result && result.success && result.tools) {
+        // Look for email send tools in order of preference
+        const emailSendPatterns = [
+          'gmail_send_email',     // Paragon Gmail
+          'send_gmail_message',   // Google Workspace MCP
+          'email_send',           // Generic email send
+          'send_email'            // Alternative generic
+        ];
+        
+        for (const pattern of emailSendPatterns) {
+          const tool = result.tools.find(t => t.name === pattern);
+          if (tool) {
+            console.log(`[AskView] Found email send tool: ${tool.name}`);
+            return tool.name;
+          }
+        }
+        
+        // Fallback: search for any tool with 'send' and 'email' in name or description
+        const emailTool = result.tools.find(tool => {
+          const name = tool.name.toLowerCase();
+          const desc = (tool.description || '').toLowerCase();
+          return (name.includes('send') && (name.includes('email') || name.includes('gmail'))) ||
+                 (desc.includes('send') && desc.includes('email'));
+        });
+        
+        if (emailTool) {
+          console.log(`[AskView] Found fallback email tool: ${emailTool.name}`);
+          return emailTool.name;
+        }
+        
+        console.warn('[AskView] No email send tool found in available tools');
+        return null;
+      } else {
+        console.log('[AskView] Failed to get tools:', result.error);
+        return null;
+      }
+    } catch (error) {
+      console.error('[AskView] Error getting email send tool:', error);
+      return null;
+    }
+  }
+
   /** Debug: Check available MCP tools */
   async checkAvailableTools() {
     try {
