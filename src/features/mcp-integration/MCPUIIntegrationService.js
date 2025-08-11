@@ -195,6 +195,21 @@ Return JSON array with detected actions.`;
    * Build system prompt that describes MCP capabilities
    */
   async buildMCPCapabilitiesPrompt(availableTools, context) {
+    // Get current user's name from Firebase auth for personalized content
+    let userName = '[Your name]'; // fallback
+    try {
+      const authService = require('../common/services/authService');
+      const currentUser = authService.getCurrentUser();
+      if (currentUser && currentUser.displayName) {
+        userName = currentUser.displayName;
+      } else if (currentUser && currentUser.email) {
+        // Use email name part if displayName not available
+        userName = currentUser.email.split('@')[0];
+      }
+    } catch (error) {
+      console.warn('[MCPUIIntegrationService] Could not get user name:', error);
+    }
+    
     // Get dynamic capabilities from OAuth registry instead of hardcoded ones
     const dynamicCapabilities = await this.getDynamicCapabilities(availableTools);
     
@@ -245,7 +260,7 @@ Example email action response:
   "context": {
     "recipients": "john@example.com",
     "subject": "Meeting Follow-up", 
-    "body": "Hi John, Thanks for the great meeting today. I wanted to follow up on the action items we discussed...",
+    "body": "Hi John, Thanks for the great meeting today. I wanted to follow up on the action items we discussed...\\n\\nBest regards,\\n${userName}",
     "cc": "",
     "bcc": ""
   }
@@ -274,7 +289,9 @@ Return a JSON array of actions with this structure:
 ]
 
 Only include actions with confidence > 0.8 and autoTrigger: true for immediate UI display.
-Return [] if no high-confidence UI triggers are detected.`;
+Return [] if no high-confidence UI triggers are detected.
+
+IMPORTANT: When generating email content, use "${userName}" as the sender name instead of "[Your name]" placeholder.`;
   }
 
   /**
@@ -812,6 +829,25 @@ Return [] if no high-confidence UI triggers are detected.`;
   }
 
   /**
+   * Smart encoding for email fields to handle special characters
+   * Like the working Paragon branch implementation
+   */
+  _encodeEmailField(text) {
+    if (!text) return '';
+    
+    // Handle common encoding issues that were smartly handled in Paragon branch
+    return text
+      .replace(/&/g, '&amp;')          // Encode ampersands
+      .replace(/</g, '&lt;')           // Encode less than
+      .replace(/>/g, '&gt;')           // Encode greater than
+      .replace(/"/g, '&quot;')         // Encode quotes
+      .replace(/'/g, '&#39;')          // Encode single quotes
+      .replace(/\n/g, '\\n')           // Encode newlines for JSON
+      .replace(/\r/g, '\\r')           // Encode carriage returns
+      .replace(/\t/g, '\\t');          // Encode tabs
+  }
+
+  /**
    * Email Action Handlers
    */
   async createEmailSendAction(action, context) {
@@ -846,59 +882,59 @@ Return [] if no high-confidence UI triggers are detected.`;
                 
                 if (tool === 'gmail.send') {
                     try {
-                        console.log('[MCPUIIntegrationService] Using tool: gmail_send_email');
+                        // Determine the full tool name with server prefix (like working Paragon branch)
+                        const activeServers = this.mcpClient.serverRegistry.getActiveServers();
+                        const serverName = activeServers[0]?.name || activeServers[0]?.serverName || 'paragon';
+                        const fullToolName = `${serverName}.GMAIL_SEND_EMAIL`;
+                        
+                        console.log('[MCPUIIntegrationService] Using tool:', fullToolName);
+                        console.log('[MCPUIIntegrationService] Active servers:', activeServers);
                         
                         // Handle both array and string formats for recipients
                         const toAddresses = Array.isArray(params.to) ? params.to : [params.to];
                         const ccAddresses = Array.isArray(params.cc) ? params.cc : (params.cc ? [params.cc] : []);
                         const bccAddresses = Array.isArray(params.bcc) ? params.bcc : (params.bcc ? [params.bcc] : []);
                         
-                        // Use simple Paragon API parameter format like other test files
+                        console.log('[MCPUIIntegrationService] 📤 Raw params received from UI:', JSON.stringify(params, null, 2));
+                        console.log('[MCPUIIntegrationService] 📤 toAddresses:', toAddresses);
+                        console.log('[MCPUIIntegrationService] 📤 Subject:', params.subject);
+                        console.log('[MCPUIIntegrationService] 📤 Body:', params.body);
+                        console.log('[MCPUIIntegrationService] 📤 Body length:', (params.body || '').length);
+                        
+                        // Use correct Microsoft Graph API parameter format (like working Paragon branch)
                         const toolParams = {
-                            user_id: 'default-user', // Required for all Paragon service calls
-                            to: toAddresses, // Paragon expects comma-separated string
-                            subject: params.subject,
-                            body: params.body
+                            toRecipients: toAddresses.map(addr => ({ emailAddress: { address: addr } })),
+                            messageContent: {
+                                subject: params.subject,
+                                body: {
+                                    content: params.body,
+                                    contentType: 'text'
+                                }
+                            }
                         };
                         
                         // Add CC and BCC if present
                         if (ccAddresses.length > 0) {
-                            toolParams.cc = ccAddresses;
+                            toolParams.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
                         }
                         if (bccAddresses.length > 0) {
-                            toolParams.bcc = bccAddresses;
+                            toolParams.bccRecipients = bccAddresses.map(addr => ({ emailAddress: { address: addr } }));
                         }
                         
-                        console.log('[MCPUIIntegrationService] Calling MCP tool with params:', toolParams);
+                        console.log('[MCPUIIntegrationService] 📤 Final toolParams being sent to MCP:', JSON.stringify(toolParams, null, 2));
                         
-                        const result = await this.mcpClient.callTool('gmail_send_email', toolParams);
+                        // Call MCP tool directly (like working Paragon branch)
+                        const result = await this.mcpClient.callTool(fullToolName, toolParams);
                         
                         console.log('[MCPUIIntegrationService] MCP tool result:', result);
                         
-                        // Parse and validate the response
+                        // Check if the result contains an error (like working Paragon branch)
                         if (result.content && result.content[0] && result.content[0].text) {
                             const responseText = result.content[0].text;
-                            let responseData;
-                            
-                            try {
-                                responseData = JSON.parse(responseText);
-                            } catch (parseError) {
-                                throw new Error(`Invalid response format: ${responseText}`);
+                            if (responseText.includes('"error"')) {
+                                const errorData = JSON.parse(responseText);
+                                throw new Error(`Email sending failed: ${errorData.error}`);
                             }
-                            
-                            if (responseData.success) {
-                                console.log('✅ Email sent successfully via Paragon!');
-                                return {
-                                    success: true,
-                                    message: `Email sent successfully to ${params.to}`,
-                                    data: responseData
-                                };
-                            } else {
-                                console.log('❌ Email sending failed:', responseData.error);
-                                throw new Error(`Email sending failed: ${responseData.error}`);
-                            }
-                        } else {
-                            throw new Error('No response content received from email service');
                         }
                         
                         return { success: true, result };

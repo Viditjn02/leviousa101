@@ -16,7 +16,18 @@ function initializeParagonBridge() {
             // Open integrations flow in-app to allow CSP patching
             const { BrowserWindow, session } = require('electron');
             const path = require('path');
-            const authUrl = `http://localhost:3000/integrations?service=${service}&action=connect`;
+            
+            // Get current user ID for the integrations page
+            const authService = require('../common/services/authService');
+            const userId = authService.getCurrentUserId() || 'default-user';
+            
+            // Determine web URL based on environment: use localhost in development, else the configured web URL
+            const webUrl = process.env.NODE_ENV === 'development'
+              ? 'http://localhost:3000'
+              : (process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app');
+            // Include userId for context if available
+            const params = new URLSearchParams({ service, action: 'connect', ...(userId ? { userId } : {}) });
+            const authUrl = `${webUrl}/integrations?${params.toString()}`;
             console.log(`[ParagonBridge] 🌐 Opening working Paragon integration in-window: ${authUrl}`);
             const connectWin = new BrowserWindow({
               width: 1200,

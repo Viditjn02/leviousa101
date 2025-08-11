@@ -3,6 +3,7 @@ import { paragon, AuthenticatedConnectUser, SDK_EVENT } from '@useparagon/connec
 
 import { generateParagonToken, clearExpiredTokens } from '../utils/paragonTokenGenerator';
 import { authPersistenceReady } from '../utils/firebase';
+import { paragonAuthStorage } from '../utils/paragonAuthStorage';
 
 /**
  * Hook for Paragon authentication
@@ -49,13 +50,18 @@ export default function useParagonAuth(userId?: string): {
       .finally(() => setIsLoading(false));
   }, [userId]);
 
-  // Listen for account state changes
+  // Listen for account state changes and persist them
   useEffect(() => {
     const listener = () => {
       if (paragon) {
         const authedUser = paragon.getUser();
         if (authedUser.authenticated) {
           setUser(authedUser);
+          
+          // Persist the authentication state
+          if (userId && authedUser.integrations) {
+            paragonAuthStorage.updateUserAuth(userId, authedUser.integrations);
+          }
         }
       }
     };
@@ -69,7 +75,7 @@ export default function useParagonAuth(userId?: string): {
         paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
       };
     }
-  }, []);
+  }, [userId]);
 
   // Authenticate when token is available
   useEffect(() => {
@@ -86,11 +92,33 @@ export default function useParagonAuth(userId?: string): {
           const authedUser = paragon.getUser();
           if (authedUser.authenticated) {
             setUser(authedUser);
+            
+            // Persist the authentication state
+            if (userId && authedUser.integrations) {
+              paragonAuthStorage.updateUserAuth(userId, authedUser.integrations);
+            }
           }
         })
         .catch(setError);
     }
-  }, [token, error]);
+  }, [token, error, userId]);
+
+  // Check for persisted auth state on mount
+  useEffect(() => {
+    if (userId) {
+      const persistedAuth = paragonAuthStorage.getUserAuth(userId);
+      if (persistedAuth && persistedAuth.integrations) {
+        console.log('[useParagonAuth] Found persisted auth state for user:', userId);
+        console.log('[useParagonAuth] Connected integrations:', 
+          paragonAuthStorage.getConnectedIntegrations(userId));
+        
+        // If we need to refresh, trigger it
+        if (paragonAuthStorage.needsRefresh()) {
+          console.log('[useParagonAuth] Auth state needs refresh, will refresh after authentication');
+        }
+      }
+    }
+  }, [userId]);
 
   return { user, error, isLoading };
 }

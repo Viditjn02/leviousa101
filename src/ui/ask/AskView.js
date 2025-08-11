@@ -2044,12 +2044,17 @@ export class AskView extends LitElement {
     
     try {
       console.log('[AskView] Attempting to send email via Paragon MCP...');
+      console.log('[AskView] 📧 Email data from UI form:', { to, subject, body, cc, bcc });
+      console.log('[AskView] 📧 Body length from UI:', (body || '').length);
+      console.log('[AskView] 📧 Body content preview:', (body || '').substring(0, 100));
       
       // Dynamically find the correct email send tool name
       const emailToolName = await this.getEmailSendToolName();
       if (!emailToolName) {
         throw new Error('No email send tool found');
       }
+      
+      console.log('[AskView] 📧 Using email tool:', emailToolName);
       
       // Invoke the Paragon email send tool via MCP UI dynamically
       const actionData = {
@@ -2084,6 +2089,8 @@ export class AskView extends LitElement {
         actionData.params.user_id = 'default-user';
       }
 
+      console.log('[AskView] 📧 Final actionData being sent to MCP API:', JSON.stringify(actionData, null, 2));
+      
       const result = await window.api.mcp.ui.invokeAction(actionData);
       
       if (result && result.success) {

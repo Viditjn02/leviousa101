@@ -17,9 +17,7 @@ export default function useParagonGlobal() {
         try {
           if (!(paragon as any)._configuredElectron) {
             paragon.configureGlobal({
-              host: 'useparagon.com',
-              apiHost: 'https://api.useparagon.com',
-              connectHost: 'https://connect.useparagon.com'
+              host: 'useparagon.com'
             });
             (paragon as any)._configuredElectron = true;
             console.log('[ParagonSDK] configureGlobal applied for Electron runtime');

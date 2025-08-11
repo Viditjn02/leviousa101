@@ -9,12 +9,16 @@ const tokenCache = new Map<string, { token: string; expiry: number }>();
 // Function to clear expired tokens from cache
 export function clearExpiredTokens(): void {
   const now = Date.now();
-  for (const [key, value] of tokenCache.entries()) {
+  const entriesToDelete: string[] = [];
+  
+  tokenCache.forEach((value, key) => {
     if (value.expiry <= now) {
       console.log('🗑️ [ParagonTokenGenerator] Clearing expired token for', key);
-      tokenCache.delete(key);
+      entriesToDelete.push(key);
     }
-  }
+  });
+  
+  entriesToDelete.forEach(key => tokenCache.delete(key));
 }
 
 // Function to force clear all tokens (useful for debugging)
@@ -58,16 +62,16 @@ export async function generateParagonToken(userId?: string): Promise<string> {
       sub: userId || 'demo-user',
       aud: `useparagon.com/${projectId}`,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600,
+      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 3600), // 7 days for production
       demo: true
     }));
     
     const token = `${header}.${payload}.demo-signature`;
     
-    // Cache the token (expires in 50 minutes)
+    // Cache the token (expires in 6 days to account for 7-day token)
     tokenCache.set(cacheKey, {
       token,
-      expiry: Date.now() + (50 * 60 * 1000)
+      expiry: Date.now() + (6 * 24 * 60 * 60 * 1000)
     });
     
     return token;
@@ -86,10 +90,10 @@ export async function generateParagonToken(userId?: string): Promise<string> {
       throw new Error('No user token received from API');
     }
     
-    // Cache the token (expires in 50 minutes)
+    // Cache the token (expires in 23 hours for development, accounting for 24-hour server token)
     tokenCache.set(cacheKey, {
       token: data.userToken,
-      expiry: Date.now() + (50 * 60 * 1000)
+      expiry: Date.now() + (23 * 60 * 60 * 1000)
     });
     
     return data.userToken;

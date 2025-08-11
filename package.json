@@ -7,7 +7,9 @@
     "scripts": {
         "setup": "npm install && cd leviousa_web && npm install && npm run build && cd .. && npm start",
         "start": "npm run build:renderer && electron .",
-        "dev": "npm run build:renderer && echo '\n🔥 Starting Electron app with Firebase hosting...\n' && echo '📋 Frontend served from: https://leviousa-101.web.app\n  API served from: http://localhost:9001\n' && electron .",
+        "dev": "npm run start:with-web",
+        "start:with-web": "npm run build:renderer && npm run start:web-and-electron",
+        "start:web-and-electron": "node scripts/start-with-web.js",
         "package": "npm run build:all && electron-builder --dir",
         "make": "npm run build:renderer && electron-forge make",
         "build": "npm run build:all && electron-builder --config electron-builder.yml --publish never",

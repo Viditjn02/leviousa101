@@ -605,10 +605,11 @@ class AskService {
                                     
                                     // Modify response for email composer
                                     if (uiResult.autoTriggeredTypes.includes('email.send')) {
-                                        console.log('[AskService] 🎯 Modifying response for email composer');
+                                        console.log('[AskService] 🎯 Email composer triggered - suppressing AI response');
                                         console.log('[AskService] 🔄 Original responseText length:', responseText.length);
-                                        responseText = "I've prepared an email composer for you below. Please review the pre-filled information and click 'Send Email' when ready.";
-                                        console.log('[AskService] ✅ New responseText:', responseText);
+                                        // Clean response for email composer - no generic AI text like in Paragon branch
+                                        responseText = "";
+                                        console.log('[AskService] ✅ Suppressed AI response for clean email UI');
                                         didUIOverride = true;
                                     }
                                 } else if (Array.isArray(uiResult) && uiResult.length > 0) {
@@ -637,8 +638,14 @@ class AskService {
                         // Update conversation session with this exchange
                         this.updateConversationSession(sessionId, userPrompt, questionType, responseText);
                         
-                        // Stream the MCP answer to maintain UI consistency
-                        await this._streamMCPAnswer(mcpAnswer, sessionId);
+                        // Only stream the MCP answer if UI did not override
+                        if (!didUIOverride) {
+                            // Stream the MCP answer to maintain UI consistency
+                            await this._streamMCPAnswer(mcpAnswer, sessionId);
+                        } else {
+                            // UI overrode the response, stream the empty/custom response instead
+                            await this._streamMCPAnswer(responseText, sessionId);
+                        }
                         return { success: true };
                     } else {
                         console.log('[AskService] MCP: No answer generated, falling back to standard');

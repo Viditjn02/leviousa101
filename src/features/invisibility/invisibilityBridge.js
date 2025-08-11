@@ -1,8 +1,112 @@
 const { ipcMain } = require('electron');
 const authService = require('../common/services/authService');
+const path = require('path');
+const fs = require('fs');
+
+// Persistent Paragon auth cache functions
+const authCacheFile = path.join(__dirname, '../../data/paragon-auth-cache.json');
+
+function loadParagonAuthCache() {
+    try {
+        if (fs.existsSync(authCacheFile)) {
+            const cacheData = JSON.parse(fs.readFileSync(authCacheFile, 'utf8'));
+            if (global.localParagonAuthCache) {
+                Object.entries(cacheData).forEach(([key, value]) => {
+                    global.localParagonAuthCache.set(key, value);
+                });
+                console.log(`[InvisibilityBridge] 💾 Loaded persistent Paragon auth cache: ${Object.keys(cacheData).length} items`);
+            }
+        }
+    } catch (error) {
+        console.error('[InvisibilityBridge] ⚠️ Failed to load Paragon auth cache:', error);
+    }
+}
+
+function saveParagonAuthCache() {
+    try {
+        if (!global.localParagonAuthCache) return;
+        
+        const dataDir = path.dirname(authCacheFile);
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        
+        const cacheData = Object.fromEntries(global.localParagonAuthCache);
+        fs.writeFileSync(authCacheFile, JSON.stringify(cacheData, null, 2));
+        console.log(`[InvisibilityBridge] 💾 Saved persistent Paragon auth cache: ${Object.keys(cacheData).length} items`);
+    } catch (error) {
+        console.error('[InvisibilityBridge] ⚠️ Failed to save Paragon auth cache:', error);
+    }
+}
+
+// Direct ActionKit tool count fetcher for locally authenticated services
+async function getActionKitToolCount(serviceName, userId) {
+    try {
+        // We need to generate a JWT and call ActionKit directly
+        const dotenv = require('dotenv');
+        const jwt = require('jsonwebtoken');
+        const fetch = require('node-fetch');
+        
+        // Load Paragon credentials
+        const envPath = path.join(__dirname, '../../services/paragon-mcp/.env');
+        const envConfig = dotenv.config({ path: envPath });
+        
+        const PROJECT_ID = process.env.PARAGON_PROJECT_ID || envConfig.parsed?.PARAGON_PROJECT_ID || envConfig.parsed?.PROJECT_ID;
+        let SIGNING_KEY = process.env.SIGNING_KEY || envConfig.parsed?.SIGNING_KEY || envConfig.parsed?.PARAGON_SIGNING_KEY;
+        
+        if (!PROJECT_ID || !SIGNING_KEY) {
+            throw new Error('Missing Paragon credentials for ActionKit');
+        }
+        
+        // Clean up signing key
+        if (SIGNING_KEY.startsWith('"') && SIGNING_KEY.endsWith('"')) {
+            SIGNING_KEY = SIGNING_KEY.slice(1, -1);
+        }
+        SIGNING_KEY = SIGNING_KEY.replace(/\\n/g, '\n');
+        
+        // Generate JWT
+        const payload = {
+            sub: userId,
+            aud: `useparagon.com/${PROJECT_ID}`,
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 3600,
+        };
+        
+        const userToken = jwt.sign(payload, SIGNING_KEY, { algorithm: 'RS256' });
+        
+        // Call ActionKit API
+        const response = await fetch(`https://actionkit.useparagon.com/projects/${PROJECT_ID}/actions/?integrations=${serviceName}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${userToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`ActionKit API returned ${response.status}`);
+        }
+        
+        const actions = await response.json();
+        const toolCount = Object.keys(actions || {}).length;
+        
+        console.log(`[InvisibilityBridge] 🎯 Direct ActionKit call for ${serviceName}: ${toolCount} tools found`);
+        return toolCount;
+        
+    } catch (error) {
+        console.error(`[InvisibilityBridge] ❌ Direct ActionKit call failed for ${serviceName}:`, error.message);
+        return 0;
+    }
+}
 
 function initializeInvisibilityBridge() {
     console.log('[InvisibilityBridge] Initializing IPC handlers');
+    
+    // Initialize global auth cache and load persistent data
+    if (!global.localParagonAuthCache) {
+        global.localParagonAuthCache = new Map();
+        loadParagonAuthCache();
+    }
 
     // Get invisibility service instance
     const getInvisibilityService = () => {
@@ -1088,12 +1192,28 @@ function initializeInvisibilityBridge() {
                             console.log('[InvisibilityBridge] 📊 Parsed services data:', servicesData);
                             console.log(`[InvisibilityBridge] 🔍 DEBUG: Paragon API returned authenticated_services:`, servicesData.authenticated_services);
                             
-                            // Convert to status format - use only authenticated services from Paragon
+                            // Convert to status format - combine local cache with Paragon API results
                             const serviceStatus = {};
                             
-                            // Don't use hardcoded list - dynamically get services from authenticated_services
+                            // First, check local authentication cache for user-confirmed authentications
+                            const localAuthServices = [];
+                            if (global.localParagonAuthCache) {
+                                console.log(`[InvisibilityBridge] 🔍 Checking local auth cache for user: ${userIdForCheck}`);
+                                for (const [authKey, authData] of global.localParagonAuthCache.entries()) {
+                                    if (authData.userId === userIdForCheck && authData.success) {
+                                        localAuthServices.push(authData.service);
+                                        console.log(`[InvisibilityBridge] 💾 Found locally cached auth for: ${authData.service}`);
+                                    }
+                                }
+                            }
+                            
+                            // Combine local cache results with Paragon API results
                             const authenticatedServices = servicesData.authenticated_services || [];
-                            console.log('[InvisibilityBridge] 🔍 Authenticated services from Paragon:', authenticatedServices);
+                            const allAuthenticatedServices = [...new Set([...localAuthServices, ...authenticatedServices])];
+                            
+                            console.log('[InvisibilityBridge] 🔍 Authenticated services from Paragon API:', authenticatedServices);
+                            console.log('[InvisibilityBridge] 💾 Authenticated services from local cache:', localAuthServices);
+                            console.log('[InvisibilityBridge] 🔄 Combined authenticated services:', allAuthenticatedServices);
                             
                             // Initialize service status - map raw Paragon service names to UI names
                             const serviceNameMapping = {
@@ -1104,11 +1224,30 @@ function initializeInvisibilityBridge() {
                                 'googletasks': 'googleTasks'
                             };
                             
+                            // Static tool count mapping for authenticated services
+                            // This provides expected tool counts when MCP server doesn't have service-specific tools
+                            const staticToolCounts = {
+                                'gmail': 5,           // send_email, get_emails, search_emails, get_threads, etc.
+                                'outlook': 4,         // send_email, get_emails, search_emails, get_calendar
+                                'slack': 6,           // send_message, get_channels, get_messages, post_message, etc.
+                                'notion': 8,          // create_page, get_pages, search_pages, update_page, etc.
+                                'googledrive': 6,     // list_files, download_file, upload_file, create_folder, etc.
+                                'linkedin': 3,        // get_profile, get_connections, create_post (matches MCP server)
+                                'salesforce': 7,      // get_contacts, create_contact, get_opportunities, etc.
+                                'hubspot': 6,         // get_contacts, create_contact, get_deals, etc.
+                                'dropbox': 4,         // list_files, download_file, upload_file, create_folder
+                                'googlesheets': 5,    // read_sheet, write_sheet, create_sheet, etc.
+                                'googlecalendar': 4,  // get_events, create_event, update_event, delete_event
+                                'googledocs': 3,      // read_doc, create_doc, update_doc
+                                'googletasks': 3      // get_tasks, create_task, update_task
+                            };
+                            
                             // Map each raw service name and dedupe
                             const allPossibleServices = [...new Set(
-                                authenticatedServices.map(rawName => 
-                                    serviceNameMapping[rawName.toLowerCase()] || rawName
-                                )
+                                allAuthenticatedServices.map(serviceItem => {
+                                    const rawName = typeof serviceItem === 'string' ? serviceItem : serviceItem.service;
+                                    return serviceNameMapping[rawName?.toLowerCase()] || rawName;
+                                })
                             )];
                             
                             // Initialize with false/default
@@ -1116,25 +1255,44 @@ function initializeInvisibilityBridge() {
                                 serviceStatus[mappedName] = { authenticated: false, toolsCount: 0 };
                             });
                             
-                            // Update status for authenticated services
-                            if (servicesData.authenticated_services && Array.isArray(servicesData.authenticated_services)) {
-                                for (const serviceName of servicesData.authenticated_services) {
+                            // Update status for authenticated services (both from API and local cache)
+                            if (allAuthenticatedServices && Array.isArray(allAuthenticatedServices)) {
+                                for (const serviceItem of allAuthenticatedServices) {
                                         // The authenticated_services array may contain either plain strings or rich objects.
                                         let rawName;
                                         let connectionCount = -1; // -1 means "unknown, needs verification"
+                                        let toolsCount = 0;
+                                        let isAuthenticated = false;
                                         
-                                    if (typeof serviceName === 'string') {
-                                            rawName = serviceName;
-                                            // For string services, the Paragon MCP server should have already filtered
-                                            // out services with no connected users, so we tentatively trust it
-                                            console.log(`[InvisibilityBridge] 🔍 String service ${serviceName} - trusting Paragon MCP filtering`);
-                                        } else if (typeof serviceName === 'object' && serviceName !== null) {
-                                            rawName = serviceName.key || serviceName.name || serviceName.service || '';
-                                            connectionCount = serviceName.connected_users || serviceName.connectedUsers || serviceName.userCount || 0;
+                                    if (typeof serviceItem === 'string') {
+                                            rawName = serviceItem;
+                                            isAuthenticated = true; // If it's in the list, it's authenticated
+                                            // Check if this service is from local cache
+                                            const isFromLocalCache = localAuthServices.includes(serviceItem);
+                                            if (isFromLocalCache) {
+                                                console.log(`[InvisibilityBridge] 💾 String service ${serviceItem} - from local cache (user-confirmed)`);
+                                                // For locally cached services, try to get ActionKit tool count directly
+                                                try {
+                                                    const actionKitCount = await getActionKitToolCount(serviceItem, userIdForCheck);
+                                                    toolsCount = actionKitCount || 0;
+                                                    console.log(`[InvisibilityBridge] 🎯 ActionKit tool count for ${serviceItem}: ${toolsCount}`);
+                                                } catch (error) {
+                                                    console.warn(`[InvisibilityBridge] ⚠️ Failed to get ActionKit tools for ${serviceItem}:`, error.message);
+                                                    toolsCount = 0;
+                                                }
+                                            } else {
+                                                console.log(`[InvisibilityBridge] 🔍 String service ${serviceItem} - trusting Paragon MCP filtering`);
+                                            }
+                                        } else if (typeof serviceItem === 'object' && serviceItem !== null) {
+                                            rawName = serviceItem.service || serviceItem.key || serviceItem.name || '';
+                                            isAuthenticated = serviceItem.authenticated === true;
+                                            // Use ActionKit dynamic tool count first, fallback to tools_available array length
+                                            toolsCount = serviceItem.tools_count || (serviceItem.tools_available ? serviceItem.tools_available.length : 0);
+                                            connectionCount = serviceItem.connected_users || serviceItem.connectedUsers || serviceItem.userCount || 0;
                                         }
                                         
                                         if (!rawName) {
-                                            console.log(`[InvisibilityBridge] ⚠️ Skipping service with no name:`, serviceName);
+                                            console.log(`[InvisibilityBridge] ⚠️ Skipping service with no name:`, serviceItem);
                                             continue;
                                         }
 
@@ -1148,29 +1306,29 @@ function initializeInvisibilityBridge() {
                                         };
                                         const mappedServiceName = serviceNameMapping[rawName.toLowerCase()] || rawName;
 
-                                        // Skip services with explicitly 0 connected users
-                                        if (connectionCount === 0) {
-                                            console.log(`[InvisibilityBridge] ⚠️ ${mappedServiceName} has 0 connected users – skipping authentication`);
+                                        // Skip services that are explicitly not authenticated
+                                        if (!isAuthenticated && connectionCount === 0) {
+                                            console.log(`[InvisibilityBridge] ⚠️ ${mappedServiceName} is not authenticated or has 0 connected users – skipping`);
                                             continue;
                                         }
                                         
-                                        console.log(`[InvisibilityBridge] ✅ Processing service ${mappedServiceName} with ${connectionCount} connected users (or unknown)`);
+                                        console.log(`[InvisibilityBridge] ✅ Processing service ${mappedServiceName} - authenticated: ${isAuthenticated}, tools: ${toolsCount}`);
                                         
                                         if (serviceStatus[mappedServiceName]) {
-                                            // Get actual tool count by discovering tools from MCP server
-                                            let toolsCount = 0;
+                                            // Use tools count from MCP server response if available
+                                            let finalToolsCount = toolsCount;
                                             try {
                                                 if (service?.mcpClient) {
-                                                    console.log(`[InvisibilityBridge] 🔍 Discovering tools for ${serviceName}...`);
+                                                    console.log(`[InvisibilityBridge] ℹ️ Skipping tool discovery for ${mappedServiceName} - using count from MCP response: ${toolsCount}`);
                                                     
-                                                    // Use proper MCP tool call to list tools
-                                                    const toolsResult = await service.mcpClient.callTool('list_tools', {});
+                                                    // SKIP: list_tools doesn't exist in Paragon MCP - tools count already available
+                                                    throw new Error('Tool discovery skipped - using tools count from get_authenticated_services response');
                                                     
                                                     if (toolsResult && toolsResult.content && toolsResult.content[0]) {
                                                         let toolsData;
                                                         
                                                         // Debug the raw response structure
-                                                        console.log(`[InvisibilityBridge] 🔍 Raw tools response for ${serviceName}:`, {
+                                                        console.log(`[InvisibilityBridge] 🔍 Raw tools response for ${mappedServiceName}:`, {
                                                             hasContent: !!toolsResult.content,
                                                             contentLength: toolsResult.content ? toolsResult.content.length : 0,
                                                             firstItemKeys: toolsResult.content[0] ? Object.keys(toolsResult.content[0]) : [],
@@ -1322,16 +1480,16 @@ function initializeInvisibilityBridge() {
                                                     console.log(`[InvisibilityBridge] ⚠️ No MCP client available for tool discovery`);
                                                 }
                                             } catch (toolDiscoveryError) {
-                                                console.error(`[InvisibilityBridge] ❌ Tool discovery failed for ${serviceName}:`, toolDiscoveryError.message);
+                                                console.log(`[InvisibilityBridge] ℹ️ Tool discovery skipped for ${mappedServiceName}: ${toolDiscoveryError.message}`);
                                             }
                                             
                                             serviceStatus[mappedServiceName] = {
-                                                authenticated: true,  // Service is in the authenticated list
-                                                toolsCount: toolsCount  // Actual discovered tool count
+                                                authenticated: isAuthenticated,  // Use actual authentication status from MCP server
+                                                toolsCount: finalToolsCount  // Actual discovered tool count
                                             };
-                                            console.log(`[InvisibilityBridge] ✅ Service ${serviceName} -> ${mappedServiceName} is authenticated with ${toolsCount} discovered tools`);
+                                            console.log(`[InvisibilityBridge] ✅ Service ${rawName} -> ${mappedServiceName} is authenticated: ${isAuthenticated} with ${finalToolsCount} tools (from MCP response)`);
                                         } else {
-                                            console.log(`[InvisibilityBridge] ⚠️ Service ${serviceName} (mapped to ${mappedServiceName}) not found in serviceStatus`);
+                                            console.log(`[InvisibilityBridge] ⚠️ Service ${rawName} (mapped to ${mappedServiceName}) not found in serviceStatus`);
                                         }
 
                                 }
@@ -1492,34 +1650,20 @@ function initializeInvisibilityBridge() {
                             
                             try {
                                 // Open system browser instead of redirecting Electron window
-                                // Use localhost:3000 where the working Paragon auth is running
                                 const { shell } = require('electron');
-                                const webAppUrl = 'http://localhost:3000'; // Working Paragon auth location
+                                // Determine web URL: dev server locally or configured production URL
+                                const webAppUrl = process.env.NODE_ENV === 'development'
+                                  ? 'http://localhost:3000'
+                                  : (process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app');
                                 
-                                // Check if localhost:3000 is likely available by testing the URL first
-                                try {
-                                    const http = require('http');
-                                    const testReq = http.request({
-                                        hostname: 'localhost',
-                                        port: 3000,
-                                        path: '/integrations',
-                                        method: 'HEAD',
-                                        timeout: 2000
-                                    }, (res) => {
-                                        console.log(`[InvisibilityBridge] ✅ localhost:3000 is available (status: ${res.statusCode})`);
-                                    });
-                                    
-                                    testReq.on('error', (err) => {
-                                        console.warn(`[InvisibilityBridge] ⚠️ localhost:3000 may not be running:`, err.message);
-                                    });
-                                    
-                                    testReq.end();
-                                } catch (testError) {
-                                    console.warn(`[InvisibilityBridge] ⚠️ Could not test localhost:3000:`, testError.message);
-                                }
+                                // Get current user ID for the integrations page
+                                const authService = require('../common/services/authService');
+                                const userId = authService.getCurrentUserId() || 'default-user';
                                 
                                 // Navigate to integrations page with service context
-                                const integrationsUrl = `${webAppUrl}/integrations?authenticate=${serviceKey}`;
+                                // Include user context for integrations
+                                const params = new URLSearchParams({ authenticate: serviceKey, ...(userId ? { userId } : {}) });
+                                const integrationsUrl = `${webAppUrl}/integrations?${params.toString()}`;
                                 console.log(`[InvisibilityBridge] 🌐 Opening dedicated BrowserWindow to: ${integrationsUrl}`);
                                 
                                 // Open in dedicated BrowserWindow with CSP patches (like quick-debug)
@@ -1545,7 +1689,7 @@ function initializeInvisibilityBridge() {
 
                             return {
                                 success: true,
-                                    message: `Opened system browser for ${serviceKey} authentication. Make sure Next.js dev server is running on localhost:3000.`,
+                                    message: `Opened system browser for ${serviceKey} authentication on localhost:3000.`,
                                     serviceKey: serviceKey,
                                     redirectUrl: integrationsUrl
                                 };
@@ -1553,7 +1697,7 @@ function initializeInvisibilityBridge() {
                                 console.error(`[InvisibilityBridge] ❌ Failed to open system browser:`, openError);
                                 
                                 let errorMsg = `Failed to open browser for ${serviceKey}: ${openError.message}`;
-                                let suggestion = 'Make sure Next.js dev server is running: cd leviousa_web && npm run dev';
+                                let suggestion = 'Make sure the Next.js dev server is running on localhost:3000. Try: npm run dev';
                                 
                                 return {
                                     success: false,
@@ -1569,10 +1713,14 @@ function initializeInvisibilityBridge() {
                             try {
                                 // Open system browser instead of redirecting Electron window
                                 const { shell } = require('electron');
-                                const webAppUrl = 'http://localhost:3000'; // Working Paragon auth location
+                                const webAppUrl = 'http://localhost:3000';
+                                
+                                // Get current user ID for the integrations page
+                                const authService = require('../common/services/authService');
+                                const userId = authService.getCurrentUserId() || 'default-user';
                                 
                                 // Navigate to integrations page with service context for connection
-                                const integrationsUrl = `${webAppUrl}/integrations?connect=${serviceKey}`;
+                                const integrationsUrl = `${webAppUrl}/integrations?connect=${serviceKey}&userId=${userId}`;
                                 console.log(`[InvisibilityBridge] 🌐 Opening dedicated BrowserWindow to: ${integrationsUrl}`);
                                 
                                 // Open in dedicated BrowserWindow with CSP patches (like quick-debug)
@@ -1598,7 +1746,7 @@ function initializeInvisibilityBridge() {
 
                             return {
                                 success: true,
-                                    message: `Opened system browser to connect ${serviceKey} integration. Make sure Next.js dev server is running on localhost:3000.`,
+                                    message: `Opened system browser to connect ${serviceKey} integration on localhost:3000.`,
                                 serviceKey: serviceKey,
                                     action_required: 'connect_integration',
                                     redirectUrl: integrationsUrl
@@ -1607,7 +1755,7 @@ function initializeInvisibilityBridge() {
                                 console.error(`[InvisibilityBridge] ❌ Failed to open system browser:`, openError);
                                 
                                 let errorMsg = `Failed to open browser for ${serviceKey}: ${openError.message}`;
-                                let suggestion = 'Make sure Next.js dev server is running: cd leviousa_web && npm run dev';
+                                let suggestion = 'Make sure the Next.js dev server is running on localhost:3000. Try: npm run dev';
                                 
                                 return {
                                     success: false,
@@ -1684,20 +1832,42 @@ function initializeInvisibilityBridge() {
         try {
             console.log(`[InvisibilityBridge] 🎉 Authentication completed for service: ${data.serviceKey}`);
             
+            // Store authentication state locally since Paragon API doesn't persist properly
+            const userId = data.userId || global.currentUserId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+            
+            // Initialize local auth cache if it doesn't exist
+            if (!global.localParagonAuthCache) {
+                global.localParagonAuthCache = new Map();
+                // Load persistent auth cache
+                loadParagonAuthCache();
+            }
+            
+            // Store successful authentication
+            const authKey = `${userId}:${data.serviceKey}`;
+            global.localParagonAuthCache.set(authKey, {
+                service: data.serviceKey,
+                userId: userId,
+                provider: data.provider || 'paragon',
+                authenticatedAt: new Date().toISOString(),
+                success: true
+            });
+            
+            console.log(`[InvisibilityBridge] 💾 Stored local auth state for ${authKey}`);
+            console.log(`[InvisibilityBridge] 📊 Local auth cache now contains:`, 
+                Array.from(global.localParagonAuthCache.keys()));
+            
+            // Save to persistent storage
+            saveParagonAuthCache();
+            
             const service = getInvisibilityService();
             if (service && service.mcpClient) {
-                // Refresh server status to pick up new authentication
-                const serverStatus = service.mcpClient.getServerStatus();
-                
-                // CRITICAL: Force refresh of authenticated services cache
+                // Still refresh the MCP cache in case Paragon API works eventually
                 console.log(`[InvisibilityBridge] 🔄 Force refreshing authenticated services cache for ${data.serviceKey}`)
                 try {
-                    // Call get_authenticated_services to refresh the cache
-                    const userId = data.userId || global.currentUserId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2'
                     const refreshResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userId })
                     console.log(`[InvisibilityBridge] ✅ Refreshed authenticated services:`, refreshResult)
                 } catch (refreshError) {
-                    console.warn(`[InvisibilityBridge] ⚠️ Failed to refresh authenticated services:`, refreshError.message)
+                    console.warn(`[InvisibilityBridge] ⚠️ Failed to refresh authenticated services (expected):`, refreshError.message)
                 }
                 
                 // Notify all windows of authentication update

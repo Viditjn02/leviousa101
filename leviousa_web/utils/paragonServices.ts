@@ -179,7 +179,7 @@ export function getAvailableServices(): ParagonService[] {
           status: 'needs_auth' as const,
         };
       })
-      .filter((service): service is ParagonService => service !== null);
+      .filter((service): service is NonNullable<typeof service> => service !== null);
     
     console.log(`Loaded ${services.length} available Paragon services:`, 
                 services.map(s => s.id).join(', '));

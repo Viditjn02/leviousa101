@@ -769,10 +769,9 @@
       "priority": 0,
       "authProvider": "paragon",
       "serverConfig": {
-        "command": "/Users/viditjain/.nvm/versions/node/v22.14.0/bin/npm",
+        "command": "node",
         "args": [
-          "run",
-          "start:sse"
+          "dist/index.mjs"
         ],
         "cwd": "services/paragon-mcp",
         "envMapping": {
