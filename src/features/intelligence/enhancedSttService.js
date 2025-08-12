@@ -6,8 +6,10 @@ const SttService = require('../listen/stt/sttService');
 class EnhancedSttService extends SttService {
     constructor() {
         super();
+        console.log('[EnhancedSttService] Initializing Enhanced STT Service with Speaker Intelligence');
         // Apply speaker intelligence enhancement to this instance
         initializeSpeakerIntelligence(this);
+        console.log('[EnhancedSttService] Enhanced STT Service initialization complete');
     }
 }
 

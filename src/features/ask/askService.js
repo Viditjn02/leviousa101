@@ -4,6 +4,32 @@ const { createStreamingLLM } = require('../common/ai/factory');
 const getWindowManager = () => require('../../window/windowManager');
 const internalBridge = require('../../bridge/internalBridge');
 
+// NEW: Get MCP client for enhanced answer generation
+const getMCPClient = () => {
+    try {
+        if (!global.invisibilityService) {
+            console.log('[AskService] MCP: Invisibility service not available');
+            return null;
+        }
+        
+        if (!global.invisibilityService.mcpClient) {
+            console.log('[AskService] MCP: MCP client not available in invisibility service');
+            return null;
+        }
+        
+        if (!global.invisibilityService.mcpClient.isInitialized) {
+            console.log('[AskService] MCP: MCP client not yet initialized');
+            return null;
+        }
+        
+        console.log('[AskService] MCP: Client available and initialized');
+        return global.invisibilityService.mcpClient;
+    } catch (error) {
+        console.warn('[AskService] MCP: Error accessing MCP client:', error.message);
+        return null;
+    }
+};
+
 const getWindowPool = () => {
     try {
         return getWindowManager().windowPool;
@@ -125,22 +151,89 @@ async function captureScreenshot(options = {}) {
  */
 class AskService {
     constructor() {
-        this.abortController = null;
         this.state = {
-            isVisible: false,
-            isLoading: false,
-            isStreaming: false,
+            isVisible      : false,
+            isLoading      : false,
+            isStreaming    : false,
             currentQuestion: '',
             currentResponse: '',
-            showTextInput: true,
+            showTextInput  : true,
         };
-        console.log('[AskService] Service instance created.');
+
+        this.abortController = null;
+        this.conversationSessions = new Map(); // Enhanced conversation session tracking
+        this.mcpVerificationDone = false; // Flag to track if MCP verification has been done
+        
+        // MCP verification will be done lazily when first needed
+    }
+
+    /**
+     * Initialize MCP verification to ensure tools are available (called lazily)
+     */
+    async initializeMCPVerification() {
+        // Only run verification once
+        if (this.mcpVerificationDone) {
+            return;
+        }
+        
+        try {
+            const mcpClient = getMCPClient();
+            
+            if (mcpClient) {
+                // Give MCP client time to initialize
+                setTimeout(async () => {
+                    try {
+                        const debugInfo = mcpClient.getMCPToolsDebugInfo();
+                        console.log('[AskService] MCP Tools Available:', debugInfo.totalTools);
+                        console.log('[AskService] Connected Services:', debugInfo.connectedServices);
+                        
+                        if (debugInfo.totalTools > 0) {
+                            console.log('[AskService] ✅ MCP tools are available for ask bar');
+                        } else {
+                            console.log('[AskService] ⚠️ No MCP tools available - service integrations may need setup');
+                        }
+                    } catch (error) {
+                        console.warn('[AskService] Error getting MCP debug info:', error);
+                    }
+                }, 2000);
+                
+                this.mcpVerificationDone = true;
+            } else {
+                console.log('[AskService] ⚠️ MCP client not available yet - will retry when needed');
+            }
+        } catch (error) {
+            console.warn('[AskService] Error during MCP verification:', error);
+        }
     }
 
     _broadcastState() {
         const askWindow = getWindowPool()?.get('ask');
         if (askWindow && !askWindow.isDestroyed()) {
             askWindow.webContents.send('ask:stateUpdate', this.state);
+        }
+    }
+
+    // NEW: Trigger intelligent title generation for session
+    async triggerTitleGeneration(sessionId) {
+        try {
+            // Don't generate titles immediately - wait for a few exchanges
+            const sessionRepository = require('../common/repositories/session');
+            const askRepository = require('./repositories');
+            
+            // Get message count for this session
+            const messages = await askRepository.getAllAiMessagesBySessionId(sessionId);
+            
+            // Generate title after 2-3 message exchanges (4-6 total messages)
+            if (messages.length >= 4 && messages.length <= 8) {
+                console.log(`[AskService] Triggering title generation for session ${sessionId} (${messages.length} messages)`);
+                
+                // Generate title in background (don't await to avoid blocking)
+                sessionRepository.generateIntelligentTitle(sessionId).catch(error => {
+                    console.warn('[AskService] Title generation failed:', error.message);
+                });
+            }
+        } catch (error) {
+            console.warn('[AskService] Error in title generation trigger:', error.message);
         }
     }
 
@@ -198,16 +291,209 @@ class AskService {
     
 
     /**
-     * 
+     * Enhanced conversation formatting for better context retention
      * @param {string[]} conversationTexts
+     * @param {string} questionType - Type of current question to optimize context
      * @returns {string}
      * @private
      */
-    _formatConversationForPrompt(conversationTexts) {
+    _formatConversationForPrompt(conversationTexts, questionType = 'general') {
         if (!conversationTexts || conversationTexts.length === 0) {
             return 'No conversation history available.';
         }
-        return conversationTexts.slice(-30).join('\n');
+
+        // For capability questions, include more recent context to understand follow-ups
+        const contextLimit = questionType === 'help_conversation' ? 50 : 
+                            questionType.includes('mcp') || questionType.includes('capability') ? 40 : 30;
+        
+        const recentMessages = conversationTexts.slice(-contextLimit);
+        
+        // Format with roles for better context understanding
+        const formattedMessages = [];
+        let currentRole = 'user'; // Start with user
+        
+        recentMessages.forEach((message, index) => {
+            if (message && message.trim()) {
+                // Alternate between user and assistant for context
+                const role = index % 2 === 0 ? 'User' : 'Assistant';
+                formattedMessages.push(`${role}: ${message.trim()}`);
+            }
+        });
+        
+        const context = formattedMessages.join('\n');
+        
+        // Add metadata for follow-up questions
+        if (questionType === 'help_conversation') {
+            return `Previous conversation context (for follow-up):\n${context}`;
+        } else if (questionType.includes('mcp') || questionType.includes('capability')) {
+            return `Previous questions about capabilities:\n${context}`;
+        }
+        
+        return context;
+    }
+
+    /**
+     * Enhanced question context with conversation awareness
+     * @param {string} userPrompt
+     * @param {string[]} conversationHistory
+     * @param {string} questionType
+     * @returns {object} Enhanced question object
+     * @private
+     */
+    _buildEnhancedQuestion(userPrompt, conversationHistory, questionType) {
+        const question = {
+            text: userPrompt.trim(),
+            type: questionType,
+            context: this._formatConversationForPrompt(conversationHistory, questionType),
+            confidence: 90,
+            timestamp: new Date().toISOString()
+        };
+
+        // Add follow-up indicators for conversation continuity
+        const lowerPrompt = userPrompt.toLowerCase();
+        if (lowerPrompt.match(/\b(follow up|continue|more|previous|again|that|this|also|too)\b/)) {
+            question.isFollowUp = true;
+            question.needsPreviousContext = true;
+        }
+
+        // Add screen reference indicators
+        if (lowerPrompt.match(/\b(this|these|that|those|here|on screen|visible|showing|current)\b/)) {
+            question.requiresScreenContext = true;
+        }
+
+        return question;
+    }
+
+    /**
+     * Initialize conversation session with enhanced context tracking
+     * @param {string} sessionId - Session identifier
+     * @returns {Promise<void>}
+     */
+    async initializeConversationSession(sessionId) {
+        try {
+            if (!this.conversationSessions) {
+                this.conversationSessions = new Map();
+            }
+
+            if (!this.conversationSessions.has(sessionId)) {
+                this.conversationSessions.set(sessionId, {
+                    id: sessionId,
+                    startTime: new Date(),
+                    lastActivity: new Date(),
+                    messageCount: 0,
+                    topics: [],
+                    questionTypes: [],
+                    mcpCapabilitiesDiscussed: false,
+                    followUpContext: null
+                });
+                console.log(`[AskService] 💬 Initialized conversation session: ${sessionId}`);
+            }
+        } catch (error) {
+            console.warn('[AskService] Failed to initialize conversation session:', error);
+        }
+    }
+
+    /**
+     * Update conversation session with message context
+     * @param {string} sessionId - Session identifier  
+     * @param {string} userPrompt - User message
+     * @param {string} questionType - Classified question type
+     * @param {string} response - System response
+     */
+    updateConversationSession(sessionId, userPrompt, questionType, response) {
+        try {
+            if (!this.conversationSessions?.has(sessionId)) {
+                return;
+            }
+
+            const session = this.conversationSessions.get(sessionId);
+            session.lastActivity = new Date();
+            session.messageCount += 1;
+            
+            // Track question types for context
+            if (!session.questionTypes.includes(questionType)) {
+                session.questionTypes.push(questionType);
+            }
+            
+            // Track if MCP capabilities were discussed
+            if (questionType.includes('mcp') || questionType.includes('capability') || questionType.includes('notion')) {
+                session.mcpCapabilitiesDiscussed = true;
+            }
+            
+            // Extract topics from user message
+            const topics = this.extractTopicsFromMessage(userPrompt);
+            topics.forEach(topic => {
+                if (!session.topics.includes(topic)) {
+                    session.topics.push(topic);
+                }
+            });
+            
+            // Store follow-up context for capability questions
+            if (questionType.includes('mcp') || questionType.includes('capability')) {
+                session.followUpContext = {
+                    lastCapabilityQuestion: userPrompt,
+                    lastCapabilityResponse: response.substring(0, 500), // Store summary
+                    timestamp: new Date()
+                };
+            }
+
+            console.log(`[AskService] 📝 Updated session ${sessionId}: ${session.messageCount} messages, topics: ${session.topics.join(', ')}`);
+        } catch (error) {
+            console.warn('[AskService] Failed to update conversation session:', error);
+        }
+    }
+
+    /**
+     * Extract topics from user message for context tracking
+     * @param {string} message - User message
+     * @returns {string[]} Extracted topics
+     */
+    extractTopicsFromMessage(message) {
+        const topics = [];
+        const lowerMessage = message.toLowerCase();
+        
+        // Common topics to track
+        const topicKeywords = {
+            'notion': ['notion', 'notes', 'workspace', 'database', 'page'],
+            'github': ['github', 'repository', 'code', 'commit', 'pull request'],
+            'integration': ['connect', 'integration', 'oauth', 'authenticate', 'setup'],
+            'capabilities': ['capabilities', 'what can', 'features', 'tools', 'functions'],
+            'help': ['help', 'how to', 'guide', 'tutorial', 'getting started']
+        };
+
+        for (const [topic, keywords] of Object.entries(topicKeywords)) {
+            if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+                topics.push(topic);
+            }
+        }
+
+        return topics;
+    }
+
+    /**
+     * Get conversation context for enhanced responses
+     * @param {string} sessionId - Session identifier
+     * @returns {object|null} Conversation context
+     */
+    getConversationContext(sessionId) {
+        try {
+            if (!this.conversationSessions?.has(sessionId)) {
+                return null;
+            }
+
+            const session = this.conversationSessions.get(sessionId);
+            return {
+                hasDiscussedCapabilities: session.mcpCapabilitiesDiscussed,
+                topics: session.topics,
+                questionTypes: session.questionTypes,
+                followUpContext: session.followUpContext,
+                messageCount: session.messageCount,
+                isOngoing: (Date.now() - session.lastActivity.getTime()) < 300000 // 5 minutes
+            };
+        } catch (error) {
+            console.warn('[AskService] Failed to get conversation context:', error);
+            return null;
+        }
     }
 
     /**
@@ -235,13 +521,167 @@ class AskService {
 
 
         let sessionId;
+        let responseText = '';
 
         try {
             console.log(`[AskService] 🤖 Processing message: ${userPrompt.substring(0, 50)}...`);
 
             sessionId = await sessionRepository.getOrCreateActive('ask');
+            await this.initializeConversationSession(sessionId);
+            
             await askRepository.addAiMessage({ sessionId, role: 'user', content: userPrompt.trim() });
             console.log(`[AskService] DB: Saved user prompt to session ${sessionId}`);
+            
+            // Initialize MCP verification lazily when first needed
+            await this.initializeMCPVerification();
+            
+            // NEW: Try MCP enhanced answer generation first
+            const mcpClient = getMCPClient();
+            if (mcpClient) {
+                console.log('[AskService] 🧠 Using MCP enhanced answer generation...');
+                try {
+                    const screenshotResult = await captureScreenshot({ quality: 'medium' });
+                    const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
+                    
+                    // Classify question type for MCP
+                    const questionType = this.classifyQuestionType(userPrompt);
+                    console.log(`[AskService] MCP: Classified question as '${questionType}' type`);
+                    
+                    // Special logging for Notion questions
+                    if (questionType === 'notion_data_access') {
+                        console.log(`[AskService] 🎯 NOTION DATA ACCESS DETECTED - proceeding with MCP enhanced answer`);
+                        console.log(`[AskService] 🎯 Question: "${userPrompt}"`);
+                        console.log(`[AskService] 🎯 MCP Client initialized: ${mcpClient.isInitialized}`);
+                        console.log(`[AskService] 🎯 Available external tools: ${mcpClient.externalTools?.length || 0}`);
+                    }
+                    
+                    // Build enhanced question with conversation awareness
+                    const questionObj = this._buildEnhancedQuestion(userPrompt, conversationHistoryRaw, questionType);
+                    
+                    // Add conversation context from session tracking
+                    const conversationContext = this.getConversationContext(sessionId);
+                    if (conversationContext) {
+                        questionObj.sessionContext = conversationContext;
+                    }
+                    
+                    console.log('[AskService] MCP: Requesting enhanced answer...');
+                    // Pass the question text and include the enhanced context in the context parameter
+                    const enhancedContext = {
+                        questionType: questionObj.type,
+                        conversationHistory: questionObj.context,
+                        isFollowUp: questionObj.isFollowUp,
+                        needsPreviousContext: questionObj.needsPreviousContext,
+                        requiresScreenContext: questionObj.requiresScreenContext,
+                        sessionContext: questionObj.sessionContext,
+                        screenshot: screenshotBase64
+                    };
+                    const mcpResponse = await mcpClient.getEnhancedAnswer(questionObj.text, enhancedContext);
+                    if (mcpResponse && mcpResponse.answer) {
+                        const mcpAnswer = mcpResponse.answer;
+                        console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
+                        
+                        // Analyze conversation for contextual UI opportunities
+                        let didUIOverride = false;
+                        try {
+                            if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
+                                console.log('[AskService] 🎨 Analyzing conversation for contextual UI triggers...');
+                                
+                                const uiContext = {
+                                    type: 'conversation',
+                                    message: userPrompt,
+                                    response: mcpAnswer,
+                                    conversationHistory: conversationHistoryRaw,
+                                    hasScreenshot: !!screenshotBase64,
+                                    timestamp: new Date().toISOString()
+                                };
+                                
+                                // Get contextual actions and track UI override
+                                let uiResult = null;
+                                uiResult = await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                                
+                                console.log('[AskService] 🔍 DEBUG uiResult:', JSON.stringify(uiResult, null, 2));
+                                if (uiResult && uiResult.autoTriggered) {
+                                    console.log(`[AskService] UI auto-triggered for: ${uiResult.autoTriggeredTypes.join(', ')}`);
+                                    
+                                    // Modify response for email composer
+                                    if (uiResult.autoTriggeredTypes.includes('email.send')) {
+                                        console.log('[AskService] 🎯 Email composer triggered - suppressing AI response');
+                                        console.log('[AskService] 🔄 Original responseText length:', responseText.length);
+                                        // Clean response for email composer - no generic AI text like in Paragon branch
+                                        responseText = "";
+                                        console.log('[AskService] ✅ Suppressed AI response for clean email UI');
+                                        didUIOverride = true;
+                                    }
+                                } else if (Array.isArray(uiResult) && uiResult.length > 0) {
+                                    // Handle backwards compatibility with old array format
+                                    console.log('[AskService] ❌ uiResult in legacy array format');
+                                    const autoTriggered = uiResult.some(action => action.confidence > 0.8 && action.autoTrigger);
+                                    if (autoTriggered) {
+                                        didUIOverride = true;
+                                    }
+                                }
+                            }
+                        } catch (uiError) {
+                            console.warn('[AskService] UI analysis failed, continuing without UI:', uiError);
+                        }
+                        
+                        // Special logging for successful Notion answers
+                        if (questionType === 'notion_data_access') {
+                            console.log(`[AskService] 🎯 NOTION MCP ANSWER SUCCESS: ${mcpAnswer.substring(0, 200)}...`);
+                        }
+                        
+                        // Only set default answer if UI did not override
+                        if (!didUIOverride) {
+                            responseText = mcpAnswer;
+                        }
+                        
+                        // Update conversation session with this exchange
+                        this.updateConversationSession(sessionId, userPrompt, questionType, responseText);
+                        
+                        // Only stream the MCP answer if UI did not override
+                        if (!didUIOverride) {
+                            // Stream the MCP answer to maintain UI consistency
+                            await this._streamMCPAnswer(mcpAnswer, sessionId);
+                        } else {
+                            // UI overrode the response, stream the empty/custom response instead
+                            await this._streamMCPAnswer(responseText, sessionId);
+                        }
+                        return { success: true };
+                    } else {
+                        console.log('[AskService] MCP: No answer generated, falling back to standard');
+                        
+                        // Special logging for failed Notion answers
+                        if (questionType === 'notion_data_access') {
+                            console.log(`[AskService] 🎯 NOTION MCP ANSWER FAILED - no answer generated, checking server status...`);
+                            const serverStatus = mcpClient.getServerStatus();
+                            const notionServer = serverStatus.servers?.notion;
+                            if (notionServer) {
+                                console.log(`[AskService] 🎯 Notion server status: authenticated=${notionServer.authenticated}, connected=${notionServer.connected}, tools=${notionServer.tools?.length || 0}`);
+                            } else {
+                                console.log(`[AskService] 🎯 Notion server not found in server status`);
+                            }
+                        }
+                    }
+                } catch (mcpError) {
+                    console.warn('[AskService] MCP answer generation failed, falling back to standard:', mcpError.message);
+                    console.warn('[AskService] MCP error details:', mcpError);
+                    
+                    // Special logging for Notion MCP errors
+                    if (userPrompt.toLowerCase().includes('notion')) {
+                        console.error(`[AskService] 🎯 NOTION MCP ERROR: ${mcpError.message}`);
+                        console.error(`[AskService] 🎯 Error stack:`, mcpError.stack);
+                    }
+                }
+            } else {
+                console.log('[AskService] 🔄 MCP client not available, using standard answer generation');
+                
+                // Special warning for Notion questions without MCP
+                if (userPrompt.toLowerCase().includes('notion')) {
+                    console.warn(`[AskService] 🎯 NOTION QUESTION DETECTED BUT NO MCP CLIENT AVAILABLE`);
+                    console.warn(`[AskService] 🎯 Question: "${userPrompt}"`);
+                    console.warn(`[AskService] 🎯 This means Notion data cannot be accessed`);
+                }
+            }
             
             const modelInfo = await modelStateService.getCurrentModelInfo('llm');
             if (!modelInfo || !modelInfo.apiKey) {
@@ -252,7 +692,8 @@ class AskService {
             const screenshotResult = await captureScreenshot({ quality: 'medium' });
             const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
 
-            const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw);
+            const questionType = this.classifyQuestionType(userPrompt);
+            const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw, questionType);
 
             const systemPrompt = getSystemPrompt('leviousa_analysis', conversationHistory, false);
 
@@ -418,6 +859,13 @@ class AskService {
                  try {
                     await askRepository.addAiMessage({ sessionId, role: 'assistant', content: fullResponse });
                     console.log(`[AskService] DB: Saved partial or full assistant response to session ${sessionId} after stream ended.`);
+                    
+                    // Update conversation session with this exchange
+                    const questionType = this.classifyQuestionType(this.state.currentQuestion || '');
+                    this.updateConversationSession(sessionId, this.state.currentQuestion || '', questionType, fullResponse);
+                    
+                    // NEW: Trigger intelligent title generation after assistant response
+                    this.triggerTitleGeneration(sessionId);
                 } catch(dbError) {
                     console.error("[AskService] DB: Failed to save assistant response after stream ended:", dbError);
                 }
@@ -441,6 +889,251 @@ class AskService {
             errorMessage.includes('invalid') ||
             errorMessage.includes('not supported')
         );
+    }
+
+    /**
+     * Process insight request from speaker intelligence system
+     * @param {Object} request - The insight request object
+     * @returns {Promise<{text: string, confidence: number}>}
+     */
+    async processInsightRequest(request) {
+        try {
+            console.log('[AskService] Processing insight request:', request.type);
+            
+            if (request.type === 'meeting_insight') {
+                const { transcription, context } = request;
+                
+                // Create a concise prompt for faster insight generation
+                const insightPrompt = `Generate a brief insight for this meeting comment:
+
+"${transcription.text}"
+
+Context: ${context.slice(-2).map(msg => msg.text).join('. ')}
+
+Provide one actionable insight (max 15 words):`;
+
+                // Get current model info
+                const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+                if (!modelInfo || !modelInfo.apiKey) {
+                    throw new Error('AI model not configured for insights');
+                }
+
+                // Create a simple LLM request (not streaming)
+                const { createLLM } = require('../common/ai/factory');
+                const llm = createLLM(modelInfo.provider, {
+                    apiKey: modelInfo.apiKey,
+                    model: modelInfo.model,
+                    temperature: 0.1, // Lower temperature for faster, more focused responses
+                    maxTokens: 50,    // Much smaller token limit for faster generation
+                    usePortkey: modelInfo.provider === 'openai-leviousa',
+                    portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
+                });
+
+                const response = await llm.chat([
+                    { role: 'user', content: insightPrompt }
+                ]);
+
+                if (response && response.content && response.content.trim()) {
+                    return {
+                        text: response.content.trim(),
+                        confidence: 0.8,
+                        type: 'meeting_insight'
+                    };
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('[AskService] Error processing insight request:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Capture a screenshot of the current screen
+     * @param {Object} options - Screenshot options
+     * @returns {Promise<{success: boolean, base64?: string, width?: number, height?: number, error?: string}>}
+     */
+    async captureScreenshot(options = {}) {
+        return await captureScreenshot(options);
+    }
+
+    /**
+     * Enhanced question classification with MCP capability awareness
+     * @param {string} userPrompt 
+     * @returns {string}
+     * @private
+     */
+    classifyQuestionType(userPrompt) {
+        const lowerPrompt = userPrompt.toLowerCase();
+        
+        // Enhanced debugging for Notion questions specifically
+        const isNotionRelated = lowerPrompt.includes('notion') || 
+                               lowerPrompt.match(/\b(pages?|databases?|workspace|content|notes?|documents?)\b.*\b(notion|my workspace)\b/) ||
+                               lowerPrompt.match(/\b(what|see|view|show|find|look|check)\b.*\b(in|on|at)\b.*\b(my\s+)?notion\b/);
+        
+        if (isNotionRelated) {
+            console.log(`[AskService] 🔍 NOTION QUESTION DETECTED: "${userPrompt}"`);
+            console.log(`[AskService] 🔍 Question contains: ${lowerPrompt.match(/\b(notion|pages?|databases?|workspace|content|notes?|documents?)\b/g)?.join(', ')}`);
+        }
+        
+        // MCP debug and testing questions
+        if (lowerPrompt.match(/\b(debug|test|check)\b.*\b(mcp|tools|connections?|integrations?)\b/) ||
+            lowerPrompt.match(/\b(mcp|tools)\b.*\b(working|available|status|debug|test)\b/) ||
+            lowerPrompt.includes('mcp debug') || lowerPrompt.includes('test mcp') || 
+            lowerPrompt.includes('mcp status') || lowerPrompt.includes('check tools')) {
+            return 'mcp_debug';
+        }
+        
+        // MCP DATA access questions - these should use MCP tools to access real service data
+        // GitHub data access
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(repos?|repositories|issues?|pull requests?|commits?|branches?|code)\b.*\b(github|my github|git)\b/) ||
+            lowerPrompt.match(/\b(github|my github|git)\b.*\b(repos?|repositories|issues?|pull requests?|commits?|branches?|code)\b/) ||
+            lowerPrompt.match(/\b(repos?|repositories|issues?|commits?)\b.*\b(in|from|on)\b.*\b(github|git)\b/) ||
+            lowerPrompt.includes('my github') && lowerPrompt.match(/\b(repos?|repositories|issues?|pull requests?|commits?|branches?|code)\b/)) {
+            return 'github_data_access';
+        }
+        
+        // Notion data access - ENHANCED DETECTION
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access|see|view)\b.*\b(pages?|databases?|workspace|content|notes?|documents?)\b.*\b(notion|my workspace)\b/) ||
+            lowerPrompt.match(/\b(notion|my workspace)\b.*\b(pages?|databases?|content|notes?|documents?)\b/) ||
+            lowerPrompt.match(/\b(pages?|databases?)\b.*\b(in|from|on)\b.*\b(notion|my workspace)\b/) ||
+            lowerPrompt.includes('my notion') && lowerPrompt.match(/\b(pages?|databases?|content|workspace|notes?|documents?)\b/) ||
+            lowerPrompt.match(/\b(what|see|view|show|find|look|check)\b.*\b(in|on|at)\b.*\b(my\s+)?notion\b/) ||
+            lowerPrompt.match(/\b(my\s+)?notion\b.*\b(data|content|info|information|workspace)\b/) ||
+            lowerPrompt.includes('notion workspace') || lowerPrompt.includes('notion data')) {
+            
+            console.log(`[AskService] ✅ CLASSIFIED AS NOTION_DATA_ACCESS: "${userPrompt}"`);
+            return 'notion_data_access';
+        }
+        
+        // Log if Notion-related but not classified as notion_data_access
+        if (isNotionRelated) {
+            console.log(`[AskService] ⚠️ NOTION QUESTION NOT CLASSIFIED AS notion_data_access, continuing with other checks...`);
+        }
+        
+        // Slack data access
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(messages?|channels?|conversations?|users?|workspaces?)\b.*\b(slack|my slack)\b/) ||
+            lowerPrompt.match(/\b(slack|my slack)\b.*\b(messages?|channels?|conversations?|users?|workspaces?)\b/) ||
+            lowerPrompt.match(/\b(messages?|channels?)\b.*\b(in|from|on)\b.*\b(slack)\b/) ||
+            lowerPrompt.includes('my slack') && lowerPrompt.match(/\b(messages?|channels?|conversations?|users?)\b/)) {
+            return 'slack_data_access';
+        }
+        
+        // Google Drive/Gmail data access
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(files?|docs?|emails?|drive|gmail|calendar)\b.*\b(google|my google|drive|gmail)\b/) ||
+            lowerPrompt.match(/\b(google|my google|drive|gmail)\b.*\b(files?|docs?|emails?|calendar|documents?)\b/) ||
+            lowerPrompt.match(/\b(files?|docs?|emails?)\b.*\b(in|from|on)\b.*\b(google|drive|gmail)\b/) ||
+            lowerPrompt.includes('my google') && lowerPrompt.match(/\b(files?|docs?|emails?|drive|calendar)\b/)) {
+            return 'google_data_access';
+        }
+        
+        // Generic MCP service data access - catch-all for any connected service
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(my|from|in)\b.*\b(data|content|files?|information)\b/) ||
+            lowerPrompt.match(/\b(what)\b.*\b(services?|integrations?|connections?)\b.*\b(do I have|are connected|can you access)\b/) ||
+            lowerPrompt.match(/\b(access|connect to|use)\b.*\b(my|the)\b.*\b(account|workspace|data|service)\b/)) {
+            return 'mcp_data_access';
+        }
+        
+        // MCP capability questions - when user asks about what the system can do
+        if (lowerPrompt.match(/\b(what can you do|capabilities|mcp|model context protocol|what do you do|what are you|features|integrations|tools available|what tools|connect to|integration)\b/) ||
+            lowerPrompt.includes('can you') && lowerPrompt.match(/\b(notion|github|slack|database|api|file|search|browse)\b/)) {
+            return 'mcp_capabilities';
+        }
+        
+        // Service integration setup questions - about connecting or configuring any service
+        if (lowerPrompt.match(/\b(notion|github|slack|google|drive|gmail|jira|linear)\b/) && 
+            (lowerPrompt.includes('setup') || lowerPrompt.includes('connect') || lowerPrompt.includes('integrate') ||
+             lowerPrompt.includes('configure') || lowerPrompt.includes('auth') || lowerPrompt.includes('login'))) {
+            return 'service_integration';
+        }
+        
+        // Screen context questions - asking about something visible (ONLY when not asking for data access)
+        if (lowerPrompt.match(/\b(this|these|that|those|here|on screen|visible|showing|displayed|see|looking at|current|open)\b/) &&
+            !lowerPrompt.match(/\b(what can|capabilities|features|do you|are you|pages?|databases?|content|workspace|notes?|documents?|repos?|files?|messages?|channels?)\b/)) {
+            return 'screen_context';
+        }
+        
+        // System status and configuration questions
+        if (lowerPrompt.match(/\b(status|connected|setup|configure|settings|oauth|authentication|logged in|account)\b/)) {
+            return 'system_status';
+        }
+        
+        // Conversation and help questions
+        if (lowerPrompt.match(/\b(help|how to|tutorial|guide|getting started|follow up|continue|more|previous|again)\b/)) {
+            return 'help_conversation';
+        }
+
+        // Existing classifications with slight modifications
+        // Coding-related keywords
+        if (lowerPrompt.match(/\b(code|function|algorithm|debug|error|syntax|programming|javascript|python|java|react|css|html|sql|api|bug|fix)\b/)) {
+            return 'coding';
+        }
+        
+        // Interview-related keywords
+        if (lowerPrompt.match(/\b(interview|job|career|experience|tell me about|describe your|what would you|how do you handle)\b/)) {
+            return 'interview';
+        }
+        
+        // Math-related keywords
+        if (lowerPrompt.match(/\b(calculate|solve|equation|formula|math|statistics|probability|derivative|integral)\b/)) {
+            return 'math';
+        }
+        
+        // Technical concepts
+        if (lowerPrompt.match(/\b(architecture|system|design|database|security|performance|scalability|microservices)\b/)) {
+            return 'technical';
+        }
+        
+        return 'general';
+    }
+
+    /**
+     * Stream MCP answer to maintain UI consistency
+     * @param {string} answer - The complete MCP answer
+     * @param {number} sessionId - Session ID for saving
+     */
+    async _streamMCPAnswer(answer, sessionId) {
+        const askWin = getWindowPool()?.get('ask');
+        if (!askWin || askWin.isDestroyed()) {
+            return;
+        }
+
+        // Ensure answer is a string
+        if (typeof answer !== 'string') {
+            console.error('[AskService] _streamMCPAnswer: answer is not a string:', typeof answer, answer);
+            answer = String(answer || '');
+        }
+
+        this.state.isLoading = false;
+        this.state.isStreaming = true;
+        this._broadcastState();
+
+        // Simulate streaming by breaking answer into chunks
+        const words = answer.split(' ');
+        let currentText = '';
+        
+        for (let i = 0; i < words.length; i++) {
+            currentText += (i > 0 ? ' ' : '') + words[i];
+            this.state.currentResponse = currentText;
+            this._broadcastState();
+            
+            // Small delay to simulate streaming
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
+
+        this.state.isStreaming = false;
+        this.state.currentResponse = answer;
+        this._broadcastState();
+
+        // Save to database
+        try {
+            await askRepository.addAiMessage({ sessionId, role: 'assistant', content: answer });
+            console.log(`[AskService] DB: Saved MCP assistant response to session ${sessionId}`);
+            this.triggerTitleGeneration(sessionId);
+        } catch (dbError) {
+            console.error("[AskService] DB: Failed to save MCP assistant response:", dbError);
+        }
     }
 
 }

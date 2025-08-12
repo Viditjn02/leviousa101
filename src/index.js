@@ -7,6 +7,47 @@
 
 require('dotenv').config();
 
+// Add global EPIPE error protection immediately
+process.on('uncaughtException', (error) => {
+    if (error.code === 'EPIPE' || error.errno === -32) {
+        console.warn('[GlobalEPipeHandler] Caught EPIPE error, handling gracefully:', error.message);
+        return; // Prevent crash
+    }
+    
+    // Log other uncaught exceptions but don't re-throw to prevent crash loops
+    console.error('[GlobalErrorHandler] Uncaught exception:', error);
+    console.error('[GlobalErrorHandler] Stack:', error.stack);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[GlobalErrorHandler] Unhandled promise rejection at:', promise, 'reason:', reason);
+});
+
+// Handle process exit to cleanup servers
+async function handleAppExit(signal) {
+    console.log(`[GlobalShutdown] Received ${signal}, cleaning up...`);
+    
+    try {
+        // Shutdown invisibility service (which includes MCP services)
+        if (global.invisibilityService && typeof global.invisibilityService.shutdown === 'function') {
+            await global.invisibilityService.shutdown();
+        }
+        
+        console.log('[GlobalShutdown] Cleanup complete');
+    } catch (error) {
+        console.error('[GlobalShutdown] Error during cleanup:', error);
+    }
+    
+    // Exit gracefully
+    process.exit(0);
+}
+
+// Register exit handlers
+process.on('SIGTERM', () => handleAppExit('SIGTERM'));
+process.on('SIGINT', () => handleAppExit('SIGINT'));
+process.on('beforeExit', () => handleAppExit('beforeExit'));
+
 if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
@@ -33,12 +74,72 @@ const modelStateService = require('./features/common/services/modelStateService'
 const featureBridge = require('./bridge/featureBridge');
 const windowBridge = require('./bridge/windowBridge');
 const leviousaBridge = require('./bridge/leviousaBridge');
-const { initializeEyeContactBridge } = require('./features/eyecontact/eyeContactBridge');
+
+// Set up global services for voice agent dependencies
+global.listenService = listenService;
+global.askService = askService;
 
 // Global variables
 const eventBridge = new EventEmitter();
 let WEB_PORT = 3000;
 let isShuttingDown = false; // Flag to prevent infinite shutdown loop
+
+// Add authentication notification method to eventBridge
+eventBridge.notifyAuthenticationComplete = function(data) {
+    console.log(`[EventBridge] 🔔 Authentication notification received for ${data.serviceKey}:`, data);
+    
+    // Forward to invisibility bridge to update MCP status
+    if (global.invisibilityService && global.invisibilityService.mcpClient) {
+        console.log(`[EventBridge] 📡 Forwarding authentication notification to MCP client`);
+        
+        // Add a small delay to ensure Paragon has processed the authentication
+        setTimeout(async () => {
+            try {
+                // Force refresh of Paragon service status
+                console.log(`[EventBridge] 🔄 Forcing refresh of Paragon service status for ${data.serviceKey}`);
+                
+                // Refresh server status to pick up new authentication
+                const serverStatus = global.invisibilityService.mcpClient.getServerStatus();
+                console.log(`[EventBridge] 🔄 Refreshed MCP server status`);
+                
+                // Also call get_authenticated_services to verify the authentication
+                try {
+                    // Use the authenticated user ID to check proper status
+                    const realUserId = authService.getCurrentUserId();
+                    const userIdForCheck = realUserId || 'default-user';
+                    console.log(`[EventBridge] 📡 Checking authentication status for user: ${userIdForCheck}`);
+                    
+                    const authResult = await global.invisibilityService.mcpClient.callTool('get_authenticated_services', { user_id: userIdForCheck });
+                    console.log(`[EventBridge] 📊 Latest authentication status:`, authResult);
+                } catch (toolError) {
+                    console.error(`[EventBridge] ❌ Error checking authentication status:`, toolError);
+                }
+                
+                // Notify all windows of authentication update
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    if (!window.isDestroyed()) {
+                        window.webContents.send('mcp:auth-status-updated', {
+                            serviceKey: data.serviceKey,
+                            status: data.status || 'authenticated',
+                            timestamp: data.timestamp,
+                            source: data.source || 'unknown'
+                        });
+                        
+                        // Also send a general refresh event
+                        window.webContents.send('mcp:servers-updated', { refreshParagon: true });
+                    }
+                });
+                
+                console.log(`[EventBridge] ✅ Notified all windows of ${data.serviceKey} authentication`);
+            } catch (error) {
+                console.error(`[EventBridge] ❌ Error forwarding authentication notification:`, error);
+            }
+        }, 1000); // 1 second delay for API consistency
+    } else {
+        console.warn(`[EventBridge] ⚠️ Invisibility service or MCP client not available for authentication notification`);
+    }
+};
 
 //////// after_modelStateService ////////
 global.modelStateService = modelStateService;
@@ -74,9 +175,35 @@ function setupProtocolHandling() {
         console.error('[Protocol] Error during protocol registration:', error);
     }
 
-    // Handle protocol URLs on Windows/Linux
+    // Handle protocol URLs on macOS
+    app.on('open-url', (event, url) => {
+        event.preventDefault();
+        console.log('🔗 [Protocol] MACOS OPEN-URL TRIGGERED! Received URL:', url);
+        console.log('🔗 [Protocol] Event details:', {
+            defaultPrevented: event.defaultPrevented,
+            url: url,
+            timestamp: new Date().toISOString()
+        });
+        
+        if (!url || !url.startsWith('leviousa://')) {
+            console.warn('[Protocol] Invalid URL format:', url);
+            return;
+        }
+
+        if (app.isReady()) {
+            console.log('[Protocol] App is ready, processing URL immediately');
+            handleCustomUrl(url);
+        } else {
+            pendingDeepLinkUrl = url;
+            console.log('[Protocol] App not ready, storing URL for later:', url);
+        }
+    });
+
+    // Handle protocol URLs on Windows/Linux  
     app.on('second-instance', (event, commandLine, workingDirectory) => {
         console.log('🔗 [Protocol] SECOND INSTANCE TRIGGERED! Command line:', commandLine);
+        console.log('🔗 [Protocol] Working directory:', workingDirectory);
+        console.log('🔗 [Protocol] Full commandLine array:', JSON.stringify(commandLine));
         
         focusMainWindow();
         
@@ -107,25 +234,7 @@ function setupProtocolHandling() {
             handleCustomUrl(protocolUrl);
         } else {
             console.log('[Protocol] No valid protocol URL found in command line arguments');
-            console.log('[Protocol] Command line args:', commandLine);
-        }
-    });
-
-    // Handle protocol URLs on macOS
-    app.on('open-url', (event, url) => {
-        event.preventDefault();
-        console.log('🔗 [Protocol] MACOS OPEN-URL TRIGGERED! Received URL:', url);
-        
-        if (!url || !url.startsWith('leviousa://')) {
-            console.warn('[Protocol] Invalid URL format:', url);
-            return;
-        }
-
-        if (app.isReady()) {
-            handleCustomUrl(url);
-        } else {
-            pendingDeepLinkUrl = url;
-            console.log('[Protocol] App not ready, storing URL for later');
+            console.log('[Protocol] All command line args:', commandLine.map((arg, i) => `${i}: ${arg}`));
         }
     });
 }
@@ -184,7 +293,175 @@ setupProtocolHandling();
 // Set the app name for System Preferences and other native dialogs
 app.setName('Leviousa');
 
+// Inject PARAGON_PROJECT_ID from runtime config if not present
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const runtimePath = path.join(__dirname, '../leviousa_web/public/runtime-config.json');
+  if (!process.env.PARAGON_PROJECT_ID && fs.existsSync(runtimePath)) {
+    const runtimeCfg = JSON.parse(fs.readFileSync(runtimePath, 'utf-8'));
+    if (runtimeCfg.PARAGON_PROJECT_ID) {
+      process.env.PARAGON_PROJECT_ID = runtimeCfg.PARAGON_PROJECT_ID;
+      console.log('[ParagonEnv] PARAGON_PROJECT_ID injected from runtime-config.json');
+    }
+  }
+} catch (err) {
+  console.warn('[ParagonEnv] Failed to inject PARAGON_PROJECT_ID:', err.message);
+}
+
+// Set up CSP interception BEFORE app is ready to ensure it applies to all windows
+function setupCSPInterception() {
+    console.log('🔧 [CSP] Setting up CSP interception...');
+    
+    // Debug: Log ALL requests to see what's happening
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://*/*', 'http://*/*'] }, (details, callback) => {
+        if (details.url.includes('useparagon.com')) {
+            console.log('🔍 [DEBUG] All Paragon requests:', details.url, 'Type:', details.resourceType);
+        }
+        callback({});
+    });
+
+    // Debug: Log CSP header modifications
+    session.defaultSession.webRequest.onHeadersReceived({ urls: ['https://*/*'] }, (details, callback) => {
+        if (details.url.includes('useparagon.com')) {
+            const originalCSP = details.responseHeaders?.['content-security-policy'] || details.responseHeaders?.['Content-Security-Policy'];
+            if (originalCSP) {
+                console.log('🔍 [DEBUG] Original CSP found for:', details.url);
+                console.log('🔍 [DEBUG] Original CSP:', originalCSP);
+            }
+        }
+        callback({});
+    });
+
+    // 🚀 BULLET-PROOF PARAGON CSP FIX (o3 suggested)
+    const paragonFilter = { urls: ['https://connect.useparagon.com/*','https://*.useparagon.com/*','https://passport.useparagon.com/*'] };
+    const localhostFilter = { urls: ['http://localhost:3000/*'] };
+
+    // Fix user agent for Paragon domains to avoid Electron detection 
+    session.defaultSession.webRequest.onBeforeSendHeaders(paragonFilter, (details, cb) => {
+        if (details.url.includes('useparagon.com') || details.url.includes('passport.useparagon.com')) {
+            const originalUA = details.requestHeaders['User-Agent'] || '';
+            if (originalUA.includes('Electron')) {
+                // Remove Electron and app name from user agent
+                const cleanUA = originalUA
+                    .replace(/Electron\/[^\s]+\s/, '')
+                    .replace(/leviousa\/[^\s]+\s/, '')
+                    .trim();
+                details.requestHeaders['User-Agent'] = cleanUA;
+                console.log(`[ParagonUA] Modified user agent for Paragon domain`);
+            }
+        }
+        cb({ cancel: false, requestHeaders: details.requestHeaders });
+    });
+
+    // 1️⃣ Strip all CSP headers & tell Chromium to unzip body for us
+    session.defaultSession.webRequest.onHeadersReceived(paragonFilter, (details, callback) => {
+        const h = Object.fromEntries(
+            Object.entries(details.responseHeaders ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+        );
+        
+        // Strip all CSP headers
+        delete h['content-security-policy'];
+        delete h['content-security-policy-report-only'];
+        
+        // Keep content-encoding so gzipped content displays properly
+        // delete h['content-encoding']; // Commented out to prevent binary corruption
+        
+        // Add relaxed header CSP with blob: support
+        h['content-security-policy'] = [
+            "default-src 'self' https: http: blob: data:; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http:; " +
+            "connect-src 'self' https: http: ws: wss: blob:; " +
+            "img-src 'self' data: blob: https: http:; " +
+            "style-src 'self' 'unsafe-inline' https: http:; " +
+            "font-src 'self' data: https: http:; " +
+            "frame-src 'self' https: http: blob:; " +
+            "worker-src 'self' blob:; " +
+            "child-src 'self' https: http: blob:; " +
+            "object-src 'self' blob: https: http:;"
+        ];
+
+        console.log('[CSPPatch] ✅ Bullet-proof CSP fix applied to:', details.url);
+        console.log('[CSPPatch] 🔒 New CSP applied:', h['content-security-policy']);
+        callback({ responseHeaders: h });
+    });
+
+    // Removed streaming CSP meta removal filter to avoid asset corruption;
+    // relying solely on connect-preload.js to scrub CSP meta tags in the page DOM.
+
+    // Apply same CSP fixes to localhost for development - OVERRIDE Next.js CSP completely
+    session.defaultSession.webRequest.onHeadersReceived(localhostFilter, (details, callback) => {
+        const h = Object.fromEntries(
+            Object.entries(details.responseHeaders ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+        );
+        
+        // Remove any existing CSP headers (including Next.js ones)
+        delete h['content-security-policy'];
+        delete h['content-security-policy-report-only'];
+        // Keep content-encoding to avoid corruption
+        // delete h['content-encoding'];
+        
+        // Set a VERY permissive CSP specifically for Paragon integration
+        h['content-security-policy'] = [
+            "default-src 'self' https: http: blob: data: 'unsafe-inline' 'unsafe-eval'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: data: 'wasm-unsafe-eval' 'unsafe-hashes' https://*.useparagon.com https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com; " +
+            "connect-src 'self' https: http: ws: wss: blob: data:; " +
+            "img-src 'self' data: blob: https: http:; " +
+            "style-src 'self' 'unsafe-inline' https: http: data:; " +
+            "font-src 'self' data: https: http:; " +
+            "frame-src 'self' https: http: blob: data:; " +
+            "worker-src 'self' blob: data:; " +
+            "child-src 'self' https: http: blob: data:; " +
+            "object-src 'self' blob: https: http: data:;"
+        ];
+
+        console.log('[CSPPatch] ✅ Overrode Next.js CSP for localhost:', details.url);
+        console.log('[CSPPatch] 🔒 New localhost CSP:', h['content-security-policy']);
+        callback({ responseHeaders: h });
+    });
+
+    session.defaultSession.webRequest.onBeforeRequest(localhostFilter, (details, callback) => {
+        if (details.resourceType !== 'mainFrame' && details.resourceType !== 'subFrame') return callback({});
+
+        const filter = session.defaultSession.webRequest.filterResponseData(details.id);
+        const chunks = [];
+        
+        filter.on('data', buffer => chunks.push(buffer));
+        filter.on('end', () => {
+            const html = Buffer.concat(chunks).toString('utf8')
+                .replace(/<meta[^>]+http-equiv=[\"'](?:Content-Security-Policy|X-Content-Security-Policy)[\"'][^>]*>/ig, '');
+            filter.write(Buffer.from(html, 'utf8'));
+            filter.end();
+        });
+
+        callback({});
+    });
+
+    // Block service worker and CSS maps
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://connect.useparagon.com/service-worker.js*', 'https://connect.useparagon.com/sw.js*'] }, (details, callback) => {
+        console.log('[CSPPatch] Blocking Paragon service worker:', details.url);
+        return callback({ cancel: true });
+    });
+    
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css.map'] }, (details, callback) => {
+        console.log('[CSPPatch] Blocking map file:', details.url);
+        return callback({ cancel: true });
+    });
+
+    console.log('✅ [CSP] CSP interception setup complete');
+}
+
 app.whenReady().then(async () => {
+    // Set up CSP interception FIRST, before any other session configuration
+    console.log('🚀 [MAIN] App ready, calling setupCSPInterception()...');
+    setupCSPInterception();
+    console.log('✅ [MAIN] setupCSPInterception() completed successfully');
+
+    // User agent handling is now done in setupCSPInterception() function above
+
+    // CSP interception is now handled ONLY in setupCSPInterception() function above
+
+    // All CSP handling is done in setupCSPInterception() function above
 
     // Setup native loopback audio capture for Windows
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
@@ -232,15 +509,40 @@ app.whenReady().then(async () => {
         featureBridge.initialize();  // 추가: featureBridge 초기화
         windowBridge.initialize();
         leviousaBridge.initializeLeviousaHandlers();  // Initialize Leviousa-specific handlers
-        initializeEyeContactBridge();  // Initialize eye contact correction handlers
+    
+        
+        // Initialize invisibility mode service
+        const InvisibilityService = require('./features/invisibility/invisibilityService');
+        global.invisibilityService = new InvisibilityService();
+        
+        try {
+            await global.invisibilityService.initialize();
+            console.log('>>> [index.js] Invisibility service initialized successfully');
+        } catch (error) {
+            console.error('>>> [index.js] ❌ Invisibility service initialization failed:', error);
+            console.error('>>> [index.js] Invisibility features will be unavailable until manual restart');
+            // Don't crash the app, but invisibility features won't work
+        }
+
+        const { initializeInvisibilityBridge } = require('./features/invisibility/invisibilityBridge');
+        initializeInvisibilityBridge();  // Initialize invisibility mode handlers
+
+        // Initialize Paragon bridge for integration authentication
+        const { initializeParagonBridge } = require('./features/paragon/paragonBridge');
+        initializeParagonBridge();  // Initialize Paragon integration handlers
+
+        // Initialize voice agent service
+        const VoiceAgentService = require('./features/voiceAgent/voiceAgentService');
+        global.voiceAgentService = new VoiceAgentService();
+        await global.voiceAgentService.initialize();
+        console.log('>>> [index.js] Voice agent service initialized successfully');
+
+        const { initializeVoiceAgentBridge } = require('./features/voiceAgent/voiceAgentBridge');
+        initializeVoiceAgentBridge();  // Initialize voice agent handlers
+        
         setupWebDataHandlers();
 
-        // Initialize eye contact service if enabled
-        const leviousaConfig = require('./features/common/config/leviousa-config');
-        if (leviousaConfig.leviousaConfig.isFeatureEnabled('eyeContactCorrection')) {
-            const sieveEyeContactService = require('./features/eyecontact/sieveEyeContactService');
-            await sieveEyeContactService.initialize();
-        }
+
 
         // Initialize Ollama models in database
         // ollamaModelRepository initialization removed - local models disabled
@@ -250,6 +552,10 @@ app.whenReady().then(async () => {
         // Start web server and create windows ONLY after all initializations are successful
         WEB_PORT = await startWebStack();
         console.log('>>> [index.js] Web stack started successfully');
+        
+        // Initialize Paragon OAuth callback server
+        await initializeParagonOAuthServer();
+        console.log('>>> [index.js] Paragon OAuth callback server initialized successfully');
         
         const isDev = !app.isPackaged;
         if (isDev) {
@@ -314,6 +620,16 @@ app.on('before-quit', async (event) => {
             console.log('[Shutdown] Active sessions ended');
         } catch (dbError) {
             console.warn('[Shutdown] Could not end active sessions (database may be closed):', dbError.message);
+        }
+        
+        // 3. Shutdown invisibility service (including MCP servers and Paragon subprocess)
+        try {
+            if (global.invisibilityService && typeof global.invisibilityService.shutdown === 'function') {
+                await global.invisibilityService.shutdown();
+                console.log('[Shutdown] Invisibility service and MCP servers stopped');
+            }
+        } catch (mcpError) {
+            console.warn('[Shutdown] Error shutting down MCP services:', mcpError.message);
         }
         
         // Ollama shutdown removed - local models disabled
@@ -477,6 +793,8 @@ function setupWebDataHandlers() {
 async function handleCustomUrl(url) {
     try {
         console.log('🔗 [Custom URL] DEEP LINK RECEIVED! Processing URL:', url);
+        console.log('🔗 [Custom URL] URL type:', typeof url);
+        console.log('🔗 [Custom URL] URL length:', url?.length);
         
         // Validate and clean URL
         if (!url || typeof url !== 'string' || !url.startsWith('leviousa://')) {
@@ -498,8 +816,25 @@ async function handleCustomUrl(url) {
         const params = Object.fromEntries(urlObj.searchParams);
         
         console.log('[Custom URL] Action:', action, 'Params:', params);
+        console.log('[Custom URL] Full pathname:', urlObj.pathname);
+        console.log('[Custom URL] Search params:', urlObj.search);
 
         switch (action) {
+            case 'test':
+                console.log('🧪 [Custom URL] Test protocol URL received successfully!');
+                console.log('🧪 [Custom URL] Test params:', params);
+                
+                // Send test result to UI
+                const { windowPool: testWindowPool } = require('./window/windowManager.js');
+                const testHeader = testWindowPool.get('header');
+                if (testHeader) {
+                    testHeader.webContents.send('mcp:protocol-test-result', {
+                        success: true,
+                        message: 'Protocol handling is working correctly!',
+                        params
+                    });
+                }
+                break;
             case 'login':
             case 'auth-success':
                 await handleFirebaseAuthCallback(params);
@@ -510,9 +845,16 @@ async function handleCustomUrl(url) {
             case 'personalize':
                 handlePersonalizeFromUrl(params);
                 break;
+            case 'oauth':
+                console.log('🔗 [Custom URL] OAuth callback received!');
+                console.log('🔗 [Custom URL] OAuth pathname:', urlObj.pathname);
+                console.log('🔗 [Custom URL] OAuth params:', params);
+                await handleOAuthCallback(urlObj.pathname, params);
+                break;
             default:
-                const { windowPool } = require('./window/windowManager.js');
-                const header = windowPool.get('header');
+                console.log('[Custom URL] Unknown action:', action);
+                const { windowPool: defaultWindowPool } = require('./window/windowManager.js');
+                const header = defaultWindowPool.get('header');
                 if (header) {
                     if (header.isMinimized()) header.restore();
                     header.focus();
@@ -526,6 +868,7 @@ async function handleCustomUrl(url) {
 
     } catch (error) {
         console.error('[Custom URL] Error parsing URL:', error);
+        console.error('[Custom URL] Error stack:', error.stack);
     }
 }
 
@@ -570,8 +913,8 @@ async function handleFirebaseAuthCallback(params) {
         console.log('[Auth] Main process sign-in initiated. Waiting for onAuthStateChanged...');
 
         // 5. Focus the app window
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: authWindowPool } = require('./window/windowManager.js');
+        const header = authWindowPool.get('header');
         if (header) {
             if (header.isMinimized()) header.restore();
             header.focus();
@@ -583,8 +926,8 @@ async function handleFirebaseAuthCallback(params) {
         console.error('[Auth] Error during custom token exchange or sign-in:', error);
         // The UI will not change, and the user can try again.
         // Optionally, send a generic error event to the renderer.
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: errorWindowPool } = require('./window/windowManager.js');
+        const header = errorWindowPool.get('header');
         if (header) {
             header.webContents.send('auth-failed', { message: error.message });
         }
@@ -624,8 +967,8 @@ async function handleServerSideAuthCallback(params) {
         }
 
         // 3. Focus the app window
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: serverAuthWindowPool } = require('./window/windowManager.js');
+        const header = serverAuthWindowPool.get('header');
         if (header) {
             if (header.isMinimized()) header.restore();
             header.focus();
@@ -636,8 +979,8 @@ async function handleServerSideAuthCallback(params) {
     } catch (error) {
         console.error('[Auth] Error during server-side authentication:', error);
         // Send error event to the renderer
-        const { windowPool } = require('./window/windowManager.js');
-        const header = windowPool.get('header');
+        const { windowPool: serverErrorWindowPool } = require('./window/windowManager.js');
+        const header = serverErrorWindowPool.get('header');
         if (header) {
             header.webContents.send('auth-failed', { message: error.message });
         }
@@ -647,8 +990,8 @@ async function handleServerSideAuthCallback(params) {
 function handlePersonalizeFromUrl(params) {
     console.log('[Custom URL] Personalize params:', params);
     
-    const { windowPool } = require('./window/windowManager.js');
-    const header = windowPool.get('header');
+    const { windowPool: personalizeWindowPool } = require('./window/windowManager.js');
+    const header = personalizeWindowPool.get('header');
     
     if (header) {
         if (header.isMinimized()) header.restore();
@@ -666,6 +1009,137 @@ function handlePersonalizeFromUrl(params) {
         });
     } else {
         console.error('[Custom URL] Header window not found for personalize');
+    }
+}
+
+async function handleOAuthCallback(pathname, params) {
+    console.log('[OAuth] Processing OAuth callback - pathname:', pathname, 'params:', params);
+    
+    try {
+        // Extract the OAuth path (e.g., "/callback")
+        const { code, state, error, error_description } = params;
+        
+        // Handle OAuth errors
+        if (error) {
+            console.error('[OAuth] OAuth error received:', error, error_description);
+            
+            // Send error notification to UI
+            const { windowPool: oauthErrorWindowPool } = require('./window/windowManager.js');
+            const header = oauthErrorWindowPool.get('header');
+            if (header) {
+                header.webContents.send('mcp:auth-status-updated', {
+                    success: false,
+                    error: `OAuth Error: ${error} - ${error_description || 'Unknown error'}`
+                });
+            }
+            return;
+        }
+        
+        // Validate required parameters
+        if (!code || !state) {
+            console.error('[OAuth] Missing required OAuth parameters:', { code: !!code, state: !!state });
+            
+            const { windowPool: oauthValidationWindowPool } = require('./window/windowManager.js');
+            const header = oauthValidationWindowPool.get('header');
+            if (header) {
+                header.webContents.send('mcp:auth-status-updated', {
+                    success: false,
+                    error: 'Missing required OAuth parameters (code or state)'
+                });
+            }
+            return;
+        }
+        
+        console.log('[OAuth] Processing OAuth callback with code and state');
+        
+        // Ensure invisibility service is initialized - Claude's fix
+        if (!global.invisibilityService) {
+            console.log('[OAuth] Invisibility service not initialized, initializing now...');
+            try {
+                const InvisibilityService = require('./features/invisibility/invisibilityService');
+                global.invisibilityService = new InvisibilityService();
+                await global.invisibilityService.initialize();
+                console.log('[OAuth] Invisibility service initialized successfully for OAuth');
+            } catch (initError) {
+                console.error('[OAuth] Failed to initialize invisibility service:', initError);
+                throw new Error(`Failed to initialize MCP service: ${initError.message}`);
+            }
+        }
+        
+        // Verify MCP client is available
+        if (!global.invisibilityService.mcpClient) {
+            console.error('[OAuth] MCP client not available in invisibility service');
+            throw new Error('MCP client not available - service initialization may have failed');
+        }
+        
+        // Check if this is a Paragon OAuth callback
+        if (state && state.startsWith('paragon_')) {
+            console.log('[OAuth] Processing Paragon OAuth callback');
+            
+            // Use Paragon bridge for Paragon-specific callbacks
+            const { ipcMain } = require('electron');
+            const paragonResult = await new Promise((resolve) => {
+                ipcMain.emit('paragon:handleOAuthCallback', { reply: resolve }, code, state);
+            });
+            
+            if (paragonResult.success) {
+                console.log('[OAuth] Paragon OAuth callback processed successfully');
+                
+                // Send success notification to UI
+                const { windowPool: paragonSuccessWindowPool } = require('./window/windowManager.js');
+                const header = paragonSuccessWindowPool.get('header');
+                if (header) {
+                    header.webContents.send('paragon:auth-status-updated', {
+                        success: true,
+                        message: 'Paragon authentication completed successfully!'
+                    });
+                    
+                    // Focus the app window
+                    if (header.isMinimized()) header.restore();
+                    header.focus();
+                }
+            } else {
+                throw new Error(paragonResult.error || 'Paragon OAuth callback processing failed');
+            }
+        } else {
+            // Use existing MCP client for other OAuth callbacks
+            console.log('[OAuth] Using initialized invisibility service for OAuth processing');
+            const result = await global.invisibilityService.mcpClient.handleOAuthCallback(code, state);
+            
+            if (result.success) {
+                console.log('[OAuth] OAuth callback processed successfully');
+                
+                // Send success notification to UI
+                const { windowPool: oauthSuccessWindowPool } = require('./window/windowManager.js');
+                const header = oauthSuccessWindowPool.get('header');
+                if (header) {
+                    header.webContents.send('mcp:auth-status-updated', {
+                        success: true,
+                        message: 'Authentication completed successfully!'
+                    });
+                }
+                
+                // Focus the app window
+                if (header.isMinimized()) header.restore();
+                header.focus();
+                
+            } else {
+                throw new Error(result.error || 'OAuth callback processing failed');
+            }
+        }
+        
+    } catch (error) {
+        console.error('[OAuth] Error processing OAuth callback:', error);
+        
+        // Send error notification to UI
+        const { windowPool: oauthCatchWindowPool } = require('./window/windowManager.js');
+        const header = oauthCatchWindowPool.get('header');
+        if (header) {
+            header.webContents.send('mcp:auth-status-updated', {
+                success: false,
+                error: `OAuth processing failed: ${error.message}`
+            });
+        }
     }
 }
 
@@ -730,6 +1204,94 @@ async function startWebStack() {
    API:      http://localhost:${apiPort} (Local)`);
 
   return frontendPort;
+}
+
+// Paragon OAuth callback server
+let paragonOAuthServer = null;
+const PARAGON_OAUTH_PORT = 54321; // Dedicated port for Paragon OAuth callbacks
+
+async function initializeParagonOAuthServer() {
+    console.log('[ParagonOAuth] Initializing OAuth callback server...');
+    
+    const paragonApp = express();
+    
+    // Handle Paragon OAuth callback
+    paragonApp.get('/paragon/callback', (req, res) => {
+        console.log('[ParagonOAuth] 🔗 Received OAuth callback');
+        console.log('[ParagonOAuth] Query params:', req.query);
+        
+        try {
+            // Get the query string
+            const queryString = new URLSearchParams(req.query).toString();
+            console.log('[ParagonOAuth] Query string:', queryString);
+            
+            // Immediately redirect back to Paragon with the same query parameters
+            // This completes the OAuth flow as required by Paragon
+            const redirectUrl = `https://passport.useparagon.com/oauth?${queryString}`;
+            console.log('[ParagonOAuth] 🔀 Redirecting back to Paragon:', redirectUrl);
+            
+            res.redirect(redirectUrl);
+            
+            // Also notify any listening windows about the successful callback
+            const { BrowserWindow } = require('electron');
+            const allWindows = BrowserWindow.getAllWindows();
+            allWindows.forEach(window => {
+                try {
+                    window.webContents.send('paragon:oauth-callback-received', {
+                        success: true,
+                        query: req.query,
+                        redirectUrl: redirectUrl
+                    });
+                } catch (err) {
+                    console.warn('[ParagonOAuth] Failed to notify window:', err.message);
+                }
+            });
+            
+        } catch (error) {
+            console.error('[ParagonOAuth] ❌ Error processing OAuth callback:', error);
+            res.status(500).send('OAuth callback processing failed');
+        }
+    });
+    
+    // Health check endpoint
+    paragonApp.get('/paragon/health', (req, res) => {
+        res.json({ status: 'ok', service: 'paragon-oauth-callback' });
+    });
+    
+    // Start the OAuth callback server
+    return new Promise((resolve, reject) => {
+        paragonOAuthServer = paragonApp.listen(PARAGON_OAUTH_PORT, '127.0.0.1', (err) => {
+            if (err) {
+                console.error('[ParagonOAuth] ❌ Failed to start OAuth callback server:', err);
+                reject(err);
+            } else {
+                console.log(`[ParagonOAuth] ✅ OAuth callback server listening on http://127.0.0.1:${PARAGON_OAUTH_PORT}`);
+                console.log(`[ParagonOAuth] Callback URL: http://127.0.0.1:${PARAGON_OAUTH_PORT}/paragon/callback`);
+                
+                // Store the callback URL in a global variable for use by other parts of the app
+                global.PARAGON_OAUTH_CALLBACK_URL = `http://127.0.0.1:${PARAGON_OAUTH_PORT}/paragon/callback`;
+                
+                resolve();
+            }
+        });
+        
+        // Handle server errors
+        paragonOAuthServer.on('error', (error) => {
+            console.error('[ParagonOAuth] OAuth callback server error:', error);
+            if (error.code === 'EADDRINUSE') {
+                console.error(`[ParagonOAuth] Port ${PARAGON_OAUTH_PORT} is already in use. Trying next port...`);
+                // Could implement port auto-increment here if needed
+            }
+        });
+        
+        // Cleanup on app exit
+        app.once('before-quit', () => {
+            if (paragonOAuthServer) {
+                console.log('[ParagonOAuth] Closing OAuth callback server...');
+                paragonOAuthServer.close();
+            }
+        });
+    });
 }
 
 // Auto-update initialization

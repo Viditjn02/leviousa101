@@ -64,6 +64,84 @@ function initializeLeviousaHandlers() {
         };
     });
 
+    // Call any MCP tool
+    ipcMain.handle('mcp:callTool', async (_event, toolName, args) => {
+        try {
+            const mcpClient = require('../features/invisibility/mcpClient');
+            if (!mcpClient || !mcpClient.callTool) throw new Error('MCP client not available');
+            const result = await mcpClient.callTool(toolName, args || {});
+            return { success: true, content: JSON.stringify(result) };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // Handle Paragon credentials for SDK integration
+    ipcMain.handle('paragon:getCredentials', async (event, userId) => {
+        console.log(`[LeviousaBridge] Getting Paragon credentials for user: ${userId}`);
+        
+        try {
+            const jwt = require('jsonwebtoken');
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Load Paragon configuration from MCP service
+            const paragonEnvPath = path.join(__dirname, '../../services/paragon-mcp/.env');
+            let PROJECT_ID, SIGNING_KEY;
+            
+            if (fs.existsSync(paragonEnvPath)) {
+                const envContent = fs.readFileSync(paragonEnvPath, 'utf8');
+                const envLines = envContent.split('\n');
+                for (const line of envLines) {
+                    if (line.trim() && !line.startsWith('#')) {
+                        const [key, ...valueParts] = line.split('=');
+                        if (key && valueParts.length > 0) {
+                            let value = valueParts.join('=');
+                            // Remove quotes if present
+                            if ((value.startsWith('"') && value.endsWith('"')) || 
+                                (value.startsWith("'") && value.endsWith("'"))) {
+                                value = value.slice(1, -1);
+                            }
+                            if (key === 'PROJECT_ID') PROJECT_ID = value;
+                            if (key === 'SIGNING_KEY') SIGNING_KEY = value;
+                        }
+                    }
+                }
+            }
+            
+            if (!PROJECT_ID || !SIGNING_KEY) {
+                throw new Error('Paragon PROJECT_ID or SIGNING_KEY not found in environment');
+            }
+            
+            // Clean the signing key (convert \\n to actual newlines)
+            const SIGNING_KEY_CLEAN = SIGNING_KEY.replace(/\\n/g, '\n');
+            
+            // Generate JWT token for the user
+            const currentTime = Math.floor(Date.now() / 1000);
+            const userToken = jwt.sign(
+                {
+                    sub: userId || 'default-user',
+                    aud: `useparagon.com/${PROJECT_ID}`,
+                    iat: currentTime,
+                    exp: currentTime + 3600 // 1 hour expiration
+                },
+                SIGNING_KEY_CLEAN,
+                { algorithm: 'RS256' }
+            );
+            
+            console.log(`[LeviousaBridge] Generated Paragon credentials for user: ${userId}`);
+            
+            return {
+                PROJECT_ID,
+                userToken
+            };
+            
+        } catch (error) {
+            console.error('[LeviousaBridge] Error generating Paragon credentials:', error);
+            throw error;
+        }
+    });
+
     console.log('[LeviousaBridge] Leviousa handlers initialized');
 }
 

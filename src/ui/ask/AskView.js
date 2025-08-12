@@ -1,5 +1,7 @@
 import { html, css, LitElement } from '../../ui/assets/lit-core-2.7.4.min.js';
 import { parser, parser_write, parser_end, default_renderer } from '../../ui/assets/smd.js';
+import './MCPActionBar.js';
+// Remove any old mcp-ui-integration imports
 
 export class AskView extends LitElement {
     static properties = {
@@ -14,6 +16,11 @@ export class AskView extends LitElement {
         headerText: { type: String },
         headerAnimating: { type: Boolean },
         isStreaming: { type: Boolean },
+        conversationHistory: { type: Array }, // New property for conversation history
+        isConversationMode: { type: Boolean }, // New property to track conversation state
+        // Email composer form state
+        showEmailForm: { type: Boolean, reflect: true },
+        emailData: { type: Object }
     };
 
     static styles = css`
@@ -709,6 +716,305 @@ export class AskView extends LitElement {
         .header-clear-btn:hover .icon-box {
             background-color: rgba(255,255,255,0.18);
         }
+
+        /* Conversation History Styles */
+        .conversation-history {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversation-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px 8px 0 0;
+        }
+
+        .conversation-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .new-conversation-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .new-conversation-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .history-list {
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+
+        .history-exchange {
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            border-left: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .history-exchange:last-child {
+            margin-bottom: 0;
+        }
+
+        .history-question,
+        .history-response {
+            display: flex;
+            margin-bottom: 4px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .history-response {
+            margin-bottom: 0;
+        }
+
+        .history-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 600;
+            margin-right: 6px;
+            min-width: 16px;
+        }
+
+        .history-text {
+            color: rgba(255, 255, 255, 0.8);
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .history-question .history-label {
+            color: rgba(100, 200, 255, 0.8);
+        }
+
+        .history-response .history-label {
+            color: rgba(100, 255, 150, 0.8);
+        }
+
+        /* Response Container Scrolling Improvements */
+        .response-container {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+            scroll-behavior: smooth;
+        }
+
+        .response-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .response-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .response-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .response-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Email Form Styles */
+        .email-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            flex-shrink: 0;
+            transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
+            transform-origin: top;
+        }
+
+        .email-form.hidden {
+            opacity: 0;
+            transform: scaleY(0);
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+            border-top: none;
+        }
+
+        .email-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .email-field label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            flex-shrink: 0;
+        }
+
+        .email-field input,
+        .email-field textarea {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            outline: none;
+            border: none;
+            color: white;
+            font-size: 14px;
+            font-family: 'Helvetica Neue', sans-serif;
+            font-weight: 400;
+        }
+
+        .email-field input::placeholder,
+        .email-field textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .email-field input:focus,
+        .email-field textarea:focus {
+            outline: none;
+        }
+
+        .email-send-btn {
+            align-self: flex-end;
+            width: 120px; /* Adjust as needed */
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .email-send-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Email form should work alongside the response, not replace it */
+        .email-form {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 8px;
+            position: relative;
+        }
+        
+        .email-form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .email-form-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .email-header-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .email-debug-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            transition: background 0.15s;
+            font-size: 14px;
+        }
+        
+        .email-debug-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .email-close-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            transition: background 0.15s;
+        }
+
+        .email-close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        /* Ensure email form is visible and properly positioned */
+        .email-form.hidden {
+            opacity: 0;
+            transform: scaleY(0);
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+            border: none;
+            margin: 0;
+        }
     `;
 
     constructor() {
@@ -721,6 +1027,10 @@ export class AskView extends LitElement {
         this.headerText = 'AI Response';
         this.headerAnimating = false;
         this.isStreaming = false;
+        this.conversationHistory = [];
+        this.isConversationMode = false;
+        this.showEmailForm = false;
+        this.emailData = { to: '', subject: '', body: '' };
 
         this.marked = null;
         this.hljs = null;
@@ -740,11 +1050,60 @@ export class AskView extends LitElement {
         this.handleScroll = this.handleScroll.bind(this);
         this.handleCloseAskWindow = this.handleCloseAskWindow.bind(this);
         this.handleCloseIfNoContent = this.handleCloseIfNoContent.bind(this);
+        this.startNewConversation = this.startNewConversation.bind(this);
+        this.addToConversationHistory = this.addToConversationHistory.bind(this);
+        this.closeEmailForm = this.closeEmailForm.bind(this);
+        this.handleEmailSend = this.handleEmailSend.bind(this);
+        this.checkAvailableTools = this.checkAvailableTools.bind(this);
 
         this.loadLibraries();
 
         // --- Resize helpers ---
         this.isThrottled = false;
+    }
+
+    /**
+     * Add a message exchange to the conversation history
+     * @param {string} question - User question
+     * @param {string} response - AI response
+     */
+    addToConversationHistory(question, response) {
+        if (question && response) {
+            this.conversationHistory.push({
+                question: question.trim(),
+                response: response.trim(),
+                timestamp: new Date().toISOString()
+            });
+            this.isConversationMode = true;
+            console.log(`[AskView] Added to conversation history. Total exchanges: ${this.conversationHistory.length}`);
+        }
+    }
+
+    /**
+     * Start a new conversation by clearing history
+     */
+    startNewConversation() {
+        this.conversationHistory = [];
+        this.isConversationMode = false;
+        this.currentResponse = '';
+        this.currentQuestion = '';
+        this.showTextInput = true;
+        console.log('[AskView] Started new conversation');
+        this.requestUpdate();
+        this.focusTextInput();
+    }
+
+    /**
+     * Get conversation history formatted for API
+     * @returns {string[]} Array of conversation texts
+     */
+    getConversationHistoryForAPI() {
+        const history = [];
+        this.conversationHistory.forEach(exchange => {
+            history.push(exchange.question);
+            history.push(exchange.response);
+        });
+        return history;
     }
 
     connectedCallback() {
@@ -787,6 +1146,13 @@ export class AskView extends LitElement {
             window.api.askView.onScrollResponseUp(() => this.handleScroll('up'));
             window.api.askView.onScrollResponseDown(() => this.handleScroll('down'));
             window.api.askView.onAskStateUpdate((event, newState) => {
+                // Check if we just completed a response (was streaming, now not streaming with response)
+                const justCompletedResponse = this.isStreaming && !newState.isStreaming && 
+                                            newState.currentResponse && !newState.isLoading;
+                
+                const previousQuestion = this.currentQuestion;
+                const previousResponse = this.currentResponse;
+                
                 this.currentResponse = newState.currentResponse;
                 this.currentQuestion = newState.currentQuestion;
                 this.isLoading       = newState.isLoading;
@@ -794,6 +1160,13 @@ export class AskView extends LitElement {
               
                 const wasHidden = !this.showTextInput;
                 this.showTextInput = newState.showTextInput;
+                
+                // Add completed exchange to conversation history
+                if (justCompletedResponse && previousQuestion && newState.currentResponse) {
+                    this.addToConversationHistory(previousQuestion, newState.currentResponse);
+                    // Keep input available for follow-up questions
+                    this.showTextInput = true;
+                }
               
                 if (newState.showTextInput) {
                   if (wasHidden) {
@@ -805,6 +1178,17 @@ export class AskView extends LitElement {
               });
             console.log('AskView: IPC 이벤트 리스너 등록 완료');
         }
+        // Listen for MCP email UI resources
+        console.log('[AskView] 🔗 Setting up IPC listeners for UI resources...');
+        console.log('[AskView] 🔍 window.api availability:', !!window.api);
+        console.log('[AskView] 🔍 window.api.mcp availability:', !!window.api?.mcp);
+        console.log('[AskView] 🔍 window.api.mcp.ui availability:', !!window.api?.mcp?.ui);
+        console.log('[AskView] 🔍 window.api.mcp.ui.onResourceAvailable availability:', !!window.api?.mcp?.ui?.onResourceAvailable);
+        
+        window.api?.mcp?.ui?.onResourceAvailable((event, data) => {
+          console.log('[AskView] 📥 IPC event received: mcp:ui-resource-available');
+          this.handleUIResource(data);
+        });
     }
 
     disconnectedCallback() {
@@ -1015,6 +1399,11 @@ export class AskView extends LitElement {
         
         // Set streaming markdown parser
         this.renderStreamingMarkdown(responseContainer);
+
+        // Auto-scroll to bottom when content is updated during streaming
+        if (this.isStreaming && responseContainer.style.overflowY === 'auto') {
+            responseContainer.scrollTop = responseContainer.scrollHeight;
+        }
 
         // After updating content, recalculate window height
         this.adjustWindowHeightThrottled();
@@ -1272,14 +1661,64 @@ export class AskView extends LitElement {
     async handleSendText(e, overridingText = '') {
         const textInput = this.shadowRoot?.getElementById('textInput');
         const text = (overridingText || textInput?.value || '').trim();
-        // if (!text) return;
+        if (!text) return;
 
         textInput.value = '';
 
         if (window.api) {
-            window.api.askView.sendMessage(text).catch(error => {
+            // Get conversation history for context
+            const conversationHistory = this.getConversationHistoryForAPI();
+            
+            console.log(`[AskView] Sending message with ${conversationHistory.length} history items`);
+            
+            window.api.askView.sendMessage(text, conversationHistory).catch(error => {
                 console.error('Error sending text:', error);
             });
+        }
+    }
+
+    async handleMCPAction(event) {
+        const { action } = event.detail;
+        console.log('[AskView] MCP action triggered:', action);
+
+        if (!window.api?.mcp?.executeAction) {
+            console.error('[AskView] MCP UI API not available');
+            return;
+        }
+
+        try {
+            // Check if this is an email action that should suppress the AI response
+            if (action.type === 'email.send' || action.label?.includes('Email') || action.id?.includes('email')) {
+                console.log('[AskView] 📧 Email action detected, suppressing AI response and showing composer...');
+                
+                // Replace the AI response with a brief message about opening the email composer
+                this.currentResponse = `📧 Opening email composer...`;
+                this.isStreaming = false;
+                this.isLoading = false;
+                this.requestUpdate();
+            }
+            
+            // Execute the action through MCP UI Integration
+            const result = await window.api.mcp.executeAction(action.id, {
+                ...action.metadata,
+                currentQuestion: this.currentQuestion,
+                currentResponse: this.currentResponse,
+                conversationHistory: this.conversationHistory
+            });
+
+            if (result.success) {
+                console.log('[AskView] MCP action executed successfully:', result);
+                
+                // Handle UI resource if returned
+                if (result.result?.resourceId) {
+                    // The UI resource will be handled by the global UI resource handler
+                    console.log('[AskView] UI resource created:', result.result.resourceId);
+                }
+            } else {
+                console.error('[AskView] MCP action failed:', result.error);
+            }
+        } catch (error) {
+            console.error('[AskView] Error executing MCP action:', error);
         }
     }
 
@@ -1306,17 +1745,31 @@ export class AskView extends LitElement {
             this.renderContent();
         }
     
-        if (changedProperties.has('showTextInput') || changedProperties.has('isLoading') || changedProperties.has('currentResponse')) {
+        if (changedProperties.has('showTextInput') || changedProperties.has('isLoading') || 
+            changedProperties.has('currentResponse') || changedProperties.has('conversationHistory')) {
             this.adjustWindowHeightThrottled();
         }
     
         if (changedProperties.has('showTextInput') && this.showTextInput) {
             this.focusTextInput();
         }
+
+        // Handle conversation history changes
+        if (changedProperties.has('conversationHistory')) {
+            console.log(`[AskView] Conversation history updated: ${this.conversationHistory.length} exchanges`);
+        }
     }
 
     firstUpdated() {
         setTimeout(() => this.adjustWindowHeight(), 200);
+        
+        // Set up MCP UI resource event listener via contextBridge API
+        if (window.api && window.api.mcp && window.api.mcp.ui && window.api.mcp.ui.onResourceAvailable) {
+            window.api.mcp.ui.onResourceAvailable((event, data) => {
+                console.log('[AskView] UI resource available:', data);
+                this.handleMCPUIResource(data);
+            });
+        }
     }
 
 
@@ -1330,12 +1783,45 @@ export class AskView extends LitElement {
 
     render() {
         const hasResponse = this.isLoading || this.currentResponse || this.isStreaming;
+        const hasConversationHistory = this.conversationHistory.length > 0;
         const headerText = this.isLoading ? 'Thinking...' : 'AI Response';
+        const placeholderText = hasConversationHistory ? 
+            "Continue the conversation..." : 
+            "Ask about your screen or audio";
 
         return html`
             <div class="ask-container">
+                <!-- Conversation History -->
+                ${hasConversationHistory ? html`
+                    <div class="conversation-history">
+                        <div class="conversation-header">
+                            <span class="conversation-label">Conversation History</span>
+                            <button class="new-conversation-btn" @click=${this.startNewConversation} title="Start New Conversation">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14m-7-7h14" />
+                                </svg>
+                                New
+                            </button>
+                        </div>
+                        <div class="history-list">
+                            ${this.conversationHistory.map((exchange, index) => html`
+                                <div class="history-exchange">
+                                    <div class="history-question">
+                                        <span class="history-label">Q:</span>
+                                        <span class="history-text">${exchange.question}</span>
+                                    </div>
+                                    <div class="history-response">
+                                        <span class="history-label">A:</span>
+                                        <span class="history-text">${this.getTruncatedQuestion(exchange.response, 100)}</span>
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                ` : ''}
+
                 <!-- Response Header -->
-                <div class="response-header ${!hasResponse ? 'hidden' : ''}">
+                <div class="response-header ${!hasResponse || this.showEmailForm ? 'hidden' : ''}">
                     <div class="header-left">
                         <div class="response-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1348,6 +1834,13 @@ export class AskView extends LitElement {
                     <div class="header-right">
                         <span class="question-text">${this.getTruncatedQuestion(this.currentQuestion)}</span>
                         <div class="header-controls">
+                            ${hasConversationHistory ? html`
+                                <button class="new-conversation-btn" @click=${this.startNewConversation} title="Start New Conversation">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 5v14m-7-7h14" />
+                                    </svg>
+                                </button>
+                            ` : ''}
                             <button class="copy-button ${this.copyState === 'copied' ? 'copied' : ''}" @click=${this.handleCopy}>
                                 <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -1380,12 +1873,62 @@ export class AskView extends LitElement {
                     <!-- Content is dynamically generated in updateResponseContent() -->
                 </div>
 
+                <!-- MCP Action Bar -->
+                ${this.showTextInput && hasResponse ? html`
+                    <mcp-action-bar
+                        .context=${{
+                            type: 'ask',
+                            message: this.currentQuestion,
+                            response: this.currentResponse,
+                            history: this.conversationHistory
+                        }}
+                        @mcp-action=${this.handleMCPAction}
+                    ></mcp-action-bar>
+                ` : ''}
+
+                <!-- Inline Email Form - Moved to after response container -->
+                ${this.showEmailForm ? html`
+                    <div class="email-form">
+                        <div class="email-form-header">
+                            <span class="email-form-title">Email Composer</span>
+                            <div class="email-header-buttons">
+                                <button class="email-debug-btn" @click=${this.checkAvailableTools} title="Check Available Gmail Tools">
+                                    🔍
+                                </button>
+                                <button class="email-close-btn" @click=${this.closeEmailForm}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="email-field">
+                            <label for="emailTo">To:</label>
+                            <input type="text" id="emailTo" .value=${this.emailData.to} @input=${e => this.emailData.to = e.target.value} placeholder="Recipient email(s)" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailCc">CC:</label>
+                            <input type="text" id="emailCc" .value=${this.emailData.cc || ''} @input=${e => this.emailData.cc = e.target.value} placeholder="CC" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailSubject">Subject:</label>
+                            <input type="text" id="emailSubject" .value=${this.emailData.subject} @input=${e => this.emailData.subject = e.target.value} placeholder="Subject" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailBody">Body:</label>
+                            <textarea id="emailBody" rows="4" .value=${this.emailData.body} @input=${e => this.emailData.body = e.target.value} placeholder="Type your email..."></textarea>
+                        </div>
+                        <button class="submit-btn email-send-btn" @click=${this.handleEmailSend}>Send Email</button>
+                    </div>
+                ` : ''}
+
                 <!-- Text Input Container -->
                 <div class="text-input-container ${!hasResponse ? 'no-response' : ''} ${!this.showTextInput ? 'hidden' : ''}">
                     <input
                         type="text"
                         id="textInput"
-                        placeholder="Ask about your screen or audio"
+                        placeholder="${placeholderText}"
                         @keydown=${this.handleTextKeydown}
                         @focus=${this.handleInputFocus}
                     />
@@ -1411,16 +1954,35 @@ export class AskView extends LitElement {
             const headerEl = this.shadowRoot.querySelector('.response-header');
             const responseEl = this.shadowRoot.querySelector('.response-container');
             const inputEl = this.shadowRoot.querySelector('.text-input-container');
+            const historyEl = this.shadowRoot.querySelector('.conversation-history'); // Include conversation history
+            const emailFormEl = this.shadowRoot.querySelector('.email-form'); // Include email form
 
             if (!headerEl || !responseEl) return;
 
             const headerHeight = headerEl.classList.contains('hidden') ? 0 : headerEl.offsetHeight;
             const responseHeight = responseEl.scrollHeight;
             const inputHeight = (inputEl && !inputEl.classList.contains('hidden')) ? inputEl.offsetHeight : 0;
+            const historyHeight = (historyEl && !historyEl.classList.contains('hidden')) ? historyEl.offsetHeight : 0;
+            const emailFormHeight = (emailFormEl && !emailFormEl.classList.contains('hidden')) ? emailFormEl.offsetHeight : 0;
 
-            const idealHeight = headerHeight + responseHeight + inputHeight;
+            const idealHeight = headerHeight + responseHeight + inputHeight + historyHeight + emailFormHeight;
+            const maxHeight = 700; // Maximum window height
+            const targetHeight = Math.min(maxHeight, idealHeight);
 
-            const targetHeight = Math.min(700, idealHeight);
+            // If content exceeds max height, enable scrolling in response container
+            if (idealHeight > maxHeight) {
+                const availableResponseHeight = maxHeight - headerHeight - inputHeight - historyHeight - emailFormHeight;
+                responseEl.style.maxHeight = `${availableResponseHeight}px`;
+                responseEl.style.overflowY = 'auto';
+                console.log(`[AskView] Content exceeds max height. Enabling scroll. Available response height: ${availableResponseHeight}px`);
+            } else {
+                responseEl.style.maxHeight = 'none';
+                responseEl.style.overflowY = 'visible';
+            }
+
+            console.log(
+                `[AskView Height Debug] Header: ${headerHeight}px, Response: ${responseHeight}px, Input: ${inputHeight}px, History: ${historyHeight}px, Email Form: ${emailFormHeight}px, Ideal: ${idealHeight}px, Target: ${targetHeight}px`
+            );
 
             window.api.askView.adjustWindowHeight("ask", targetHeight);
 
@@ -1436,6 +1998,281 @@ export class AskView extends LitElement {
             this.adjustWindowHeight();
             this.isThrottled = false;
         });
+    }
+
+    /** Handle incoming UI resource events */
+    handleUIResource(data) {
+      console.log('[AskView] 🔍 handleUIResource called with full data:', JSON.stringify(data, null, 2));
+      
+      if (data.tool === 'gmail.send' && data.context) {
+        console.log('[AskView] ✅ Email context received:', data.context);
+        // Store the incoming UI tool for dynamic invocation
+        this.emailTool = data.tool;
+        
+        this.emailData = {
+          to: data.context.recipients || '',
+          subject: data.context.subject || '',
+          body: data.context.body || '',
+          cc: data.context.cc || '',
+          bcc: data.context.bcc || ''
+        };
+        
+        console.log('[AskView] 📝 Setting emailData:', this.emailData);
+        console.log('[AskView] 🎯 Setting showEmailForm to true, was:', this.showEmailForm);
+        
+        this.showEmailForm = true;
+        this.requestUpdate();
+        
+        // Adjust window height to accommodate the email form
+        this.adjustWindowHeightThrottled();
+        
+        console.log('[AskView] ✅ Email form should now be visible');
+      } else {
+        console.log('[AskView] ❌ UI resource not handled - tool:', data.tool, 'hasContext:', !!data.context);
+        console.log('[AskView] ❌ Expected tool: gmail.send, received:', data.tool);
+        console.log('[AskView] ❌ Has context:', !!data.context);
+      }
+    }
+
+  /** Send the email via MCP tool */
+  async handleEmailSend() {
+    const { to, subject, body, cc = '', bcc = '' } = this.emailData;
+    if (!to || !subject || !body) {
+      alert('Please fill in To, Subject, and Body fields');
+      return;
+    }
+    
+    try {
+      console.log('[AskView] Attempting to send email via Paragon MCP...');
+      console.log('[AskView] 📧 Email data from UI form:', { to, subject, body, cc, bcc });
+      console.log('[AskView] 📧 Body length from UI:', (body || '').length);
+      console.log('[AskView] 📧 Body content preview:', (body || '').substring(0, 100));
+      
+      // Dynamically find the correct email send tool name
+      const emailToolName = await this.getEmailSendToolName();
+      if (!emailToolName) {
+        throw new Error('No email send tool found');
+      }
+      
+      console.log('[AskView] 📧 Using email tool:', emailToolName);
+      
+      // Invoke the Paragon email send tool via MCP UI dynamically
+      const actionData = {
+        serverId: 'paragon',
+        tool: emailToolName,
+        params: {
+          to: Array.isArray(to) ? to : [to],
+          subject: subject,
+          body: body,
+          // user_id will be added dynamically below
+        }
+      };
+
+      // Only add cc and bcc if they have values (Gmail API rejects empty strings)
+      if (cc && cc.trim()) {
+        actionData.params.cc = cc;
+      }
+      if (bcc && bcc.trim()) {
+        actionData.params.bcc = bcc;
+      }
+      // Dynamically fetch the authenticated Paragon user_id
+      try {
+        const userState = await window.api.common.getCurrentUser();
+        if (userState && userState.uid) {
+          actionData.params.user_id = userState.uid;
+        } else {
+          console.warn('[AskView] No authenticated user found - using fallback default-user');
+          actionData.params.user_id = 'default-user';
+        }
+      } catch (uidErr) {
+        console.warn('[AskView] Failed to fetch current user for user_id:', uidErr);
+        actionData.params.user_id = 'default-user';
+      }
+
+      console.log('[AskView] 📧 Final actionData being sent to MCP API:', JSON.stringify(actionData, null, 2));
+      
+      const result = await window.api.mcp.ui.invokeAction(actionData);
+      
+      if (result && result.success) {
+        console.log('[AskView] Email sent successfully via Paragon');
+        
+        // Close the email form and reset data after successful send
+        this.showEmailForm = false;
+        this.emailData = { to: '', subject: '', body: '', cc: '', bcc: '' };
+        this.requestUpdate();
+        
+        // Show success message in the response area
+        this.currentResponse = `✅ Email sent successfully to ${to}!`;
+        this.isLoading = false;
+        this.isStreaming = false;
+        this.requestUpdate();
+        
+      } else {
+        console.error('[AskView] Email sending failed:', result.error);
+        
+        // Display a user-friendly error message in the UI
+        this.currentResponse = `❌ Failed to send email: ${result.error || 'Unknown error'}`;
+        this.isLoading = false;
+        this.isStreaming = false;
+        this.requestUpdate();
+      }
+    } catch (err) {
+        console.error('[AskView] Error in email send process:', err);
+        
+        // Display a generic error in the UI
+        this.currentResponse = `❌ An unexpected error occurred while trying to send the email: ${err.message}`;
+        this.isLoading = false;
+        this.isStreaming = false;
+        this.requestUpdate();
+    }
+  }
+  
+  /** Close the email form */
+  closeEmailForm() {
+    this.showEmailForm = false;
+    this.requestUpdate();
+  }
+  
+  /** Get the actual email send tool name dynamically */
+  async getEmailSendToolName() {
+    try {
+      const result = await window.api.mcp.getAvailableTools();
+      if (result && result.success && result.tools) {
+        // Look for email send tools in order of preference
+        const emailSendPatterns = [
+          'gmail_send_email',     // Paragon Gmail
+          'send_gmail_message',   // Google Workspace MCP
+          'email_send',           // Generic email send
+          'send_email'            // Alternative generic
+        ];
+        
+        for (const pattern of emailSendPatterns) {
+          const tool = result.tools.find(t => t.name === pattern);
+          if (tool) {
+            console.log(`[AskView] Found email send tool: ${tool.name}`);
+            return tool.name;
+          }
+        }
+        
+        // Fallback: search for any tool with 'send' and 'email' in name or description
+        const emailTool = result.tools.find(tool => {
+          const name = tool.name.toLowerCase();
+          const desc = (tool.description || '').toLowerCase();
+          return (name.includes('send') && (name.includes('email') || name.includes('gmail'))) ||
+                 (desc.includes('send') && desc.includes('email'));
+        });
+        
+        if (emailTool) {
+          console.log(`[AskView] Found fallback email tool: ${emailTool.name}`);
+          return emailTool.name;
+        }
+        
+        console.warn('[AskView] No email send tool found in available tools');
+        return null;
+      } else {
+        console.log('[AskView] Failed to get tools:', result.error);
+        return null;
+      }
+    } catch (error) {
+      console.error('[AskView] Error getting email send tool:', error);
+      return null;
+    }
+  }
+
+  /** Debug: Check available MCP tools */
+  async checkAvailableTools() {
+    try {
+      const result = await window.api.mcp.getAvailableTools();
+      if (result && result.success) {
+        console.log('[AskView] Available MCP tools:', result.tools);
+        const gmailTools = result.tools.filter(tool => 
+          tool.name.toLowerCase().includes('gmail') || 
+          tool.name.toLowerCase().includes('email') ||
+          tool.name.toLowerCase().includes('send')
+        );
+        console.log('[AskView] Gmail-related tools:', gmailTools);
+        return gmailTools;
+      } else {
+        console.log('[AskView] Failed to get tools:', result.error);
+        return [];
+      }
+    } catch (error) {
+      console.error('[AskView] Error checking tools:', error);
+      return [];
+    }
+  }
+
+    /**
+     * Handle incoming MCP UI resources (like email composer)
+     * @param {Object} data - The UI resource data
+     */
+    handleMCPUIResource(data) {
+        console.log('[AskView] Handling MCP UI resource:', data);
+        
+        // Check if this is an email composer resource
+        if (data.tool && data.tool.includes('GMAIL_SEND_EMAIL') && data.resource) {
+            console.log('[AskView] Displaying email composer UI');
+            
+            // Extract email data from the HTML content if available
+            try {
+                const emailData = this.extractEmailDataFromResource(data.resource);
+                
+                // Show the email form with pre-filled data
+                this.emailData = {
+                    to: emailData.to || '',
+                    subject: emailData.subject || '',
+                    body: emailData.body || '',
+                    cc: emailData.cc || '',
+                    bcc: emailData.bcc || ''
+                };
+                
+                this.showEmailForm = true;
+                this.requestUpdate();
+                
+                // Adjust window height to accommodate the email form
+                this.adjustWindowHeightThrottled();
+                
+            } catch (error) {
+                console.error('[AskView] Error processing email UI resource:', error);
+            }
+        }
+    }
+    
+    /**
+     * Extract email data from UI resource HTML content
+     * @param {Object} resource - The UI resource
+     * @returns {Object} Extracted email data
+     */
+    extractEmailDataFromResource(resource) {
+        const emailData = { to: '', subject: '', body: '', cc: '', bcc: '' };
+        
+        try {
+            if (resource.text) {
+                // Parse the HTML to extract pre-filled values
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(resource.text, 'text/html');
+                
+                // Extract values from input fields
+                const toInput = doc.querySelector('input[name="to"]');
+                if (toInput) emailData.to = toInput.value;
+                
+                const subjectInput = doc.querySelector('input[name="subject"]');
+                if (subjectInput) emailData.subject = subjectInput.value;
+                
+                const bodyTextarea = doc.querySelector('textarea[name="body"]');
+                if (bodyTextarea) emailData.body = bodyTextarea.textContent || bodyTextarea.value;
+                
+                const ccInput = doc.querySelector('input[name="cc"]');
+                if (ccInput) emailData.cc = ccInput.value;
+                
+                const bccInput = doc.querySelector('input[name="bcc"]');
+                if (bccInput) emailData.bcc = bccInput.value;
+            }
+        } catch (error) {
+            console.warn('[AskView] Could not parse email data from resource:', error);
+        }
+        
+        return emailData;
     }
 }
 

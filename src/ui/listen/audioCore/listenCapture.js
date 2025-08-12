@@ -49,7 +49,23 @@ const MAX_SYSTEM_BUFFER_SIZE = 10;
 // ---------------------------
 // Utility helpers (exact from renderer.js)
 // ---------------------------
-function isVoiceActive(audioFloat32Array, threshold = 0.005) {
+// NEW: Enhanced VAD with echo prevention settings
+const VAD_CONFIG = {
+    rmsThreshold: 0.015, // Increased from 0.005 to prevent TTS triggering
+    minSegmentLength: 300, // Minimum speech segment length in ms 
+    startThreshold: 0.02, // Higher threshold for speech start detection
+    continuationThreshold: 0.008, // Lower threshold to continue speech
+    backgroundNoiseFloor: 0.003 // Expected background noise level
+};
+
+let vadState = {
+    isSpeaking: false,
+    segmentStartTime: 0,
+    lastActiveTime: 0,
+    recentRMSValues: []
+};
+
+function isVoiceActive(audioFloat32Array, threshold = VAD_CONFIG.rmsThreshold) {
     if (!audioFloat32Array || audioFloat32Array.length === 0) {
         return false;
     }
@@ -60,9 +76,63 @@ function isVoiceActive(audioFloat32Array, threshold = 0.005) {
     }
     const rms = Math.sqrt(sumOfSquares / audioFloat32Array.length);
 
-    // console.log(`VAD RMS: ${rms.toFixed(4)}`); // For debugging VAD threshold
+    // Store recent RMS values for trend analysis
+    vadState.recentRMSValues.push(rms);
+    if (vadState.recentRMSValues.length > 10) {
+        vadState.recentRMSValues.shift();
+    }
 
-    return rms > threshold;
+    // console.log(`VAD RMS: ${rms.toFixed(4)}, Threshold: ${threshold.toFixed(4)}`); // For debugging VAD threshold
+
+    // NEW: Enhanced voice activity detection with state management
+    return enhancedVoiceActivityDetection(rms, threshold);
+}
+
+// NEW: Enhanced VAD with hysteresis and minimum segment length
+function enhancedVoiceActivityDetection(currentRMS, baseThreshold) {
+    const now = Date.now();
+    
+    // Calculate dynamic background noise level
+    const avgRecentRMS = vadState.recentRMSValues.length > 0 
+        ? vadState.recentRMSValues.reduce((a, b) => a + b, 0) / vadState.recentRMSValues.length 
+        : VAD_CONFIG.backgroundNoiseFloor;
+    
+    // Adaptive threshold based on background noise
+    const adaptiveThreshold = Math.max(
+        baseThreshold,
+        avgRecentRMS * 2.5, // 2.5x background noise
+        VAD_CONFIG.backgroundNoiseFloor * 3
+    );
+    
+    // Use different thresholds for start vs continuation
+    const effectiveThreshold = vadState.isSpeaking 
+        ? VAD_CONFIG.continuationThreshold 
+        : Math.max(adaptiveThreshold, VAD_CONFIG.startThreshold);
+    
+    const isActive = currentRMS > effectiveThreshold;
+    
+    if (isActive) {
+        vadState.lastActiveTime = now;
+        
+        if (!vadState.isSpeaking) {
+            vadState.segmentStartTime = now;
+            vadState.isSpeaking = true;
+        }
+    } else {
+        // Require minimum gap before ending speech detection
+        const timeSinceLastActive = now - vadState.lastActiveTime;
+        if (vadState.isSpeaking && timeSinceLastActive > 200) { // 200ms gap
+            vadState.isSpeaking = false;
+        }
+    }
+    
+    // Require minimum segment length for valid speech
+    if (vadState.isSpeaking) {
+        const segmentDuration = now - vadState.segmentStartTime;
+        return segmentDuration >= VAD_CONFIG.minSegmentLength || isActive;
+    }
+    
+    return false;
 }
 
 function base64ToFloat32Array(base64) {

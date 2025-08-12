@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leviousa Protocol Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 30px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #4a90e2;
+            margin-bottom: 10px;
+        }
+        
+        p {
+            color: #a0a0a0;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        
+        .test-button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 10px;
+            transition: background-color 0.2s;
+            min-width: 200px;
+        }
+        
+        .test-button:hover {
+            background: #357abd;
+        }
+        
+        .test-url {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            color: #22c55e;
+            word-break: break-all;
+            text-align: left;
+        }
+        
+        .instructions {
+            background: #3a2a0a;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .instructions h3 {
+            color: #ffc107;
+            margin-top: 0;
+        }
+        
+        .instructions ol {
+            color: #e0e0e0;
+            line-height: 1.8;
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .status.success {
+            background: rgba(40, 167, 69, 0.2);
+            border: 1px solid #28a745;
+            color: #28a745;
+        }
+        
+        .status.error {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid #dc3545;
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Leviousa Protocol Test</h1>
+        <p>This page helps you test if the custom protocol handling is working correctly for OAuth callbacks.</p>
+        
+        <div class="instructions">
+            <h3>📋 Test Instructions</h3>
+            <ol>
+                <li>Make sure Leviousa desktop app is running</li>
+                <li>Click one of the test buttons below</li>
+                <li>If the protocol is working, Leviousa should open and focus</li>
+                <li>If it doesn't work, try copying the URL and pasting it in your browser address bar</li>
+            </ol>
+        </div>
+        
+        <button class="test-button" onclick="testBasicProtocol()">
+            🧪 Test Basic Protocol
+        </button>
+        
+        <button class="test-button" onclick="testOAuthCallback()">
+            🔐 Test OAuth Callback
+        </button>
+        
+        <button class="test-button" onclick="copyTestUrl()">
+            📋 Copy Test URL
+        </button>
+        
+        <div id="test-url" class="test-url" style="display: none;"></div>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="instructions">
+            <h3>🔧 Troubleshooting</h3>
+            <p><strong>If the protocol test fails:</strong></p>
+            <ul style="text-align: left; color: #e0e0e0;">
+                <li>Restart the Leviousa app</li>
+                <li>On macOS: Check System Preferences > Security & Privacy > Privacy > Automation</li>
+                <li>On Windows: Check if the app is properly installed and registered</li>
+                <li>Try running the app as administrator (Windows) or with proper permissions (macOS)</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+        
+        function testBasicProtocol() {
+            const testUrl = 'leviousa://test/protocol?source=manual-test&timestamp=' + Date.now();
+            console.log('Testing protocol with URL:', testUrl);
+            
+            try {
+                window.location.href = testUrl;
+                showStatus('Protocol test initiated. Check if Leviousa app opened.', 'success');
+            } catch (error) {
+                console.error('Protocol test failed:', error);
+                showStatus('Protocol test failed: ' + error.message, 'error');
+            }
+        }
+        
+        function testOAuthCallback() {
+            const testUrl = 'leviousa://oauth/callback?code=test_code_123&state=test_state_456&source=manual-test';
+            console.log('Testing OAuth callback with URL:', testUrl);
+            
+            try {
+                window.location.href = testUrl;
+                showStatus('OAuth callback test initiated. Check if Leviousa app opened.', 'success');
+            } catch (error) {
+                console.error('OAuth callback test failed:', error);
+                showStatus('OAuth callback test failed: ' + error.message, 'error');
+            }
+        }
+        
+        function copyTestUrl() {
+            const testUrl = 'leviousa://oauth/callback?code=test_code_123&state=test_state_456&source=manual-test';
+            const urlDiv = document.getElementById('test-url');
+            
+            urlDiv.textContent = testUrl;
+            urlDiv.style.display = 'block';
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(testUrl).then(() => {
+                    showStatus('Test URL copied to clipboard!', 'success');
+                }).catch(err => {
+                    showStatus('Failed to copy URL: ' + err.message, 'error');
+                });
+            } else {
+                showStatus('Clipboard not supported. URL is displayed above.', 'error');
+            }
+        }
+        
+        // Auto-hide URL after a while
+        document.addEventListener('click', () => {
+            const urlDiv = document.getElementById('test-url');
+            if (urlDiv.style.display === 'block') {
+                setTimeout(() => {
+                    urlDiv.style.display = 'none';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html> 

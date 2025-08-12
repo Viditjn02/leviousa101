@@ -3,7 +3,8 @@ const { getFirestoreInstance } = require('../../services/firebaseClient');
 const { createEncryptedConverter } = require('../firestoreConverter');
 const encryptionService = require('../../services/encryptionService');
 
-const sessionConverter = createEncryptedConverter(['title']);
+// Remove title encryption - titles are not sensitive data and need to be readable in web dashboard
+const sessionConverter = createEncryptedConverter([]);
 
 function sessionsCol() {
     const db = getFirestoreInstance();
@@ -29,10 +30,14 @@ async function getById(id) {
 
 async function create(uid, type = 'ask') {
     const now = Timestamp.now();
+    
+    // Generate better default title based on session type
+    const defaultTitle = getDefaultTitle(type);
+    
     const newSession = {
         uid: uid,
         members: [uid], // For future sharing functionality
-        title: `Session @ ${new Date().toLocaleTimeString()}`,
+        title: defaultTitle,
         session_type: type,
         started_at: now,
         updated_at: now,
@@ -41,6 +46,71 @@ async function create(uid, type = 'ask') {
     const docRef = await addDoc(sessionsCol(), newSession);
     console.log(`Firebase: Created session ${docRef.id} for user ${uid}`);
     return docRef.id;
+}
+
+// NEW: Generate better default titles
+function getDefaultTitle(sessionType) {
+    const date = new Date();
+    const timeStr = date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+    });
+    const dateStr = date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+    });
+    
+    switch (sessionType) {
+        case 'listen':
+            return `Listen Session - ${dateStr} ${timeStr}`;
+        case 'ask':
+            return `Q&A Session - ${dateStr} ${timeStr}`;
+        default:
+            return `Conversation - ${dateStr} ${timeStr}`;
+    }
+}
+
+// NEW: Generate intelligent title from session content
+async function generateIntelligentTitle(sessionId) {
+    try {
+        const sessionTitleService = require('../../services/sessionTitleService');
+        const session = await getById(sessionId);
+        
+        if (!session) {
+            console.warn(`[Firebase] Session ${sessionId} not found for title generation`);
+            return null;
+        }
+
+        // Get related data for title generation
+        const { transcripts, ai_messages } = subCollections(sessionId);
+        
+        const [transcriptsSnap, aiMessagesSnap] = await Promise.all([
+            getDocs(query(transcripts)),
+            getDocs(query(ai_messages))
+        ]);
+        
+        const transcriptData = transcriptsSnap.docs.map(doc => doc.data());
+        const aiMessageData = aiMessagesSnap.docs.map(doc => doc.data());
+        
+        // Generate title using the service
+        const newTitle = await sessionTitleService.generateTitle(sessionId, {
+            transcripts: transcriptData,
+            aiMessages: aiMessageData,
+            sessionType: session.session_type
+        });
+        
+        if (newTitle && newTitle !== session.title) {
+            await updateTitle(sessionId, newTitle);
+            console.log(`[Firebase] Updated session ${sessionId} title to: "${newTitle}"`);
+            return newTitle;
+        }
+        
+        return session.title;
+    } catch (error) {
+        console.error('[Firebase] Error generating intelligent title:', error);
+        return null;
+    }
 }
 
 async function getAllByUserId(uid) {
@@ -52,7 +122,7 @@ async function getAllByUserId(uid) {
 async function updateTitle(id, title) {
     const docRef = doc(sessionsCol(), id);
     await updateDoc(docRef, {
-        title: encryptionService.encrypt(title),
+        title: title, // No encryption needed for titles
         updated_at: Timestamp.now()
     });
     return { changes: 1 };
@@ -147,6 +217,58 @@ async function endAllActiveSessions(uid) {
     return { changes: snapshot.size };
 }
 
+// NEW: Migrate encrypted titles to plaintext for web dashboard compatibility
+async function migrateEncryptedTitles() {
+    try {
+        console.log('[Firebase] Starting migration of encrypted session titles...');
+        
+        const q = query(sessionsCol(), orderBy('started_at', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        let migratedCount = 0;
+        const batch = writeBatch(getFirestoreInstance());
+        
+        for (const docSnap of querySnapshot.docs) {
+            const data = docSnap.data();
+            
+            // Check if title looks encrypted (Base64 pattern)
+            if (data.title && typeof data.title === 'string' && 
+                data.title.match(/^[A-Za-z0-9+/=]{20,}$/) && 
+                data.title.includes('=')) {
+                
+                try {
+                    // Try to decrypt the title
+                    const decryptedTitle = encryptionService.decrypt(data.title);
+                    
+                    // Update with decrypted title
+                    batch.update(docSnap.ref, {
+                        title: decryptedTitle,
+                        updated_at: Timestamp.now()
+                    });
+                    
+                    migratedCount++;
+                    console.log(`[Firebase] Migrating session ${docSnap.id}: "${data.title.substring(0, 30)}..." -> "${decryptedTitle}"`);
+                    
+                } catch (decryptError) {
+                    console.warn(`[Firebase] Could not decrypt title for session ${docSnap.id}, leaving as-is:`, decryptError.message);
+                }
+            }
+        }
+        
+        if (migratedCount > 0) {
+            await batch.commit();
+            console.log(`[Firebase] Successfully migrated ${migratedCount} encrypted session titles`);
+        } else {
+            console.log('[Firebase] No encrypted session titles found to migrate');
+        }
+        
+        return { migratedCount };
+    } catch (error) {
+        console.error('[Firebase] Error during title migration:', error);
+        return { migratedCount: 0, error: error.message };
+    }
+}
+
 module.exports = {
     getById,
     create,
@@ -158,4 +280,6 @@ module.exports = {
     touch,
     getOrCreateActive,
     endAllActiveSessions,
+    generateIntelligentTitle,
+    migrateEncryptedTitles, // Export the migration function
 }; 

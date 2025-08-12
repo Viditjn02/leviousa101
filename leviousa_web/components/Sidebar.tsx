@@ -148,13 +148,13 @@ IconComponent.displayName = 'IconComponent';
 const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps) => {
     const pathname = usePathname();
     const router = useRouter();
-    const [isSettingsExpanded, setIsSettingsExpanded] = useState(pathname.startsWith('/settings'));
+    const [isSettingsExpanded, setIsSettingsExpanded] = useState(pathname ? pathname.startsWith('/settings') : false);
     const { user: userInfo, isLoading: authLoading } = useAuth();
     const { isAnimating, getTextAnimationStyle, getSubmenuAnimationStyle, sidebarContainerStyle, getTextContainerStyle, getUniformTextStyle } =
         useAnimationStyles(isCollapsed);
 
     useEffect(() => {
-        if (pathname.startsWith('/settings')) {
+        if (pathname && pathname.startsWith('/settings')) {
             setIsSettingsExpanded(true);
         }
     }, [pathname]);
@@ -208,7 +208,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
     }, [isCollapsed, onToggle]);
 
     const toggleSettings = useCallback(() => {
-        if (!pathname.startsWith('/settings')) {
+        if (pathname && !pathname.startsWith('/settings')) {
             setIsSettingsExpanded(prev => !prev);
         }
     }, [pathname]);
@@ -230,7 +230,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
 
     const renderNavigationItem = useCallback(
         (item: NavigationItem, index: number) => {
-            const isActive = item.href ? pathname.startsWith(item.href) : false;
+            const isActive = !!(item.href && pathname?.startsWith(item.href));
             const animationDelay = 0;
 
             const baseButtonClasses = `
@@ -340,7 +340,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                                     </li>
                                 ))}
                                 <li role="none">
-                                    {isFirebaseUser ? (
+                                    {userInfo && userInfo.uid !== 'default_user' ? (
                                         <button
                                             onClick={handleLogout}
                                             onKeyDown={e => handleKeyDown(e, handleLogout)}
@@ -420,6 +420,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
             getTextContainerStyle,
             getSubmenuAnimationStyle,
             settingsSubmenu,
+            userInfo,
         ]
     );
 

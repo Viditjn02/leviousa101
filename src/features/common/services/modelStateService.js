@@ -18,15 +18,69 @@ class ModelStateService extends EventEmitter {
         this.authService = authService;
         // electron-store는 오직 레거시 데이터 마이그레이션 용도로만 사용됩니다.
         this.store = null;
-        this._initializeStore();
+        
+        // Add EPIPE error protection
+        this._setupEPipeProtection();
+        
+        this._initializeStore().catch(error => {
+            console.error('[ModelStateService] Store initialization failed:', error);
+            // Store will remain null, which is handled gracefully in other methods
+        });
+    }
+
+    /**
+     * Set up EPIPE error protection for console methods
+     */
+    _setupEPipeProtection() {
+        if (global._modelStateEPipeProtected) {
+            return; // Already protected
+        }
+        
+        const originalMethods = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn,
+            info: console.info
+        };
+        
+        const createSafeMethod = (original) => {
+            return (...args) => {
+                try {
+                    original.apply(console, args);
+                } catch (error) {
+                    if (error.code === 'EPIPE' || error.errno === -32) {
+                        // Silently ignore EPIPE errors to prevent crashes
+                        return;
+                    }
+                    throw error;
+                }
+            };
+        };
+        
+        console.log = createSafeMethod(originalMethods.log);
+        console.error = createSafeMethod(originalMethods.error);
+        console.warn = createSafeMethod(originalMethods.warn);
+        console.info = createSafeMethod(originalMethods.info);
+        
+        global._modelStateEPipeProtected = true;
     }
 
     async _initializeStore() {
-        if (!Store) {
-            const electronStore = await import('electron-store');
-            Store = electronStore.default;
+        try {
+            if (!Store) {
+                const electronStore = await import('electron-store');
+                Store = electronStore.default;
+            }
+            this.store = new Store({ 
+                name: 'leviousa-model-state',
+                projectName: 'Leviousa'
+            });
+            console.log('[ModelStateService] Store initialized successfully');
+        } catch (error) {
+            console.error('[ModelStateService] Store initialization failed:', error);
+            this.store = null;
+            throw error;
         }
-        this.store = new Store({ name: 'leviousa-model-state' });
     }
 
     async initialize() {

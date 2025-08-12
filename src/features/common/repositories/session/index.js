@@ -64,6 +64,38 @@ const sessionRepositoryAdapter = {
         const uid = authService.getCurrentUserId();
         return getBaseRepository().endAllActiveSessions(uid);
     },
+
+    // NEW: Generate intelligent title for session
+    generateIntelligentTitle: (sessionId) => {
+        return getBaseRepository().generateIntelligentTitle(sessionId);
+    },
+
+    // NEW: Migrate encrypted titles (Firebase only)
+    migrateEncryptedTitles: () => {
+        const repo = getBaseRepository();
+        if (repo.migrateEncryptedTitles) {
+            return repo.migrateEncryptedTitles();
+        }
+        return Promise.resolve({ migratedCount: 0, message: 'Migration not available for current repository' });
+    },
+
+    // NEW: Get current active session for context
+    getCurrentSession: () => {
+        const uid = authService.getCurrentUserId();
+        if (!uid) {
+            return Promise.resolve(null);
+        }
+        return getBaseRepository().getCurrentSession ? 
+            getBaseRepository().getCurrentSession(uid) : 
+            getBaseRepository().getOrCreateActive(uid, 'listen');
+    },
+
+    // NEW: Get recent messages from a session for context
+    getRecentMessages: (sessionId, limit = 10) => {
+        return getBaseRepository().getRecentMessages ? 
+            getBaseRepository().getRecentMessages(sessionId, limit) :
+            Promise.resolve([]);
+    },
 };
 
 module.exports = sessionRepositoryAdapter; 

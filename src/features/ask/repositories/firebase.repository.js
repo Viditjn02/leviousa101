@@ -2,7 +2,8 @@ const { collection, addDoc, query, getDocs, orderBy, Timestamp } = require('fire
 const { getFirestoreInstance } = require('../../common/services/firebaseClient');
 const { createEncryptedConverter } = require('../../common/repositories/firestoreConverter');
 
-const aiMessageConverter = createEncryptedConverter(['content']);
+// Remove content encryption - AI messages need to be readable in web dashboard
+const aiMessageConverter = createEncryptedConverter([]);
 
 function aiMessagesCol(sessionId) {
     if (!sessionId) throw new Error("Session ID is required to access AI messages.");
@@ -15,11 +16,11 @@ async function addAiMessage({ uid, sessionId, role, content, model = 'unknown' }
     const newMessage = {
         uid, // To identify the author of the message
         session_id: sessionId,
-        sent_at: now,
+        sentAt: now, // Changed from sent_at to match web dashboard
         role,
         content,
         model,
-        created_at: now,
+        createdAt: now, // Changed from created_at to match web dashboard
     };
     
     const docRef = await addDoc(aiMessagesCol(sessionId), newMessage);
@@ -27,7 +28,7 @@ async function addAiMessage({ uid, sessionId, role, content, model = 'unknown' }
 }
 
 async function getAllAiMessagesBySessionId(sessionId) {
-    const q = query(aiMessagesCol(sessionId), orderBy('sent_at', 'asc'));
+    const q = query(aiMessagesCol(sessionId), orderBy('sentAt', 'asc')); // Changed from sent_at to match web dashboard
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => doc.data());
 }

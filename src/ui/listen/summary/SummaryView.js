@@ -1,5 +1,7 @@
 import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 
+import '../../ask/MCPActionBar.js';
+
 export class SummaryView extends LitElement {
     static styles = css`
         :host {
@@ -372,6 +374,39 @@ export class SummaryView extends LitElement {
         this.handleRequestClick(originalText);
     }
 
+    async handleMCPAction(event) {
+        const { action } = event.detail;
+        console.log('[SummaryView] MCP action triggered:', action);
+
+        if (!window.api?.mcp?.ui) {
+            console.error('[SummaryView] MCP UI API not available');
+            return;
+        }
+
+        try {
+            // Execute the action through MCP UI Integration
+            const result = await window.api.mcp.ui.executeAction(action.id, {
+                ...action.metadata,
+                summary: this.getSummaryText(),
+                structuredData: this.structuredData,
+                title: this.structuredData?.topic?.header || 'Meeting Summary'
+            });
+
+            if (result.success) {
+                console.log('[SummaryView] MCP action executed successfully:', result);
+                
+                // Handle UI resource if returned
+                if (result.result?.resourceId) {
+                    console.log('[SummaryView] UI resource created:', result.result.resourceId);
+                }
+            } else {
+                console.error('[SummaryView] MCP action failed:', result.error);
+            }
+        } catch (error) {
+            console.error('[SummaryView] Error executing MCP action:', error);
+        }
+    }
+
     renderMarkdownContent() {
         if (!this.isLibrariesLoaded || !this.marked) {
             return;
@@ -524,19 +559,16 @@ export class SummaryView extends LitElement {
                             : ''}
                         ${this.hasCompletedRecording && data.followUps && data.followUps.length > 0
                             ? html`
-                                  <insights-title>Follow-Ups</insights-title>
-                                  ${data.followUps.map(
-                                      (followUp, index) => html`
-                                          <div
-                                              class="markdown-content"
-                                              data-markdown-id="followup-${index}"
-                                              data-original-text="${followUp}"
-                                              @click=${() => this.handleMarkdownClick(followUp)}
-                                          >
-                                              ${followUp}
-                                          </div>
-                                      `
-                                  )}
+                                  <insights-title>Actions</insights-title>
+                                  <mcp-action-bar
+                                      .context=${{
+                                          type: 'listen-complete',
+                                          summary: this.getSummaryText(),
+                                          structuredData: this.structuredData,
+                                          sessionType: 'listen'
+                                      }}
+                                      @mcp-action=${this.handleMCPAction}
+                                  ></mcp-action-bar>
                               `
                             : ''}
                     `}
