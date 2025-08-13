@@ -52,6 +52,18 @@ class MCPUIIntegrationService extends EventEmitter {
       summarize: this.createNoteSummarizeAction.bind(this)
     });
 
+    // LinkedIn actions
+    this.contextualActions.set('linkedin', {
+      profile: this.createLinkedInProfileAction.bind(this),
+      post: this.createLinkedInPostAction.bind(this),
+      connections: this.createLinkedInConnectionsAction.bind(this),
+      messaging: this.createLinkedInMessagingAction.bind(this),
+      companies: this.createLinkedInCompaniesAction.bind(this),
+      skills: this.createLinkedInSkillsAction.bind(this),
+      search: this.createLinkedInSearchAction.bind(this),
+      job_postings: this.createLinkedInJobsAction.bind(this)
+    });
+
     // Note: Specific integration actions removed - now using Paragon for unified access
   }
 
@@ -162,6 +174,7 @@ Should any interactive UI be triggered? Focus on clear intent patterns:
 - Email words: "send email", "email someone", "compose", "write to"
 - Calendar words: "schedule", "book meeting", "calendar"
 - Document words: "save to notion", "take notes"
+- LinkedIn words: "linkedin profile", "post on linkedin", "linkedin connections", "professional network"
 
 Return JSON array with detected actions.`;
 
@@ -241,7 +254,13 @@ Analyze the user's message and conversation context to identify if any interacti
 3. **Document Intent**: "save to notion", "create document", "take notes"
    - Extract content to be saved
 
-4. **Other tool usage**: Based on available capabilities
+4. **LinkedIn Intent**: "linkedin profile", "post on linkedin", "linkedin connections", "professional network"
+   - For profile: Extract name or profile details to lookup
+   - For posts: Extract content to share
+   - For connections: Extract search criteria or networking intent
+   - ONLY trigger if "linkedin" is explicitly mentioned in the message
+
+5. **Other tool usage**: Based on available capabilities
 
 For each detected intent, extract specific context details to pre-populate the UI.
 
@@ -263,6 +282,43 @@ Example email action response:
     "body": "Hi John, Thanks for the great meeting today. I wanted to follow up on the action items we discussed...\\n\\nBest regards,\\n${userName}",
     "cc": "",
     "bcc": ""
+  }
+}
+
+Example LinkedIn action responses:
+{
+  "id": "linkedin-profile",
+  "label": "👤 View LinkedIn Profile",
+  "type": "linkedin.profile",
+  "confidence": 0.90,
+  "autoTrigger": true,
+  "context": {
+    "name": "John Smith",
+    "company": "Tech Corp",
+    "searchQuery": "john smith tech corp"
+  }
+}
+
+{
+  "id": "linkedin-post",
+  "label": "📝 Post on LinkedIn",
+  "type": "linkedin.posts", 
+  "confidence": 0.92,
+  "autoTrigger": true,
+  "context": {
+    "content": "Excited to share our latest product launch!",
+    "visibility": "PUBLIC"
+  }
+}
+
+{
+  "id": "linkedin-connections",
+  "label": "🤝 View LinkedIn Connections",
+  "type": "linkedin.connections",
+  "confidence": 0.88,
+  "autoTrigger": true,
+  "context": {
+    "searchCriteria": "colleagues in tech industry"
   }
 }
 
@@ -370,7 +426,9 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
       // Search & Discovery
       search: '🔍', find: '🔍', lookup: '🔍', discover: '🔍',
       // Storage & Management
-      save: '💾', store: '🗄️', manage: '⚙️', organize: '📂'
+      save: '💾', store: '🗄️', manage: '⚙️', organize: '📂',
+      // LinkedIn Professional 
+      linkedin: '💼', profile: '👤', posts: '📝', connections: '🤝', messaging: '💬'
     };
 
     const emoji = emojiMap[capability] || emojiMap[serviceKey] || '🔧';
@@ -410,7 +468,13 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
       calendar: ['meeting', 'calendar', 'schedule', 'appointment', 'book', 'plan', 'time'],
       notion: ['notion', 'save', 'notes', 'document', 'write', 'record'],
       drive: ['drive', 'file', 'upload', 'save', 'store', 'document'],
-      tasks: ['task', 'todo', 'remind', 'list', 'complete', 'done']
+      tasks: ['task', 'todo', 'remind', 'list', 'complete', 'done'],
+      // LinkedIn intelligent routing
+      linkedin: ['linkedin', 'professional', 'network', 'connection', 'profile', 'post', 'share', 'business', 'company', 'organization', 'skill', 'activity', 'follower', 'search', 'job', 'messaging', 'article'],
+      profile: ['profile', 'about', 'background', 'experience', 'bio', 'information', 'details', 'who is'],
+      posts: ['post', 'share', 'publish', 'write', 'update', 'announce', 'content'],
+      connections: ['connections', 'network', 'contacts', 'colleagues', 'friends', 'people'],
+      messaging: ['message', 'dm', 'direct message', 'contact', 'reach out', 'send message']
     };
 
     const serviceWords = wordMap[serviceKey] || [];
@@ -492,14 +556,47 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
 
       console.log('[MCPUIIntegrationService] 📋 Parsing LLM content:', content);
 
-      // Try to parse as JSON
-      const jsonMatch = content.match(/\[.*\]/s);
-      if (!jsonMatch) {
-        console.warn('[MCPUIIntegrationService] No JSON array found in LLM response');
+      // Try to parse as JSON - extract only the JSON array portion
+      let jsonString = '';
+      
+      // Find the first '[' that starts a JSON array of objects (allow whitespace/newlines before first '{')
+      const startIndex = content.search(/\[\s*\{/);
+      if (startIndex === -1) {
+        console.warn('[MCPUIIntegrationService] No JSON array of objects found in LLM response');
         return [];
       }
-
-      const actions = JSON.parse(jsonMatch[0]);
+      
+      // Find the matching closing ']' by counting brackets
+      let bracketCount = 0;
+      let endIndex = -1;
+      
+      for (let i = startIndex; i < content.length; i++) {
+        if (content[i] === '[') {
+          bracketCount++;
+        } else if (content[i] === ']') {
+          bracketCount--;
+          if (bracketCount === 0) {
+            endIndex = i;
+            break;
+          }
+        }
+      }
+      
+      if (endIndex === -1) {
+        console.warn('[MCPUIIntegrationService] No matching JSON array end found in LLM response');
+        return [];
+      }
+      
+      jsonString = content.substring(startIndex, endIndex + 1);
+      console.log('[MCPUIIntegrationService] 📋 Extracted JSON:', jsonString);
+      
+      // Validate that this actually looks like action JSON before parsing
+      if (!/\{[\s\S]*?"id"[\s\S]*?\}/.test(jsonString) || !jsonString.includes('"type"') || !jsonString.includes('"confidence"')) {
+        console.warn('[MCPUIIntegrationService] Extracted text does not contain required action fields (id, type, confidence):', jsonString);
+        return [];
+      }
+      
+      const actions = JSON.parse(jsonString);
       
       // Validate and process actions
       return actions.filter(action => {
@@ -599,18 +696,158 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
   }
 
   /**
+   * Extract LinkedIn profile context from user message
+   */
+  extractLinkedInProfileContext(message) {
+    const context = {
+      searchQuery: '',
+      name: '',
+      company: ''
+    };
+
+    // Enhanced name patterns to catch more variations
+    const namePatterns = [
+      /(?:profile of|who is|about|find)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)(?:'s|s)?\s+(?:profile|linkedin|background)/i,
+      /(?:pull\s*up|pullup|get|lookup|search\s+for|find)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:from|on)\s+linkedin/i,
+      /linkedin.*?([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      // More flexible pattern for names anywhere in the message
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)/
+    ];
+
+    for (const pattern of namePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.name = match[1].trim();
+        context.searchQuery = context.name;
+        break;
+      }
+    }
+
+    // Extract company patterns
+    const companyPatterns = [
+      /(?:at|from|works?\s+at)\s+([A-Z][a-zA-Z\s&]+)/i,
+      /([A-Z][a-zA-Z\s&]+)\s+(?:company|corporation|corp|inc|llc)/i
+    ];
+
+    for (const pattern of companyPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.company = match[1].trim();
+        context.searchQuery += ` ${context.company}`;
+        break;
+      }
+    }
+
+    // Default to general search if no specific name found
+    if (!context.searchQuery) {
+      context.searchQuery = 'profile search';
+    }
+
+    console.log('[MCPUIIntegrationService] 👤 Extracted LinkedIn profile context:', context);
+    return context;
+  }
+
+  /**
+   * Extract LinkedIn post context from user message
+   */
+  extractLinkedInPostContext(message) {
+    const context = {
+      content: '',
+      visibility: 'PUBLIC'
+    };
+
+    // Extract content patterns
+    const contentPatterns = [
+      /(?:post|share|publish|announce)(?:\s+on\s+linkedin)?\s*[:\-]?\s*["']?([^"']+)["']?/i,
+      /linkedin.*?(?:post|share|:).*?[:\-]?\s*(.+)/i,  // Enhanced pattern for "LinkedIn: content"
+      /post\s+on\s+linkedin[:\-]?\s*(.+)/i,  // "Post on LinkedIn: content"
+      /"([^"]+)"/,  // Quoted content
+      /'([^']+)'/   // Single quoted content
+    ];
+
+    for (const pattern of contentPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.content = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract visibility patterns
+    if (message.toLowerCase().includes('private')) {
+      context.visibility = 'PRIVATE';
+    } else if (message.toLowerCase().includes('connections only')) {
+      context.visibility = 'CONNECTIONS';
+    }
+
+    // Default content if nothing specific found
+    if (!context.content) {
+      context.content = 'New post from Leviousa conversation';
+    }
+
+    console.log('[MCPUIIntegrationService] 📝 Extracted LinkedIn post context:', context);
+    return context;
+  }
+
+  /**
+   * Extract LinkedIn connections context from user message
+   */
+  extractLinkedInConnectionsContext(message) {
+    const context = {
+      searchCriteria: '',
+      count: 50,
+      start: 0
+    };
+
+    // Extract search criteria patterns
+    const criteriaPatterns = [
+      /(?:connections|network|colleagues|contacts)(?:\s+(?:in|from|at))?\s+(.+)/i,
+      /(?:people|professionals)(?:\s+(?:in|from|at))?\s+(.+)/i,
+      /(?:find|search).*?(?:connections|network).*?(.+)/i
+    ];
+
+    for (const pattern of criteriaPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.searchCriteria = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract count patterns
+    const countMatch = message.match(/(\d+)\s+(?:connections|people|contacts)/i);
+    if (countMatch) {
+      context.count = Math.min(parseInt(countMatch[1]), 500); // LinkedIn API limit
+    }
+
+    // Default criteria if nothing specific found
+    if (!context.searchCriteria) {
+      context.searchCriteria = 'professional network';
+    }
+
+    console.log('[MCPUIIntegrationService] 🤝 Extracted LinkedIn connections context:', context);
+    return context;
+  }
+
+  /**
    * Fallback intent detection for LLM failures
    */
   async fallbackIntentDetection(context, availableTools) {
     console.warn('[MCPUIIntegrationService] Falling back to keyword-based intent detection due to LLM failure.');
     const actions = [];
+    const message = context.message?.toLowerCase() || '';
+
+    // Check if LinkedIn is available
+    const hasLinkedIn = availableTools.linkedin || false;
 
     // Simple keyword matching for email
     if (context.message && (
-      context.message.toLowerCase().includes('send email') ||
-      context.message.toLowerCase().includes('email someone') ||
-      context.message.toLowerCase().includes('compose email') ||
-      context.message.toLowerCase().includes('write to')
+      message.includes('send email') ||
+      message.includes('email someone') ||
+      message.includes('compose email') ||
+      message.includes('write to')
     )) {
       // Extract email context from the conversation
       const emailContext = this.extractEmailContext(context.message + ' ' + (context.conversationHistory || ''));
@@ -623,6 +860,65 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
         autoTrigger: true,
         context: emailContext
       });
+    }
+
+    // LinkedIn intelligent detection - ONLY if "linkedin" is explicitly mentioned
+    if (hasLinkedIn && message.includes('linkedin')) {
+      console.log('[MCPUIIntegrationService] LinkedIn explicitly mentioned, detecting specific intent...');
+      
+      // LinkedIn Post creation (check first to avoid conflicts)
+      if (message.includes('post') || message.includes('share') || message.includes('publish') || message.includes('announce') || message.match(/linkedin.*?:/)) {
+        const postContext = this.extractLinkedInPostContext(context.message);
+        actions.push({
+          id: 'linkedin-post',
+          label: '📝 Post on LinkedIn',
+          type: 'linkedin.posts',
+          confidence: 0.85,
+          autoTrigger: true,
+          context: postContext
+        });
+      }
+      
+      // LinkedIn Profile lookup (enhanced detection for names and "pull up" patterns)
+      else if (message.includes('profile') || message.includes('who is') || message.includes('background') || message.includes('about') ||
+               message.includes('pull up') || message.includes('pullup') || message.includes('find') || message.includes('lookup') ||
+               message.includes('get') || message.includes('search for') || /[A-Z][a-z]+\s+[A-Z][a-z]+/.test(message)) {
+        const profileContext = this.extractLinkedInProfileContext(context.message);
+        actions.push({
+          id: 'linkedin-profile',
+          label: '👤 View LinkedIn Profile',
+          type: 'linkedin.profile',
+          confidence: 0.85,
+          autoTrigger: true,
+          context: profileContext
+        });
+      }
+      
+      // LinkedIn Connections
+      else if (message.includes('connections') || message.includes('network') || message.includes('colleagues') || message.includes('contacts')) {
+        const connectionsContext = this.extractLinkedInConnectionsContext(context.message);
+        actions.push({
+          id: 'linkedin-connections',
+          label: '🤝 View LinkedIn Connections',
+          type: 'linkedin.connections',
+          confidence: 0.85,
+          autoTrigger: true,
+          context: connectionsContext
+        });
+      }
+      
+      // Default LinkedIn action if no specific intent detected
+      else {
+        const profileContext = this.extractLinkedInProfileContext(context.message);
+        actions.push({
+          id: 'linkedin-profile',
+          label: '👤 View LinkedIn Profile',
+          type: 'linkedin.profile',
+          confidence: 0.85,
+          autoTrigger: true,
+          context: profileContext
+        });
+      }
     }
 
     // Simple keyword matching for calendar
@@ -734,6 +1030,17 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
               if (!tools[serviceKey]) {
                 tools[serviceKey] = this.matchToolsToService(allTools, serviceKey, service);
               }
+
+              // Special case: LinkedIn tools are discovered via Paragon server
+              if (serviceKey === 'linkedin' && !tools.linkedin) {
+                const hasLinkedInNamedTool = allTools.some(t =>
+                  /linkedin[_\.\-]/i.test(t.name) || (t.fullName && /linkedin/i.test(t.fullName))
+                );
+                if (hasLinkedInNamedTool) {
+                  console.log('[MCPUIIntegrationService] ✅ linkedin marked available via discovered Paragon tools');
+                  tools.linkedin = true;
+                }
+              }
             }
           }
         }
@@ -777,7 +1084,22 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
       }
     }
 
-    // Strategy 3: Server command matching (for MCP servers)
+    // Strategy 3: Paragon service matching (LinkedIn tools come through Paragon)
+    if (serviceKey === 'linkedin') {
+      const linkedinMatches = discoveredTools.some(tool => 
+        tool.name.toLowerCase().includes('linkedin_') || 
+        tool.name.toLowerCase().includes('linkedin-') ||
+        tool.name.toLowerCase().includes('linkedin.') ||
+        (tool.fullName && tool.fullName.toLowerCase().includes('linkedin'))
+      );
+
+      if (linkedinMatches) {
+        console.log(`[MCPUIIntegrationService] ✅ ${serviceKey} matched via Paragon tools`);
+        return true;
+      }
+    }
+
+    // Strategy 4: Server command matching (for MCP servers)
     if (serviceConfig.serverConfig && serviceConfig.serverConfig.args) {
       const serverMatches = serviceConfig.serverConfig.args.some(arg =>
         discoveredTools.some(tool => 
@@ -791,7 +1113,7 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
       }
     }
 
-    // Strategy 4: OAuth provider matching (for Google services)
+    // Strategy 5: OAuth provider matching (for Google services)
     if (serviceConfig.oauth && serviceConfig.oauth.provider) {
       const providerMatches = discoveredTools.some(tool =>
         tool.name.toLowerCase().includes(serviceConfig.oauth.provider.toLowerCase())
@@ -1095,6 +1417,387 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
     availability.notion = tools.some(t => t.name.includes('notion'));
 
     return availability;
+  }
+
+  /**
+   * Extract LinkedIn profile context from user message
+   */
+  extractLinkedInProfileContext(message) {
+    const context = {
+      searchQuery: '',
+      name: '',
+      company: ''
+    };
+
+    // Extract name patterns
+    const namePatterns = [
+      /(?:profile of|who is|about|find)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)(?:'s|s)?\s+(?:profile|linkedin|background)/i,
+      /linkedin.*?([A-Z][a-z]+\s+[A-Z][a-z]+)/i
+    ];
+
+    for (const pattern of namePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.name = match[1].trim();
+        context.searchQuery = context.name;
+        break;
+      }
+    }
+
+    console.log('[MCPUIIntegrationService] 👤 Extracted LinkedIn profile context:', context);
+    return context;
+  }
+
+  /**
+   * Extract LinkedIn post context from user message
+   */
+  extractLinkedInPostContext(message) {
+    const context = {
+      content: '',
+      visibility: 'PUBLIC',
+      hashtags: []
+    };
+
+    // Extract content patterns
+    const contentPatterns = [
+      /(?:post|share|publish|announce)(?:\s+on\s+linkedin)?\s*[:\-]?\s*["']?([^"']+)["']?/i,
+      /linkedin.*?(?:post|share|:).*?[:\-]?\s*(.+)/i,  // Enhanced pattern for "LinkedIn: content"
+      /post\s+on\s+linkedin[:\-]?\s*(.+)/i,  // "Post on LinkedIn: content"
+      /"([^"]+)"/,  // Quoted content
+      /'([^']+)'/   // Single quoted content
+    ];
+
+    for (const pattern of contentPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.content = match[1].trim();
+        break;
+      }
+    }
+
+    // Extract hashtags if any
+    const hashtagMatches = context.content.match(/#\w+/g);
+    if (hashtagMatches) {
+      context.hashtags = hashtagMatches;
+    }
+
+    // Extract visibility if mentioned
+    if (message.includes('private') || message.includes('connections only')) {
+      context.visibility = 'CONNECTIONS';
+    }
+
+    console.log('[MCPUIIntegrationService] 📝 Extracted LinkedIn post context:', context);
+    return context;
+  }
+
+  /**
+   * Extract LinkedIn connections context from user message
+   */
+  extractLinkedInConnectionsContext(message) {
+    const context = {
+      searchCriteria: '',
+      industry: '',
+      location: ''
+    };
+
+    // Extract search criteria
+    const criteriaPatterns = [
+      /(?:connections|network).*?in\s+([a-zA-Z\s&,-]+)/i,
+      /([a-zA-Z\s&,-]+)\s+(?:connections|colleagues)/i,
+      /find.*?(?:connections|people).*?([a-zA-Z\s&,-]+)/i
+    ];
+
+    for (const pattern of criteriaPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        context.searchCriteria = match[1].trim();
+        break;
+      }
+    }
+
+    console.log('[MCPUIIntegrationService] 🔗 Extracted LinkedIn connections context:', context);
+    return context;
+  }
+
+  // ========================================
+  // LinkedIn Action Handlers
+  // ========================================
+
+  /**
+   * Create LinkedIn Profile Action
+   */
+  async createLinkedInProfileAction(action, context) {
+    console.log('[MCPUIIntegrationService] 🔍 Executing LinkedIn profile search action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      // Extract the search query from context
+      const searchQuery = context.name || context.searchQuery || 'profile';
+      
+      // Call the LinkedIn get profile endpoint
+      const result = await this.mcpClient.callTool('linkedin_get_profile', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2', // Use the authenticated user
+        profile_id: searchQuery
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn profile search completed');
+      return {
+        success: true,
+        result: result,
+        message: `Found LinkedIn profile for: ${searchQuery}`
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn profile search failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to search LinkedIn profile: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Post Action
+   */
+  async createLinkedInPostAction(action, context) {
+    console.log('[MCPUIIntegrationService] 📝 Executing LinkedIn post creation action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_create_post', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        text: context.content || context.text || 'Default post content',
+        visibility: context.visibility || 'PUBLIC'
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn post created');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn post created successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn post creation failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to create LinkedIn post: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Connections Action
+   */
+  async createLinkedInConnectionsAction(action, context) {
+    console.log('[MCPUIIntegrationService] 🤝 Executing LinkedIn connections action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_get_connections', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        start: context.start || 0,
+        count: context.count || 50
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn connections retrieved');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn connections retrieved successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn connections failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to get LinkedIn connections: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Messaging Action
+   */
+  async createLinkedInMessagingAction(action, context) {
+    console.log('[MCPUIIntegrationService] 💬 Executing LinkedIn messaging action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_send_message', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        recipient_id: context.recipient || context.recipientId,
+        message: context.message || context.text || 'Hello!'
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn message sent');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn message sent successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn messaging failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to send LinkedIn message: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Companies Action
+   */
+  async createLinkedInCompaniesAction(action, context) {
+    console.log('[MCPUIIntegrationService] 🏢 Executing LinkedIn companies action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_get_companies', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        start: context.start || 0,
+        count: context.count || 20
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn companies retrieved');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn companies retrieved successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn companies failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to get LinkedIn companies: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Skills Action
+   */
+  async createLinkedInSkillsAction(action, context) {
+    console.log('[MCPUIIntegrationService] 💪 Executing LinkedIn skills action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_get_skills', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        profile_id: context.profileId || context.profile_id
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn skills retrieved');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn skills retrieved successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn skills failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to get LinkedIn skills: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Search Action
+   */
+  async createLinkedInSearchAction(action, context) {
+    console.log('[MCPUIIntegrationService] 🔍 Executing LinkedIn search action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_search_people', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        query: context.query || context.searchQuery || 'people',
+        start: context.start || 0,
+        count: context.count || 25
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn search completed');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn search completed successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn search failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to search LinkedIn: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create LinkedIn Jobs Action
+   */
+  async createLinkedInJobsAction(action, context) {
+    console.log('[MCPUIIntegrationService] 💼 Executing LinkedIn jobs action');
+    
+    try {
+      if (!this.mcpClient) {
+        throw new Error('MCP client not available');
+      }
+
+      const result = await this.mcpClient.callTool('linkedin_get_job_postings', {
+        user_id: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        company_id: context.companyId || context.company_id,
+        start: context.start || 0,
+        count: context.count || 25
+      });
+
+      console.log('[MCPUIIntegrationService] ✅ LinkedIn jobs retrieved');
+      return {
+        success: true,
+        result: result,
+        message: 'LinkedIn job postings retrieved successfully'
+      };
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] ❌ LinkedIn jobs failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: `Failed to get LinkedIn jobs: ${error.message}`
+      };
+    }
   }
 }
 

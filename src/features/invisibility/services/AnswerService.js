@@ -71,6 +71,31 @@ const ANSWER_STRATEGIES = {
         requiresServiceMCP: 'google'
     },
     
+    linkedin_data_access: {
+        systemPrompt: `You are accessing LinkedIn data through MCP tools. When users ask for someone's LinkedIn profile by name, ALWAYS follow this approach:
+
+1. IMMEDIATELY call the web_search_person tool to get real web results about the person
+2. Present the actual web search results you found
+3. Mention you can get their exact LinkedIn profile if they provide the username
+
+Your response format should be:
+"I can help you get their exact LinkedIn profile if you provide their LinkedIn username (the part after linkedin.com/in/), but for now here's what I found on the web about [person name]:
+
+[Present the ACTUAL web search results from the web_search_person tool - include relevant details about their professional background, current role, company, etc.]"
+
+IMPORTANT: 
+- ALWAYS call web_search_person first to get real results
+- Present actual information, not placeholder text
+- Be concise but informative
+- Don't just explain limitations - provide value immediately`,
+        useResearch: false,
+        maxTokens: 1500,
+        temperature: 0.2,
+        timeout: 10000,
+        useMCPTools: true,
+        requiresServiceMCP: 'linkedin'
+    },
+    
     mcp_data_access: {
         systemPrompt: `You are accessing real data from connected services through MCP tools. Use the available MCP tools to actually retrieve data from any connected services (GitHub, Notion, Slack, Google Drive, etc.). Don't describe what you see on screen - use MCP to access their actual service data. If no relevant MCP tools are available, explain what services can be integrated and how to set them up.`,
         useResearch: false,
@@ -226,7 +251,7 @@ class AnswerService extends EventEmitter {
             const strategy = this.getStrategy(questionType);
             
             // Validate strategy requirements
-            this.validateStrategyRequirements(strategy, context);
+            await this.validateStrategyRequirements(strategy, context);
             
             // Build the prompt
             const prompt = await this.buildPrompt(strategy, question, context);
@@ -310,6 +335,17 @@ class AnswerService extends EventEmitter {
              lowerQuestion.includes('gmail') || 
              lowerQuestion.includes('calendar'))) {
             return 'google_data_access';
+        }
+        
+        if (lowerQuestion.includes('linkedin') && 
+            (lowerQuestion.includes('profile') || 
+             lowerQuestion.includes('pullup') || 
+             lowerQuestion.includes('pull up') ||
+             lowerQuestion.includes('get') || 
+             lowerQuestion.includes('find') ||
+             lowerQuestion.includes('search') ||
+             lowerQuestion.includes('from linkedin'))) {
+            return 'linkedin_data_access';
         }
         
         // MCP capabilities - capability questions about any service
@@ -406,15 +442,32 @@ class AnswerService extends EventEmitter {
     /**
      * Validate strategy requirements
      */
-    validateStrategyRequirements(strategy, context) {
+    async validateStrategyRequirements(strategy, context) {
         if (strategy.requiresScreenshot && !context.screenshot) {
             throw new Error('This question requires a screenshot');
         }
         
         if (strategy.requiresServiceMCP && this.mcpToolInvoker) {
-            const hasRequiredService = this.mcpToolInvoker.hasService(strategy.requiresServiceMCP);
-            if (!hasRequiredService && strategy.requiresServiceMCP !== 'any') {
-                throw new Error(`This question requires ${strategy.requiresServiceMCP} MCP integration`);
+            // For LinkedIn, check if we have LinkedIn tools available through Paragon
+            if (strategy.requiresServiceMCP === 'linkedin') {
+                const availableTools = await this.mcpToolInvoker.getAvailableTools();
+                const hasWebSearch = availableTools.some(tool => 
+                    tool.name === 'web_search_person' || 
+                    tool.name.includes('web_search_person')
+                );
+                const hasLinkedInProfile = availableTools.some(tool => 
+                    tool.name === 'linkedin_get_profile' || 
+                    tool.name.includes('linkedin_get_profile')
+                );
+                
+                if (!hasWebSearch && !hasLinkedInProfile) {
+                    throw new Error('LinkedIn functionality requires web search tools or Paragon authentication');
+                }
+            } else {
+                const hasRequiredService = this.mcpToolInvoker.hasService(strategy.requiresServiceMCP);
+                if (!hasRequiredService && strategy.requiresServiceMCP !== 'any') {
+                    throw new Error(`This question requires ${strategy.requiresServiceMCP} MCP integration`);
+                }
             }
         }
     }
@@ -467,7 +520,6 @@ class AnswerService extends EventEmitter {
         const llmOptions = {
             maxTokens: strategy.maxTokens,
             temperature: strategy.temperature,
-            systemPrompt: prompt.systemPrompt,
             timeout: strategy.timeout // Pass timeout if specified in strategy
         };
         
@@ -477,12 +529,120 @@ class AnswerService extends EventEmitter {
             prompt.context.mcpTestResults = testResults;
         }
         
+        // Pre-call LinkedIn web search for linkedin_data_access strategy
+        if (strategy.requiresServiceMCP === 'linkedin' && this.mcpToolInvoker) {
+            try {
+                logger.info('LinkedIn strategy detected, checking for person name extraction', { 
+                    query: prompt.userPrompt,
+                    strategyRequires: strategy.requiresServiceMCP,
+                    hasMcpInvoker: !!this.mcpToolInvoker
+                });
+                
+                const personName = this.extractPersonName(prompt.userPrompt);
+                logger.info('Person name extraction result', { personName, originalQuery: prompt.userPrompt });
+                
+                if (personName) {
+                    logger.info('Pre-calling web search for LinkedIn query', { personName });
+                    
+                    const webSearchResult = await this.mcpToolInvoker.invokeTool('web_search_person', {
+                        person_name: personName,
+                        additional_context: 'professional background LinkedIn profile'
+                    });
+                    
+                    logger.info('Web search result received', { 
+                        hasResult: !!webSearchResult,
+                        hasContent: !!(webSearchResult && webSearchResult.content),
+                        resultType: typeof webSearchResult
+                    });
+                    
+                    if (webSearchResult && webSearchResult.content) {
+                        // Add real web search results to context
+                        prompt.context.webSearchResults = webSearchResult.content;
+                        
+                        // Extract the actual web search text
+                        const searchResultData = JSON.parse(webSearchResult.content[0].text);
+                        const actualWebResults = searchResultData.webResults || '';
+                        const citations = searchResultData.citations || [];
+                        const searchQuery = searchResultData.searchQuery || '';
+                        
+                        logger.info('Extracted web search data', { 
+                            hasResults: actualWebResults.length > 0,
+                            resultLength: actualWebResults.length,
+                            citationCount: citations.length,
+                            searchQuery 
+                        });
+                        
+                        // Update system prompt with STRICT enforcement
+                        prompt.systemPrompt = `You are responding to a LinkedIn profile search. You MUST use ONLY the real web search results provided below. DO NOT generate placeholder text, templates, or generic examples.
+
+SEARCH QUERY: ${searchQuery}
+PERSON SEARCHED: ${personName}
+
+ACTUAL WEB SEARCH RESULTS:
+${actualWebResults}
+
+CITATIONS: ${citations.join(', ')}
+
+CRITICAL INSTRUCTIONS:
+1. Use ONLY the information from the web search results above
+2. If the results say "no information found" or similar, tell the user exactly that
+3. NEVER use placeholder text like "insert company name" or "relevant field"
+4. NEVER generate template responses
+5. If no useful information was found, be direct about it
+6. ALWAYS end with: "Note: If you're connected to them on LinkedIn and have their exact LinkedIn username (e.g., john-smith from linkedin.com/in/john-smith), I can pull up their complete profile for you."
+
+Your response should be based entirely on the actual search results above. If the search found no relevant information, say so clearly and mention the LinkedIn username option.`;
+                        
+                        logger.info('Updated LinkedIn strategy with real web search results');
+                    } else {
+                        logger.warn('Web search returned no usable content', { webSearchResult });
+                    }
+                } else {
+                    logger.warn('No person name extracted from LinkedIn query', { query: prompt.userPrompt });
+                }
+            } catch (error) {
+                logger.error('Failed to pre-call web search for LinkedIn', { 
+                    error: error.message,
+                    stack: error.stack,
+                    query: prompt.userPrompt
+                });
+                // Continue with original strategy if web search fails
+            }
+        }
+        
+        // Set the system prompt in llmOptions AFTER all processing is complete
+        llmOptions.systemPrompt = prompt.systemPrompt;
+        
+        // Debug: Log the exact prompt being sent to LLM
+        if (strategy.requiresServiceMCP === 'linkedin') {
+            logger.info('=== LLM PROMPT DEBUG ===');
+            logger.info('System Prompt being sent to LLM:', {
+                systemPrompt: prompt.systemPrompt.substring(0, 500) + '...',
+                fullLength: prompt.systemPrompt.length
+            });
+            logger.info('User Prompt:', prompt.userPrompt);
+            logger.info('Context keys:', Object.keys(prompt.context));
+            logger.info('LLM Options system prompt preview:', llmOptions.systemPrompt.substring(0, 200) + '...');
+            logger.info('=== END PROMPT DEBUG ===');
+        }
+        
         // Generate the answer
         const answer = await this.llmService.generateResponse(
             prompt.userPrompt,
             prompt.context,
             llmOptions
         );
+        
+        // Debug: Log the LLM response for LinkedIn queries
+        if (strategy.requiresServiceMCP === 'linkedin') {
+            logger.info('=== LLM RESPONSE DEBUG ===');
+            logger.info('LLM Response:', {
+                answer: answer.substring(0, 300) + '...',
+                fullLength: answer.length,
+                containsPlaceholder: answer.includes('insert') || answer.includes('relevant field')
+            });
+            logger.info('=== END RESPONSE DEBUG ===');
+        }
         
         return answer;
     }
@@ -564,6 +724,59 @@ class AnswerService extends EventEmitter {
         
         return mathKeywords.some(keyword => question.includes(keyword)) ||
                mathSymbols.some(symbol => question.includes(symbol));
+    }
+
+    /**
+     * Extract person name from LinkedIn query
+     */
+    extractPersonName(query) {
+        console.log('[AnswerService] Extracting person name from:', query);
+        
+        // Common patterns for LinkedIn queries - more flexible with case
+        const patterns = [
+            // "pullup [name] from linkedin" - most flexible
+            /(?:pullup|pull\s+up)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+from\s+linkedin/i,
+            // "find [name] on linkedin"
+            /find\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+(?:on\s+)?linkedin/i,
+            // "get [name] linkedin profile"
+            /get\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+linkedin/i,
+            // "search [name] linkedin"
+            /search\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+linkedin/i,
+            // "[name] linkedin profile"
+            /([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s+linkedin\s+profile/i,
+            // "linkedin [name]"
+            /linkedin\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)/i,
+            // Just name with linkedin anywhere
+            /([a-zA-Z]{2,}\s+[a-zA-Z]{2,}).*linkedin|linkedin.*([a-zA-Z]{2,}\s+[a-zA-Z]{2,})/i
+        ];
+        
+        for (let i = 0; i < patterns.length; i++) {
+            const pattern = patterns[i];
+            const match = query.match(pattern);
+            console.log(`[AnswerService] Pattern ${i + 1} result:`, match);
+            
+            if (match) {
+                // Check both capture groups (some patterns have name in group 1, others in group 2)
+                const name = (match[1] && match[1].trim()) || (match[2] && match[2].trim());
+                if (name && name.length > 1) {
+                    // Clean up the name
+                    const cleanName = name.replace(/\s+/g, ' ').trim();
+                    console.log(`[AnswerService] Extracted name: "${cleanName}"`);
+                    console.log(`[AnswerService] Name validation - length: ${cleanName.length}, regex match:`, cleanName.match(/^[a-zA-Z]+(\s+[a-zA-Z]+)*$/));
+                    
+                    // Basic validation - at least looks like a name
+                    if (cleanName.match(/^[a-zA-Z]+(\s+[a-zA-Z]+)*$/) && cleanName.length > 2) {
+                        console.log(`[AnswerService] ✅ Name validation passed: "${cleanName}"`);
+                        return cleanName;
+                    } else {
+                        console.log(`[AnswerService] ❌ Name validation failed for: "${cleanName}"`);
+                    }
+                }
+            }
+        }
+        
+        console.log('[AnswerService] No person name extracted');
+        return null;
     }
 
     /**

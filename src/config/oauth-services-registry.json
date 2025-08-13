@@ -674,7 +674,7 @@
       "icon": "https://discord.com/assets/favicon.ico"
     },
     "linkedin": {
-      "name": "LinkedIn",
+      "name": "LinkedIn", 
       "description": "Connect to LinkedIn for professional networking and content sharing",
       "enabled": false,
       "priority": 11,
@@ -708,9 +708,19 @@
       },
       "capabilities": [
         "profile",
-        "posts",
+        "posts", 
         "connections",
-        "messaging"
+        "messaging",
+        "companies",
+        "organizations",
+        "skills",
+        "activities",
+        "followers",
+        "search",
+        "job_postings",
+        "company_posts",
+        "article_sharing",
+        "company_following"
       ],
       "documentation": "https://docs.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow",
       "icon": "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca"

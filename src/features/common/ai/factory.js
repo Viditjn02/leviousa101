@@ -66,6 +66,16 @@ const PROVIDERS = {
         { id: 'nova-3', name: 'Nova-3 (General)' },
         ],
     },
+  'perplexity': {
+    name: 'Perplexity',
+    handler: () => require("./providers/perplexity"),
+    llmModels: [
+        { id: 'sonar', name: 'Sonar (Lightweight Search)' },
+        { id: 'sonar-reasoning', name: 'Sonar Reasoning (Fast)' },
+        { id: 'sonar-deep-research', name: 'Sonar Deep Research (Expert)' },
+    ],
+    sttModels: [],
+  },
 
 };
 
@@ -131,6 +141,7 @@ function getProviderClass(providerId) {
         'anthropic': 'AnthropicProvider',
         'gemini': 'GeminiProvider',
         'deepgram': 'DeepgramProvider',
+        'perplexity': 'PerplexityProvider',
         'ollama': 'OllamaProvider',
         'whisper': 'WhisperProvider'
     };

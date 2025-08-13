@@ -233,12 +233,125 @@ export class SummaryView extends LitElement {
             font-size: 12px;
             font-style: italic;
         }
+
+        /* Email Form Styles */
+        .email-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            margin-top: 8px;
+            transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
+        }
+
+        .email-form.hidden {
+            opacity: 0;
+            transform: scaleY(0);
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+            border: none;
+            margin: 0;
+        }
+
+        .email-form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+            margin: -12px -16px 8px -16px;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .email-form-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .email-close-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            transition: background 0.15s;
+        }
+
+        .email-close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .email-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .email-field label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            flex-shrink: 0;
+            width: 50px;
+        }
+
+        .email-field input,
+        .email-field textarea {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            outline: none;
+            border: none;
+            color: white;
+            font-size: 14px;
+            font-family: 'Helvetica Neue', sans-serif;
+            font-weight: 400;
+        }
+
+        .email-field input::placeholder,
+        .email-field textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .email-field input:focus,
+        .email-field textarea:focus {
+            outline: none;
+        }
+
+        .email-send-btn {
+            align-self: flex-end;
+            width: 120px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .email-send-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
     `;
 
     static properties = {
         structuredData: { type: Object },
         isVisible: { type: Boolean },
         hasCompletedRecording: { type: Boolean },
+        // Email composer form state
+        showEmailForm: { type: Boolean, reflect: true },
+        emailData: { type: Object }
     };
 
     constructor() {
@@ -251,6 +364,8 @@ export class SummaryView extends LitElement {
         };
         this.isVisible = true;
         this.hasCompletedRecording = false;
+        this.showEmailForm = false;
+        this.emailData = { to: '', subject: '', body: '', cc: '', bcc: '' };
 
         // 마크다운 라이브러리 초기화
         this.marked = null;
@@ -378,6 +493,24 @@ export class SummaryView extends LitElement {
         const { action } = event.detail;
         console.log('[SummaryView] MCP action triggered:', action);
 
+        // Check if this is an email action that should show the composer
+        if (action.type === 'email.send' || action.label?.includes('Email') || action.id?.includes('email')) {
+            console.log('[SummaryView] 📧 Email action detected, showing composer...');
+            
+            // Pre-populate email data from action context
+            this.emailData = {
+                to: action.context?.recipients || '',
+                subject: action.context?.subject || `Meeting Summary: ${this.structuredData?.topic?.header || 'Summary'}`,
+                body: action.context?.body || this.generateEmailContent(),
+                cc: action.context?.cc || '',
+                bcc: action.context?.bcc || ''
+            };
+            
+            this.showEmailForm = true;
+            this.requestUpdate();
+            return;
+        }
+
         if (!window.api?.mcp?.ui) {
             console.error('[SummaryView] MCP UI API not available');
             return;
@@ -405,6 +538,101 @@ export class SummaryView extends LitElement {
         } catch (error) {
             console.error('[SummaryView] Error executing MCP action:', error);
         }
+    }
+
+    generateEmailContent() {
+        const data = this.structuredData;
+        let content = `Hi,\n\nHere's a summary of our meeting:\n\n`;
+        
+        // Add summary if available
+        if (data?.summary && data.summary.length > 0) {
+            content += `**Key Points:**\n`;
+            data.summary.slice(0, 5).forEach(point => {
+                content += `• ${point}\n`;
+            });
+            content += `\n`;
+        }
+        
+        // Add topic insights if available
+        if (data?.topic && data.topic.bullets && data.topic.bullets.length > 0) {
+            content += `**${data.topic.header || 'Discussion Details'}:**\n`;
+            data.topic.bullets.forEach(bullet => {
+                content += `• ${bullet}\n`;
+            });
+            content += `\n`;
+        }
+        
+        content += `Best regards`;
+        return content;
+    }
+
+    /** Send the email via MCP tool */
+    async handleEmailSend() {
+        const { to, subject, body, cc = '', bcc = '' } = this.emailData;
+        if (!to || !subject || !body) {
+            alert('Please fill in To, Subject, and Body fields');
+            return;
+        }
+        
+        try {
+            console.log('[SummaryView] Attempting to send email via Paragon MCP...');
+            
+            // Use the same email sending logic as AskView
+            const actionData = {
+                serverId: 'paragon',
+                tool: 'gmail_send_email',
+                params: {
+                    to: Array.isArray(to) ? to : [to],
+                    subject: subject,
+                    body: body,
+                    // user_id will be added dynamically below
+                }
+            };
+
+            // Only add cc and bcc if they have values
+            if (cc && cc.trim()) {
+                actionData.params.cc = cc;
+            }
+            if (bcc && bcc.trim()) {
+                actionData.params.bcc = bcc;
+            }
+
+            // Get authenticated user ID
+            try {
+                const userState = await window.api.common.getCurrentUser();
+                if (userState && userState.uid) {
+                    actionData.params.user_id = userState.uid;
+                } else {
+                    console.warn('[SummaryView] No authenticated user found - using fallback default-user');
+                    actionData.params.user_id = 'default-user';
+                }
+            } catch (uidErr) {
+                console.warn('[SummaryView] Failed to fetch current user for user_id:', uidErr);
+                actionData.params.user_id = 'default-user';
+            }
+
+            console.log('[SummaryView] 📧 Final actionData being sent to MCP API:', JSON.stringify(actionData, null, 2));
+
+            const result = await window.api.mcp.callTool(actionData.serverId, actionData.tool, actionData.params);
+            
+            if (result && result.success !== false) {
+                console.log('[SummaryView] ✅ Email sent successfully:', result);
+                alert('✅ Email sent successfully!');
+                this.closeEmailForm();
+            } else {
+                console.error('[SummaryView] ❌ Email send failed:', result);
+                alert(`❌ Failed to send email: ${result?.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('[SummaryView] Error sending email:', error);
+            alert(`❌ Error sending email: ${error.message}`);
+        }
+    }
+
+    closeEmailForm() {
+        this.showEmailForm = false;
+        this.emailData = { to: '', subject: '', body: '', cc: '', bcc: '' };
+        this.requestUpdate();
     }
 
     renderMarkdownContent() {
@@ -541,20 +769,17 @@ export class SummaryView extends LitElement {
                         ${data.actions.length > 0
                             ? html`
                                   <insights-title>Actions</insights-title>
-                                  ${data.actions
-                                      .slice(0, 5)
-                                      .map(
-                                          (action, index) => html`
-                                              <div
-                                                  class="markdown-content"
-                                                  data-markdown-id="action-${index}"
-                                                  data-original-text="${action}"
-                                                  @click=${() => this.handleMarkdownClick(action)}
-                                              >
-                                                  ${action}
-                                              </div>
-                                          `
-                                      )}
+                                  <mcp-action-bar
+                                      .context=${{
+                                          type: 'listen-summary',
+                                          summary: this.getSummaryText(),
+                                          structuredData: this.structuredData,
+                                          sessionType: 'listen',
+                                          message: 'Meeting completed',
+                                          response: this.getSummaryText()
+                                      }}
+                                      @mcp-action=${this.handleMCPAction}
+                                  ></mcp-action-bar>
                               `
                             : ''}
                         ${this.hasCompletedRecording && data.followUps && data.followUps.length > 0
@@ -572,6 +797,40 @@ export class SummaryView extends LitElement {
                               `
                             : ''}
                     `}
+
+                <!-- Email Composer Form -->
+                ${this.showEmailForm ? html`
+                    <div class="email-form">
+                        <div class="email-form-header">
+                            <span class="email-form-title">📧 Email Composer</span>
+                            <button class="email-close-btn" @click=${this.closeEmailForm}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="email-field">
+                            <label for="emailTo">To:</label>
+                            <input type="text" id="emailTo" .value=${this.emailData.to} @input=${e => this.emailData.to = e.target.value} placeholder="Recipient email(s)" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailCc">CC:</label>
+                            <input type="text" id="emailCc" .value=${this.emailData.cc || ''} @input=${e => this.emailData.cc = e.target.value} placeholder="CC" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailSubject">Subject:</label>
+                            <input type="text" id="emailSubject" .value=${this.emailData.subject} @input=${e => this.emailData.subject = e.target.value} placeholder="Subject" />
+                        </div>
+                        <div class="email-field">
+                            <label for="emailBody">Body:</label>
+                            <textarea id="emailBody" rows="6" .value=${this.emailData.body} @input=${e => this.emailData.body = e.target.value} placeholder="Email content..."></textarea>
+                        </div>
+                        <button class="email-send-btn" @click=${this.handleEmailSend}>
+                            📤 Send Email
+                        </button>
+                    </div>
+                ` : ''}
             </div>
         `;
     }

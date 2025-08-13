@@ -1,5 +1,6 @@
 const { BrowserWindow } = require('electron');
 const { createStreamingLLM } = require('../common/ai/factory');
+const { ParallelLLMOrchestrator } = require('../common/ai/parallelLLMOrchestrator');
 // Lazy require helper to avoid circular dependency issues
 const getWindowManager = () => require('../../window/windowManager');
 const internalBridge = require('../../bridge/internalBridge');
@@ -163,6 +164,7 @@ class AskService {
         this.abortController = null;
         this.conversationSessions = new Map(); // Enhanced conversation session tracking
         this.mcpVerificationDone = false; // Flag to track if MCP verification has been done
+        this.parallelOrchestrator = new ParallelLLMOrchestrator(); // Parallel LLM execution
         
         // MCP verification will be done lazily when first needed
     }
@@ -714,17 +716,19 @@ class AskService {
                 });
             }
             
-            const streamingLLM = createStreamingLLM(modelInfo.provider, {
-                apiKey: modelInfo.apiKey,
-                model: modelInfo.model,
-                temperature: 0.7,
-                maxTokens: 2048,
-                            usePortkey: modelInfo.provider === 'openai-leviousa',
-            portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
-            });
-
+            // Use parallel orchestrator for intelligent LLM selection and execution
+            console.log('[AskService] 🚀 Using Parallel LLM Orchestrator for optimal response');
+            
             try {
-                const response = await streamingLLM.streamChat(messages);
+                // Use parallel orchestrator for streaming with intelligent provider selection
+                const response = await this.parallelOrchestrator.executeStreaming(userPrompt.trim(), {
+                    standardProvider: modelInfo.provider,
+                    standardModel: modelInfo.model,
+                    webProvider: 'perplexity',
+                    webModel: 'sonar',
+                    temperature: 0.7,
+                    maxTokens: 2048
+                });
                 const askWin = getWindowPool()?.get('ask');
 
                 if (!askWin || askWin.isDestroyed()) {
@@ -742,41 +746,55 @@ class AskService {
                 await this._processStream(reader, askWin, sessionId, signal);
                 return { success: true };
 
-            } catch (multimodalError) {
-                // 멀티모달 요청이 실패했고 스크린샷이 포함되어 있다면 텍스트만으로 재시도
-                if (screenshotBase64 && this._isMultimodalError(multimodalError)) {
-                    console.log(`[AskService] Multimodal request failed, retrying with text-only: ${multimodalError.message}`);
-                    
-                    // 텍스트만으로 메시지 재구성
-                    const textOnlyMessages = [
-                        { role: 'system', content: systemPrompt },
-                        {
-                            role: 'user',
-                            content: `User Request: ${userPrompt.trim()}`
-                        }
-                    ];
+            } catch (orchestratorError) {
+                // If parallel orchestrator fails, fall back to standard streaming
+                console.log(`[AskService] Parallel orchestrator failed, falling back to standard streaming: ${orchestratorError.message}`);
+                
+                const fallbackLLM = createStreamingLLM(modelInfo.provider, {
+                    apiKey: modelInfo.apiKey,
+                    model: modelInfo.model,
+                    temperature: 0.7,
+                    maxTokens: 2048,
+                    usePortkey: modelInfo.provider === 'openai-leviousa',
+                    portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
+                });
 
-                    const fallbackResponse = await streamingLLM.streamChat(textOnlyMessages);
-                    const askWin = getWindowPool()?.get('ask');
-
-                    if (!askWin || askWin.isDestroyed()) {
-                        console.error("[AskService] Ask window is not available for fallback response.");
-                        fallbackResponse.body.getReader().cancel();
-                        return { success: false, error: 'Ask window is not available.' };
+                // Create text-only messages for fallback
+                const fallbackMessages = [
+                    { role: 'system', content: systemPrompt },
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: `User Request: ${userPrompt.trim()}` }
+                        ]
                     }
+                ];
 
-                    const fallbackReader = fallbackResponse.body.getReader();
-                    signal.addEventListener('abort', () => {
-                        console.log(`[AskService] Aborting fallback stream reader. Reason: ${signal.reason}`);
-                        fallbackReader.cancel(signal.reason).catch(() => {});
+                // Add screenshot if available and not a multimodal error
+                if (screenshotBase64 && !this._isMultimodalError(orchestratorError)) {
+                    fallbackMessages[1].content.push({
+                        type: 'image_url',
+                        image_url: { url: `data:image/jpeg;base64,${screenshotBase64}` }
                     });
-
-                    await this._processStream(fallbackReader, askWin, sessionId, signal);
-                    return { success: true };
-                } else {
-                    // 다른 종류의 에러이거나 스크린샷이 없었다면 그대로 throw
-                    throw multimodalError;
                 }
+
+                const fallbackResponse = await fallbackLLM.streamChat(fallbackMessages);
+                const askWin = getWindowPool()?.get('ask');
+
+                if (!askWin || askWin.isDestroyed()) {
+                    console.error("[AskService] Ask window is not available for fallback response.");
+                    fallbackResponse.body.getReader().cancel();
+                    return { success: false, error: 'Ask window is not available.' };
+                }
+
+                const fallbackReader = fallbackResponse.body.getReader();
+                signal.addEventListener('abort', () => {
+                    console.log(`[AskService] Aborting fallback stream reader. Reason: ${signal.reason}`);
+                    fallbackReader.cancel(signal.reason).catch(() => {});
+                });
+
+                await this._processStream(fallbackReader, askWin, sessionId, signal);
+                return { success: true };
             }
 
         } catch (error) {

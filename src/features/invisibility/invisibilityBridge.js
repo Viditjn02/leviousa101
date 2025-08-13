@@ -1307,9 +1307,17 @@ function initializeInvisibilityBridge() {
                                         const mappedServiceName = serviceNameMapping[rawName.toLowerCase()] || rawName;
 
                                         // Skip services that are explicitly not authenticated
-                                        if (!isAuthenticated && connectionCount === 0) {
+                                        // BUT: Don't skip if service is in local cache (Paragon services)
+                                        const isInLocalCache = localAuthServices.includes(rawName);
+                                        if (!isAuthenticated && connectionCount === 0 && !isInLocalCache) {
                                             console.log(`[InvisibilityBridge] ⚠️ ${mappedServiceName} is not authenticated or has 0 connected users – skipping`);
                                             continue;
+                                        }
+                                        
+                                        // If service is in local cache but Paragon reports not authenticated, override to authenticated
+                                        if (isInLocalCache && !isAuthenticated) {
+                                            console.log(`[InvisibilityBridge] 🔧 Overriding ${mappedServiceName} authentication: local cache takes precedence over Paragon API status`);
+                                            isAuthenticated = true;
                                         }
                                         
                                         console.log(`[InvisibilityBridge] ✅ Processing service ${mappedServiceName} - authenticated: ${isAuthenticated}, tools: ${toolsCount}`);
