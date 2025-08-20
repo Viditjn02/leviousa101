@@ -170,7 +170,10 @@ function IntegrationsContentInner() {
                   autoConnect={shouldAutoConnect('salesforce')}
                   userId={userId || undefined}
                 />
-                <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                <div className="absolute top-2 right-2 text-xs px-2 py-1 rounded" style={{
+                  background: '#9333ea',
+                  color: '#fff'
+                }}>
                   Enterprise
                 </div>
               </div>
@@ -184,7 +187,10 @@ function IntegrationsContentInner() {
                   autoConnect={shouldAutoConnect('hubspot')}
                   userId={userId || undefined}
                 />
-                <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                <div className="absolute top-2 right-2 text-xs px-2 py-1 rounded" style={{
+                  background: '#9333ea',
+                  color: '#fff'
+                }}>
                   Enterprise
                 </div>
               </div>
@@ -211,8 +217,10 @@ function IntegrationsContentInner() {
                   autoConnect={false}
                   userId={userId || undefined}
                 />
-                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
-                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{
+                  background: 'rgba(26, 26, 26, 0.8)'
+                }}>
+                  <span className="font-medium" style={{color: 'var(--muted)'}}>Coming Soon</span>
                 </div>
               </div>
               <div className="relative opacity-60">
@@ -225,8 +233,10 @@ function IntegrationsContentInner() {
                   autoConnect={false}
                   userId={userId || undefined}
                 />
-                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
-                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{
+                  background: 'rgba(26, 26, 26, 0.8)'
+                }}>
+                  <span className="font-medium" style={{color: 'var(--muted)'}}>Coming Soon</span>
                 </div>
               </div>
               <div className="relative opacity-60">
@@ -239,8 +249,10 @@ function IntegrationsContentInner() {
                   autoConnect={false}
                   userId={userId || undefined}
                 />
-                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
-                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{
+                  background: 'rgba(26, 26, 26, 0.8)'
+                }}>
+                  <span className="font-medium" style={{color: 'var(--muted)'}}>Coming Soon</span>
                 </div>
               </div>
               <div className="relative opacity-60">
@@ -253,8 +265,10 @@ function IntegrationsContentInner() {
                   autoConnect={false}
                   userId={userId || undefined}
                 />
-                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
-                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{
+                  background: 'rgba(26, 26, 26, 0.8)'
+                }}>
+                  <span className="font-medium" style={{color: 'var(--muted)'}}>Coming Soon</span>
                 </div>
               </div>
               <div className="relative opacity-60">
@@ -267,8 +281,10 @@ function IntegrationsContentInner() {
                   autoConnect={false}
                   userId={userId || undefined}
                 />
-                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
-                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg" style={{
+                  background: 'rgba(26, 26, 26, 0.8)'
+                }}>
+                  <span className="font-medium" style={{color: 'var(--muted)'}}>Coming Soon</span>
                 </div>
               </div>
             </div>

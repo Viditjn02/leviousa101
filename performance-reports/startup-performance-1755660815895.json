@@ -1,0 +1,185 @@
+{
+  "summary": {
+    "totalStartupTime": 8721,
+    "timeToFirstInteraction": 270,
+    "target": 100,
+    "achieved": false
+  },
+  "phases": {
+    "Phase1_WindowCreation": {
+      "duration": 206,
+      "startOffset": 0,
+      "endOffset": 206
+    },
+    "Phase2_CriticalSetup": {
+      "duration": 1,
+      "startOffset": 206,
+      "endOffset": 207
+    },
+    "Phase3_CriticalServices": {
+      "duration": 63,
+      "startOffset": 207,
+      "endOffset": 270
+    },
+    "Phase4_BackgroundServices": {
+      "duration": 8312,
+      "startOffset": 409,
+      "endOffset": 8721
+    }
+  },
+  "metrics": {
+    "CreateWindows": {
+      "value": 205,
+      "unit": "ms",
+      "timestamp": 1755660807380
+    },
+    "StaticResourceCache": {
+      "value": 1,
+      "unit": "ms",
+      "timestamp": 1755660807381
+    },
+    "CSPInterception": {
+      "value": 0,
+      "unit": "ms",
+      "timestamp": 1755660807381
+    },
+    "Database": {
+      "value": 23,
+      "unit": "ms",
+      "timestamp": 1755660807404
+    },
+    "TimeToFirstInteraction": {
+      "value": 270,
+      "unit": "ms",
+      "timestamp": 1755660807445
+    },
+    "Firebase": {
+      "value": 253,
+      "unit": "ms",
+      "timestamp": 1755660807836
+    },
+    "AuthService": {
+      "value": 792,
+      "unit": "ms",
+      "timestamp": 1755660808628
+    },
+    "ModelStateService": {
+      "value": 1,
+      "unit": "ms",
+      "timestamp": 1755660808629
+    }
+  },
+  "marks": [
+    {
+      "name": "Phase1_WindowCreation_start",
+      "time": 1755660807174,
+      "elapsed": 0
+    },
+    {
+      "name": "CreateWindows_start",
+      "time": 1755660807175,
+      "elapsed": 1
+    },
+    {
+      "name": "CreateWindows_end",
+      "time": 1755660807380,
+      "elapsed": 206
+    },
+    {
+      "name": "Phase1_WindowCreation_end",
+      "time": 1755660807380,
+      "elapsed": 206
+    },
+    {
+      "name": "Phase2_CriticalSetup_start",
+      "time": 1755660807380,
+      "elapsed": 206
+    },
+    {
+      "name": "StaticResourceCache_start",
+      "time": 1755660807380,
+      "elapsed": 206
+    },
+    {
+      "name": "StaticResourceCache_end",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "CSPInterception_start",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "CSPInterception_end",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "Phase2_CriticalSetup_end",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "Phase3_CriticalServices_start",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "Database_start",
+      "time": 1755660807381,
+      "elapsed": 207
+    },
+    {
+      "name": "Database_end",
+      "time": 1755660807404,
+      "elapsed": 230
+    },
+    {
+      "name": "Phase3_CriticalServices_end",
+      "time": 1755660807444,
+      "elapsed": 270
+    },
+    {
+      "name": "Phase4_BackgroundServices_start",
+      "time": 1755660807583,
+      "elapsed": 409
+    },
+    {
+      "name": "Firebase_start",
+      "time": 1755660807583,
+      "elapsed": 409
+    },
+    {
+      "name": "Firebase_end",
+      "time": 1755660807836,
+      "elapsed": 662
+    },
+    {
+      "name": "AuthService_start",
+      "time": 1755660807836,
+      "elapsed": 662
+    },
+    {
+      "name": "AuthService_end",
+      "time": 1755660808628,
+      "elapsed": 1454
+    },
+    {
+      "name": "ModelStateService_start",
+      "time": 1755660808628,
+      "elapsed": 1454
+    },
+    {
+      "name": "ModelStateService_end",
+      "time": 1755660808629,
+      "elapsed": 1455
+    },
+    {
+      "name": "Phase4_BackgroundServices_end",
+      "time": 1755660815895,
+      "elapsed": 8721
+    }
+  ],
+  "timestamp": "2025-08-20T03:33:35.895Z"
+}

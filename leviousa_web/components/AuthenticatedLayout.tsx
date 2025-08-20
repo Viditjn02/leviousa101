@@ -45,14 +45,16 @@ export default function AuthenticatedLayout({
   if (!hasCheckedAuth || (isLoading && !hasCheckedAuth)) {
     console.log('🔄 AuthenticatedLayout: Showing loading state - hasCheckedAuth:', hasCheckedAuth, 'isLoading:', isLoading);
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{
+        background: 'radial-gradient(circle at center, rgba(144, 81, 81, 0.25), #000)'
+      }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto" style={{borderColor: '#905151'}}></div>
+          <p className="mt-4" style={{color: '#fff'}}>Loading...</p>
           {isLoading && (
-            <p className="mt-2 text-sm text-gray-500">Checking authentication...</p>
+            <p className="mt-2 text-sm" style={{color: '#bbb'}}>Checking authentication...</p>
           )}
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="mt-2 text-xs" style={{color: '#999'}}>
             Debug: hasCheckedAuth={hasCheckedAuth.toString()}, isLoading={isLoading.toString()}
           </p>
         </div>
@@ -63,9 +65,11 @@ export default function AuthenticatedLayout({
   // If no user after timeout, redirect will happen in useEffect
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{
+        background: 'radial-gradient(circle at center, rgba(144, 81, 81, 0.25), #000)'
+      }}>
         <div className="text-center">
-          <p className="text-gray-600">Redirecting to login...</p>
+          <p style={{color: '#fff'}}>Redirecting to login...</p>
         </div>
       </div>
     );

@@ -42,16 +42,16 @@ function saveParagonAuthCache() {
 // Dynamic MCP tool count fetcher - gets actual tools from MCP server
 async function getMCPToolCount(mappedServiceName, serviceInstance = null) {
     try {
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: getMCPToolCount called for "${mappedServiceName}" with serviceInstance:`, !!serviceInstance);
+
         
         // Try multiple approaches to get the MCP client
         let service = serviceInstance || global.invisibilityService;
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: service from serviceInstance:`, !!serviceInstance, "global.invisibilityService:", !!global.invisibilityService);
+
         
         // If no service, try getting it through the getInvisibilityService function that should be available by now
         if (!service && typeof getInvisibilityService === 'function') {
             service = getInvisibilityService();
-            console.log(`[InvisibilityBridge] 🔍 DEBUG: service from getInvisibilityService():`, !!service);
+
         }
         
         if (!service?.mcpClient) {
@@ -78,59 +78,38 @@ async function getMCPToolCount(mappedServiceName, serviceInstance = null) {
             console.log(`[InvisibilityBridge] ✅ MCP client now initialized for ${mappedServiceName}!`);
         }
         
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: About to call listTools() for ${mappedServiceName}...`);
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: mcpClient type:`, typeof service.mcpClient);
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: mcpClient methods:`, Object.getOwnPropertyNames(service.mcpClient).filter(prop => typeof service.mcpClient[prop] === 'function'));
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: mcpClient keys:`, Object.keys(service.mcpClient));
+
         
         // Get tools from MCP server directly using toolRegistry
         let toolsResult;
         try {
             // Use toolRegistry directly - this is the correct approach
             if (service.mcpClient.toolRegistry) {
-                console.log(`[InvisibilityBridge] 🔍 Using toolRegistry to get tools for ${mappedServiceName}...`);
                 const allTools = service.mcpClient.toolRegistry.getAllTools();
-                console.log(`[InvisibilityBridge] 📊 toolRegistry.getAllTools() returned:`, typeof allTools, `Array: ${Array.isArray(allTools)}, Length: ${allTools?.length || 0}`);
-                console.log(`[InvisibilityBridge] 🔍 RAW TOOLS DATA:`, allTools);
-                console.log(`[InvisibilityBridge] 🔍 FIRST TOOL:`, allTools?.[0]);
-                console.log(`[InvisibilityBridge] 🔍 TOOL NAMES:`, allTools?.map(t => t?.name || 'NO_NAME'));
                 
                 // getAllTools() returns an ARRAY of tool objects, not an object
                 if (allTools && Array.isArray(allTools)) {
-                    console.log(`[InvisibilityBridge] 🔍 First few tools:`, allTools.slice(0, 3).map(t => t.name || t));
                     toolsResult = { tools: allTools };
-                    console.log(`[InvisibilityBridge] ✅ Got ${allTools.length} tools from toolRegistry`);
                 } else {
-                    console.log(`[InvisibilityBridge] ⚠️ toolRegistry.getAllTools() returned unexpected format - expected array, got:`, typeof allTools);
                     toolsResult = { tools: [] };
                 }
             } else {
                 throw new Error(`No toolRegistry found in mcpClient. Available properties: ${Object.keys(service.mcpClient).join(', ')}`);
             }
-            console.log(`[InvisibilityBridge] ✅ DEBUG: Tool discovery successful for ${mappedServiceName}`);
+
         } catch (listToolsError) {
-            console.log(`[InvisibilityBridge] ❌ DEBUG: listTools() FAILED for ${mappedServiceName}:`, listToolsError.message);
-            console.log(`[InvisibilityBridge] 🔍 DEBUG: listTools() error type:`, listToolsError.constructor.name);
-            console.log(`[InvisibilityBridge] 🔍 DEBUG: listTools() error details:`, listToolsError);
+            console.log(`[InvisibilityBridge] ❌ listTools() FAILED for ${mappedServiceName}:`, listToolsError.message);
             throw listToolsError; // Re-throw to be caught by outer catch
         }
         
-        console.log(`[InvisibilityBridge] 📡 MCP listTools result for ${mappedServiceName}:`, {
-            hasTools: !!toolsResult.tools,
-            toolCount: toolsResult.tools?.length || 0,
-            resultType: typeof toolsResult,
-            resultKeys: Object.keys(toolsResult || {})
-        });
+
         
         if (toolsResult && toolsResult.tools && Array.isArray(toolsResult.tools)) {
             // Filter tools for this specific service
-            console.log(`[InvisibilityBridge] 🗓️ CALENDLY FILTER DEBUG: Starting filter for service "${mappedServiceName}" (${toolsResult.tools.length} total tools)`);
             
             const serviceSpecificTools = toolsResult.tools.filter(tool => {
                 const toolName = tool.name?.toLowerCase() || '';
                 const serviceLower = mappedServiceName.toLowerCase();
-                
-                console.log(`[InvisibilityBridge] 🔍 Checking tool "${tool.name}" for service "${mappedServiceName}"`);
                 
                 // Improved service-to-tool mapping
                 let matches = false;
@@ -143,7 +122,6 @@ async function getMCPToolCount(mappedServiceName, serviceInstance = null) {
                     matches = toolName.startsWith('linkedin_');
                 } else if (serviceLower === 'calendly') {
                     matches = toolName.startsWith('calendly_');
-                    console.log(`[InvisibilityBridge] 🗓️ CALENDLY DEBUG: Checking "${toolName}" against "calendly_" - matches: ${matches}`);
                 } else if (serviceLower === 'notion') {
                     matches = toolName.startsWith('notion_');
                 } else {
@@ -152,31 +130,16 @@ async function getMCPToolCount(mappedServiceName, serviceInstance = null) {
                              toolName.startsWith(serviceLower.replace(/[^a-z]/g, '') + '_');
                 }
                 
-                if (matches) {
-                    console.log(`[InvisibilityBridge] ✅ Tool "${tool.name}" matches service "${mappedServiceName}"`);
-                } else {
-                    console.log(`[InvisibilityBridge] ❌ Tool "${tool.name}" does NOT match service "${mappedServiceName}"`);
-                }
-                
                 return matches;
             });
             
-            console.log(`[InvisibilityBridge] 🎯 Found ${serviceSpecificTools.length} tools for ${mappedServiceName}:`, 
-                      serviceSpecificTools.map(t => t.name));
-            
             return serviceSpecificTools.length;
         } else {
-            console.log(`[InvisibilityBridge] ⚠️ No tools array in MCP response for ${mappedServiceName}`);
             return 0;
         }
         
     } catch (error) {
-        console.log(`[InvisibilityBridge] ❌ DEBUG: MCP tool discovery FAILED for ${mappedServiceName}:`);
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: Error message:`, error.message);
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: Error type:`, error.constructor.name);
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: Error stack:`, error.stack?.split('\n').slice(0, 3).join('\n'));
-        console.log(`[InvisibilityBridge] 🔍 DEBUG: Full error object:`, error);
-        console.log(`[InvisibilityBridge] ⚠️ RETURNING 0 due to error`);
+        console.log(`[InvisibilityBridge] ❌ Tool discovery FAILED for ${mappedServiceName}:`, error.message);
         return 0;
     }
 }
@@ -1265,10 +1228,9 @@ function initializeInvisibilityBridge() {
             }
         }
                     
-                    console.log(`[InvisibilityBridge] 📡 Calling get_authenticated_services tool for user: ${userIdForCheck}...`);
-                    console.log(`[InvisibilityBridge] 🔍 DEBUG: User ID being sent to Paragon API: "${userIdForCheck}"`);
+
                     const authResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userIdForCheck });
-                    console.log('[InvisibilityBridge] 📥 get_authenticated_services result:', authResult);
+
                     
                     if (authResult && authResult.content && authResult.content[0] && authResult.content[0].text) {
                         try {
@@ -1287,9 +1249,7 @@ function initializeInvisibilityBridge() {
                                 servicesData = JSON.parse(responseText);
                             }
                             
-                            console.log('[InvisibilityBridge] 📊 Parsed services data:', servicesData);
-                            console.log(`[InvisibilityBridge] 🔍 DEBUG: Paragon API returned services:`, servicesData.services);
-                            console.log(`[InvisibilityBridge] 🔍 DEBUG: Paragon API authenticated_services (legacy):`, servicesData.authenticated_services);
+
                             
                             // Convert to status format - combine local cache with Paragon API results
                             const serviceStatus = {};
@@ -1297,11 +1257,9 @@ function initializeInvisibilityBridge() {
                             // First, check local authentication cache for user-confirmed authentications
                             const localAuthServices = [];
                             if (global.localParagonAuthCache) {
-                                console.log(`[InvisibilityBridge] 🔍 Checking local auth cache for user: ${userIdForCheck}`);
                                 for (const [authKey, authData] of global.localParagonAuthCache.entries()) {
                                     if (authData.userId === userIdForCheck && authData.success) {
                                         localAuthServices.push(authData.service);
-                                        console.log(`[InvisibilityBridge] 💾 Found locally cached auth for: ${authData.service}`);
                                     }
                                 }
                             }
@@ -1323,9 +1281,7 @@ function initializeInvisibilityBridge() {
                             
                             const allAuthenticatedServices = [...new Set([...localAuthServices, ...allParagonServices])];
                             
-                            console.log('[InvisibilityBridge] 🔍 Authenticated services from Paragon API:', allParagonServices);
-                            console.log('[InvisibilityBridge] 💾 Authenticated services from local cache:', localAuthServices);
-                            console.log('[InvisibilityBridge] 🔄 Combined authenticated services:', allAuthenticatedServices);
+
                             
                             // Initialize service status - map raw Paragon service names to UI names
                             const serviceNameMapping = {
@@ -1382,12 +1338,12 @@ function initializeInvisibilityBridge() {
                                             isAuthenticated = true; // If it's in the list, it's authenticated
                                             // Check if this service is from local cache
                                             const isFromLocalCache = localAuthServices.includes(serviceItem);
-                                            console.log(`[InvisibilityBridge] 💾 String service ${serviceItem} - getting dynamic tool count`);
+
                                             // Get dynamic tool count from MCP server
                                             const mappedServiceName = serviceNameMapping[serviceItem.toLowerCase()] || serviceItem;
                                             const serviceForToolCount = getInvisibilityService();
                                             toolsCount = await getMCPToolCount(mappedServiceName, serviceForToolCount);
-                                            console.log(`[InvisibilityBridge] 🎯 Dynamic MCP tool count for ${serviceItem}: ${toolsCount}`);
+
                                         } else if (typeof serviceItem === 'object' && serviceItem !== null) {
                                             rawName = serviceItem.service || serviceItem.key || serviceItem.name || '';
                                             isAuthenticated = serviceItem.authenticated === true;
@@ -1395,12 +1351,11 @@ function initializeInvisibilityBridge() {
                                             const mappedServiceName = serviceNameMapping[rawName?.toLowerCase()] || rawName;
                                             const serviceForToolCount = getInvisibilityService();
                                             toolsCount = await getMCPToolCount(mappedServiceName, serviceForToolCount);
-                                            console.log(`[InvisibilityBridge] 🎯 Dynamic tool count for object service ${rawName}: ${toolsCount}`);
+
                                             connectionCount = serviceItem.connected_users || serviceItem.connectedUsers || serviceItem.userCount || 0;
                                         }
                                         
                                         if (!rawName) {
-                                            console.log(`[InvisibilityBridge] ⚠️ Skipping service with no name:`, serviceItem);
                                             continue;
                                         }
 
@@ -1421,18 +1376,15 @@ function initializeInvisibilityBridge() {
                                             isAuthenticated = true;
                                         }
                                         
-                                        console.log(`[InvisibilityBridge] ✅ Processing service ${mappedServiceName} - authenticated: ${isAuthenticated}, tools: ${toolsCount}`);
+
                                         
                                         if (serviceStatus[mappedServiceName]) {
                                             // Use tools count from MCP server response if available
                                             let finalToolsCount = toolsCount;
                                             try {
-                                                console.log(`[InvisibilityBridge] 🔍 Running dynamic tool discovery for ${mappedServiceName}`);
-                                                
                                                 // Use dynamic MCP tool discovery instead of skipping
                                                 const serviceForToolCount = getInvisibilityService();
                                                 finalToolsCount = await getMCPToolCount(mappedServiceName, serviceForToolCount);
-                                                console.log(`[InvisibilityBridge] 🎯 Dynamic tool discovery result for ${mappedServiceName}: ${finalToolsCount} tools`);
                                             } catch (toolDiscoveryError) {
                                                 console.log(`[InvisibilityBridge] ℹ️ Tool discovery failed for ${mappedServiceName}: ${toolDiscoveryError.message}`);
                                                 finalToolsCount = toolsCount; // Use original count if discovery fails
@@ -1441,9 +1393,7 @@ function initializeInvisibilityBridge() {
                                                 authenticated: isAuthenticated,  // Use actual authentication status from MCP server
                                                 toolsCount: finalToolsCount  // Actual discovered tool count
                                             };
-                                            console.log(`[InvisibilityBridge] ✅ Service ${rawName} -> ${mappedServiceName} is authenticated: ${isAuthenticated} with ${finalToolsCount} tools (from MCP response)`);
-                                        } else {
-                                            console.log(`[InvisibilityBridge] ⚠️ Service ${rawName} (mapped to ${mappedServiceName}) not found in serviceStatus`);
+
                                         }
 
                                 }

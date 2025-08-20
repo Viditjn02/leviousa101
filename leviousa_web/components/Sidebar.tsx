@@ -234,13 +234,26 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
             const animationDelay = 0;
 
             const baseButtonClasses = `
-      group flex items-center rounded-[8px] px-[12px] py-[10px] text-[14px] text-[#282828] w-full relative
+      group flex items-center rounded-[8px] px-[12px] py-[10px] text-[14px] w-full relative
       transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
       focus:outline-none
     `;
 
             const getStateClasses = (isActive: boolean) =>
-                isActive ? 'bg-[#f2f2f2] text-[#282828]' : 'text-[#282828] hover:text-[#282828] hover:bg-[#f7f7f7]';
+                isActive ? '' : '';
+            
+            const getStateStyles = (isActive: boolean): React.CSSProperties => {
+                if (isActive) {
+                    return {
+                        background: 'linear-gradient(45deg, var(--brand-start), var(--brand-end))',
+                        color: '#000'
+                    };
+                }
+                return {
+                    color: 'var(--text)',
+                    backgroundColor: 'transparent'
+                };
+            };
 
             if (item.action) {
                 return (
@@ -383,19 +396,22 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
 
             return (
                 <li key={item.name}>
-                    <Link
-                        href={item.href || '#'}
-                        className={`
+                                            <Link
+                            href={item.href || '#'}
+                            className={`
                         group flex items-center rounded-[8px] text-[14px] px-[12px] py-[10px] relative
             focus:outline-none
             ${getStateClasses(isActive)}
             transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
                         ${isCollapsed ? '' : ''}
                       `}
-                        title={isCollapsed ? item.name : undefined}
-                        aria-label={item.ariaLabel || item.name}
-                        style={{ willChange: 'background-color, color' }}
-                    >
+                            title={isCollapsed ? item.name : undefined}
+                            aria-label={item.ariaLabel || item.name}
+                            style={{ 
+                                willChange: 'background-color, color',
+                                ...getStateStyles(isActive)
+                            }}
+                        >
                         <div className="shrink-0 flex items-center justify-center w-5 h-5">
                             <IconComponent icon={item.icon} isLucide={item.isLucide} alt={`${item.name} icon`} />
                         </div>
@@ -438,8 +454,12 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
 
     return (
         <aside
-            className={`flex h-full flex-col bg-white border-r py-3 px-2 border-[#e5e5e5] relative ${isCollapsed ? 'w-[60px]' : 'w-[220px]'}`}
-            style={sidebarContainerStyle}
+            className={`flex h-full flex-col border-r py-3 px-2 relative ${isCollapsed ? 'w-[60px]' : 'w-[220px]'}`}
+            style={{
+                ...sidebarContainerStyle,
+                background: 'var(--bg-card)',
+                borderColor: 'var(--border)'
+            }}
             role="navigation"
             aria-label="main navigation"
             aria-expanded={!isCollapsed}
@@ -453,7 +473,10 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                             onKeyDown={e => handleKeyDown(e, toggleSidebar)}
                             className={`${
                                 isCollapsed ? '' : ''
-                            } "absolute inset-0 flex items-center justify-center text-gray-500 hover:text-gray-800 rounded-md opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 ease-out focus:outline-none`}
+                            } "absolute inset-0 flex items-center justify-center rounded-md opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 ease-out focus:outline-none`}
+                            style={{
+                                color: 'var(--muted)'
+                            }}
                             aria-label="Open sidebar"
                         >
                             <Image src="/unfold.svg" alt="Open" width={18} height={18} className="h-4.5 w-4.5" />
@@ -475,7 +498,10 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                             onKeyDown={e => handleKeyDown(e, toggleSidebar)}
                             className={`${
                                 isCollapsed ? '' : ''
-                            } text-gray-500 hover:text-gray-800 p-1 rounded-[4px] hover:bg-[#f7f7f7] h-6 w-6 transition-colors focus:outline-none`}
+                            } p-1 rounded-[4px] h-6 w-6 transition-colors focus:outline-none`}
+                            style={{
+                                color: 'var(--muted)'
+                            }}
                             aria-label="Close sidebar"
                         >
                             <Image src="/unfold.svg" alt="Close" width={16} height={16} className="transform rotate-180" />
@@ -551,7 +577,10 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                     </div>
 
                     <div className="ml-[0px] overflow-hidden" style={getTextContainerStyle()}>
-                        <span className="block text-[13px] leading-6 text-[#282828]" style={getUniformTextStyle()}>
+                        <span className="block text-[13px] leading-6" style={{
+                            ...getUniformTextStyle(),
+                            color: 'var(--text)'
+                        }}>
                             {getUserDisplayName()}
                         </span>
                     </div>

@@ -2,6 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import landing page CSS variables for consistent theming */
+:root { 
+  --brand-start: #905151; 
+  --brand-end: #f2e9e9; 
+  --bg: #000; 
+  --bg-soft: #050505; 
+  --bg-softer: #070707; 
+  --bg-card: #1a1a1a; 
+  --bg-card-2: #1e1e1e; 
+  --text: #fff; 
+  --muted: #bbb; 
+  --muted-2: #999; 
+  --border: #333; 
+  --shadow: rgba(0,0,0,0.6); 
+}
+
+[data-theme="light"] { 
+  --bg: #ffffff; 
+  --bg-soft: #f7f7f7; 
+  --bg-softer: #fafafa; 
+  --bg-card: #ffffff; 
+  --bg-card-2: #ffffff; 
+  --text: #0a0a0a; 
+  --muted: #3a3a3a; 
+  --muted-2: #555; 
+  --border: #e5e5e5; 
+  --shadow: rgba(0,0,0,0.1); 
+}
+
+body {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Brand gradient text utility */
+.brand-gradient {
+  background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glass card effect */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+/* Brand button */
+.btn-brand {
+  background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+  color: #000;
+  border: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-brand:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;

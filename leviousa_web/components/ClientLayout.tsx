@@ -25,13 +25,13 @@ export default function ClientLayout({
   }, [])
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen" style={{background: 'var(--bg)'}}>
       <Sidebar 
         isCollapsed={isSidebarCollapsed} 
         onToggle={setIsSidebarCollapsed}
         onSearchClick={() => setIsSearchOpen(true)}
       />
-      <main className="flex-1 overflow-auto bg-white">
+      <main className="flex-1 overflow-auto" style={{background: 'var(--bg)'}}>
         {children}
       </main>
       
