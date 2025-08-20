@@ -245,7 +245,7 @@ class AuthService {
     async startServerSideAuthFlow() {
         try {
             // Create a simple form for email/password or redirect to a simpler auth page
-            const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
+            const webUrl = process.env.leviousa_WEB_URL || 'https://www.leviousa.com';
             const authUrl = `${webUrl}/login?mode=server&method=admin`;
             console.log(`[AuthService] Opening server-side auth URL: ${authUrl}`);
             await shell.openExternal(authUrl);

@@ -1159,15 +1159,15 @@ async function startWebStack() {
     });
   };
 
-  // Always use Firebase hosting for frontend to avoid OAuth issues
+  // Always use Vercel hosting for frontend to avoid OAuth issues
   let apiPort, frontendPort, webUrl;
   
-  // Always use Firebase hosting domain for consistent OAuth behavior
+  // Always use Vercel hosting domain for consistent OAuth behavior
   apiPort = isDev ? 9001 : await getAvailablePort();
-  frontendPort = 3000; // Not used when using Firebase hosting
-  webUrl = 'https://leviousa-101.web.app'; // Always use Firebase hosting domain
+  frontendPort = 3000; // Not used when using Vercel hosting
+  webUrl = 'https://www.leviousa.com'; // Always use custom domain for public web dashboard
   
-  console.log(`🔧 Using Firebase hosting for all builds: API=${apiPort}`);
+  console.log(`🔧 Using Vercel hosting for all builds: API=${apiPort}`);
   console.log(`🌐 Web URL: ${webUrl}`);
 
   process.env.leviousa_API_PORT = apiPort.toString();
@@ -1183,9 +1183,9 @@ async function startWebStack() {
   const createBackendApp = require('../leviousa_web/backend_node');
   const nodeApi = createBackendApp(eventBridge);
 
-  // No local frontend server needed - always use Firebase hosting
-  console.log(`🔥 Using Firebase hosting at ${webUrl}`);
-  console.log(`📋 Frontend is served from Firebase hosting`);
+  // No local frontend server needed - always use Vercel hosting
+  console.log(`🔥 Using Vercel hosting at ${webUrl}`);
+  console.log(`📋 Frontend is served from Vercel hosting`);
   console.log(`📋 API runs locally on http://localhost:${apiPort}`);
 
   const apiSrv = express();

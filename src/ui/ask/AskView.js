@@ -1950,6 +1950,19 @@ export class AskView extends LitElement {
     adjustWindowHeight() {
         if (!window.api) return;
 
+        // PERFORMANCE OPTIMIZATION: Throttle window height adjustments
+        if (this._heightAdjustmentTimeout) {
+            clearTimeout(this._heightAdjustmentTimeout);
+        }
+        
+        this._heightAdjustmentTimeout = setTimeout(() => {
+            this._performHeightAdjustment();
+        }, 100); // Throttle to maximum 10 adjustments per second
+    }
+    
+    _performHeightAdjustment() {
+        if (!window.api) return;
+
         this.updateComplete.then(() => {
             const headerEl = this.shadowRoot.querySelector('.response-header');
             const responseEl = this.shadowRoot.querySelector('.response-container');
@@ -1968,6 +1981,13 @@ export class AskView extends LitElement {
             const idealHeight = headerHeight + responseHeight + inputHeight + historyHeight + emailFormHeight;
             const maxHeight = 700; // Maximum window height
             const targetHeight = Math.min(maxHeight, idealHeight);
+            
+            // PERFORMANCE OPTIMIZATION: Only adjust if height change is significant (>5px)
+            if (this._lastTargetHeight && Math.abs(targetHeight - this._lastTargetHeight) < 5) {
+                return; // Skip minor adjustments
+            }
+            
+            this._lastTargetHeight = targetHeight;
 
             // If content exceeds max height, enable scrolling in response container
             if (idealHeight > maxHeight) {
@@ -2075,19 +2095,22 @@ export class AskView extends LitElement {
       if (bcc && bcc.trim()) {
         actionData.params.bcc = bcc;
       }
-      // Dynamically fetch the authenticated Paragon user_id
-      try {
-        const userState = await window.api.common.getCurrentUser();
-        if (userState && userState.uid) {
-          actionData.params.user_id = userState.uid;
-        } else {
-          console.warn('[AskView] No authenticated user found - using fallback default-user');
-          actionData.params.user_id = 'default-user';
+      // PERFORMANCE: Cache user_id to avoid repeated API calls
+      if (!this._cachedUserId) {
+        try {
+          const userState = await window.api.common.getCurrentUser();
+          if (userState && userState.uid) {
+            this._cachedUserId = userState.uid;
+          } else {
+            console.warn('[AskView] No authenticated user found - using fallback default-user');
+            this._cachedUserId = 'default-user';
+          }
+        } catch (uidErr) {
+          console.warn('[AskView] Failed to fetch current user for user_id:', uidErr);
+          this._cachedUserId = 'default-user';
         }
-      } catch (uidErr) {
-        console.warn('[AskView] Failed to fetch current user for user_id:', uidErr);
-        actionData.params.user_id = 'default-user';
       }
+      actionData.params.user_id = this._cachedUserId;
 
       console.log('[AskView] 📧 Final actionData being sent to MCP API:', JSON.stringify(actionData, null, 2));
       
@@ -2133,8 +2156,23 @@ export class AskView extends LitElement {
     this.requestUpdate();
   }
   
-  /** Get the actual email send tool name dynamically */
+  /** Get the actual email send tool name dynamically with caching */
   async getEmailSendToolName() {
+    // PERFORMANCE: Cache the email tool name to avoid repeated API calls
+    if (this._cachedEmailToolName) {
+      console.log(`[AskView] Using cached email tool: ${this._cachedEmailToolName}`);
+      return this._cachedEmailToolName;
+    }
+    
+    // PERFORMANCE: Use hardcoded known tool name for Paragon Gmail
+    // This avoids the expensive getAvailableTools() call entirely
+    const knownEmailTool = 'gmail_send_email';
+    console.log(`[AskView] Using known email tool: ${knownEmailTool}`);
+    this._cachedEmailToolName = knownEmailTool;
+    return knownEmailTool;
+    
+    // Original dynamic discovery code kept as fallback (commented out for performance)
+    /*
     try {
       const result = await window.api.mcp.getAvailableTools();
       if (result && result.success && result.tools) {
@@ -2150,6 +2188,7 @@ export class AskView extends LitElement {
           const tool = result.tools.find(t => t.name === pattern);
           if (tool) {
             console.log(`[AskView] Found email send tool: ${tool.name}`);
+            this._cachedEmailToolName = tool.name;
             return tool.name;
           }
         }
@@ -2164,6 +2203,7 @@ export class AskView extends LitElement {
         
         if (emailTool) {
           console.log(`[AskView] Found fallback email tool: ${emailTool.name}`);
+          this._cachedEmailToolName = emailTool.name;
           return emailTool.name;
         }
         
@@ -2177,6 +2217,7 @@ export class AskView extends LitElement {
       console.error('[AskView] Error getting email send tool:', error);
       return null;
     }
+    */
   }
 
   /** Debug: Check available MCP tools */

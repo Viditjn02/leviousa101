@@ -1,6 +1,6 @@
 {
-  "PARAGON_LIMIT_TO_INTEGRATIONS": "gmail,outlook,slack,salesforce,hubspot,notion,googlecalendar,linkedin,googledrive,dropbox,onedrive",
-  "PARAGON_PROJECT_ID": "db5e019e-0558-4378-93de-f212a73e0606",
+  "PARAGON_LIMIT_TO_INTEGRATIONS": "gmail,outlook,calendly,salesforce,hubspot,notion,googleCalendar,linkedin,googledrive,dropbox,onedrive",
+  "PARAGON_PROJECT_ID": "f7e139ca-5ef0-4211-9118-2d65154fc2a6",
   "config_version": "1.1",
   "last_updated": "2025-01-15"
 }

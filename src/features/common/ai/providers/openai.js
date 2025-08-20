@@ -232,6 +232,79 @@ function createLLM({ apiKey, model = 'gpt-4o-mini', temperature = 0.7, maxTokens
     // For compatibility with chat-style interfaces
     chat: async (messages) => {
       return await callApi(messages);
+    },
+
+    // Function calling with tools
+    chatWithTools: async (messages, tools = [], tool_choice = 'auto') => {
+      const client = new OpenAI({ apiKey });
+      
+      // Convert tools to OpenAI format
+      const openaiTools = tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description || '',
+          parameters: tool.inputSchema || tool.parameters || {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        }
+      }));
+
+      const requestOptions = {
+        model: model,
+        messages: messages,
+        temperature: temperature,
+        max_tokens: maxTokens
+      };
+
+      // Add tools if provided
+      if (openaiTools.length > 0) {
+        requestOptions.tools = openaiTools;
+        
+        // Handle tool_choice
+        if (tool_choice === 'auto') {
+          requestOptions.tool_choice = 'auto';
+        } else if (tool_choice === 'required' || tool_choice === 'any') {
+          requestOptions.tool_choice = 'required';
+        } else if (typeof tool_choice === 'string' && tool_choice !== 'none') {
+          // Specific tool choice
+          requestOptions.tool_choice = {
+            type: 'function',
+            function: { name: tool_choice }
+          };
+        }
+      }
+
+      let response;
+      if (!usePortkey) {
+        response = await client.chat.completions.create(requestOptions);
+      } else {
+        const fetchResponse = await fetch('https://api.portkey.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'x-portkey-api-key': 'gRv2UGRMq6GGLJ8aVEB4e7adIewu',
+            'x-portkey-virtual-key': portkeyVirtualKey || apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestOptions)
+        });
+
+        if (!fetchResponse.ok) {
+          throw new Error(`Portkey API error: ${fetchResponse.status} ${fetchResponse.statusText}`);
+        }
+
+        response = await fetchResponse.json();
+      }
+
+      const message = response.choices[0].message;
+      
+      return {
+        content: message.content?.trim() || '',
+        toolCalls: message.tool_calls || [],
+        raw: response
+      };
     }
   };
 }

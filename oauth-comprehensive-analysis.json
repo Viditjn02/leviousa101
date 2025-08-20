@@ -1,0 +1,61 @@
+{
+  "testDate": "2025-08-19T09:22:42.954Z",
+  "config": {
+    "OAUTH_CLIENT_ID": "284693214404-jl4dabihe7k6o2loj8eil4nf344kef1m.apps.googleusercontent.com",
+    "PROJECT_ID": "leviousa-101",
+    "OLD_DOMAIN": "https://leviousa-101.web.app",
+    "NEW_DOMAIN": "https://www.leviousa.com",
+    "PARAGON_OAUTH_PORT": 54321,
+    "MCP_OAUTH_PORTS": [
+      3000,
+      3001,
+      3002,
+      3003,
+      3004
+    ],
+    "API_PORT": 9001,
+    "CURRENT_REDIRECT_URIS": [
+      "http://localhost:3000/callback",
+      "http://localhost:3001/callback",
+      "http://localhost:3002/callback",
+      "http://localhost:3003/callback",
+      "http://localhost:3004/callback",
+      "https://passport.useparagon.com/oauth",
+      "https://www.leviousa.com/oauth/callback"
+    ],
+    "CURRENT_JS_ORIGINS": [
+      "http://localhost:8000"
+    ]
+  },
+  "results": {
+    "currentImplementation": {
+      "compliantFlows": 2,
+      "nonCompliantFlows": 1,
+      "issueLocation": "src/features/invisibility/invisibilityBridge.js lines 593-606",
+      "rootCause": "Paragon OAuth using embedded BrowserWindow instead of system browser",
+      "googleDetection": "Embedded webview flagged as \"legacy browser\""
+    },
+    "proposedFix": {
+      "changesRequired": "Minimal - just OAuth browser method",
+      "functionalityPreserved": true,
+      "googleComplianceImproved": true,
+      "riskLevel": "LOW",
+      "testingRecommended": true
+    },
+    "riskAssessment": {
+      "overallRisk": "LOW",
+      "functionalRisk": "MINIMAL",
+      "complianceBenefit": "HIGH",
+      "implementationComplexity": "LOW",
+      "recommendProceed": true
+    },
+    "recommendation": {}
+  },
+  "recommendation": {
+    "approach": "system-browser",
+    "confidence": "95%",
+    "riskLevel": "LOW",
+    "expectedOutcome": "OAuth warnings eliminated, consent screen accessible",
+    "implementation": "RECOMMENDED"
+  }
+}

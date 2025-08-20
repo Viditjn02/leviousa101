@@ -1,0 +1,7 @@
+# Ignore problematic pages during Vercel build
+app/test-*
+*.backup
+.firebase
+node_modules
+.env.local
+.next

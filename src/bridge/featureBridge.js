@@ -120,7 +120,7 @@ module.exports = {
        
     // General
     ipcMain.handle('get-preset-templates', () => presetRepository.getPresetTemplates());
-    ipcMain.handle('get-web-url', () => process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app');
+    ipcMain.handle('get-web-url', () => process.env.leviousa_WEB_URL || 'https://www.leviousa.com');
 
     // Ollama handlers removed - local models disabled
 

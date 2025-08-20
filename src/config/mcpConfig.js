@@ -392,7 +392,7 @@ class MCPConfigManager extends EventEmitter {
             const webCallbackProviders = ['slack'];
             if (webCallbackProviders.includes(lower)) {
                 // Always use HTTPS API callback for Notion and Slack
-                redirectUri = 'https://leviousa-101.web.app/api/oauth/callback';
+                redirectUri = 'https://www.leviousa.com/api/oauth/callback';
                 console.log(`[MCPConfig] 🌐 Using API route fallback for ${provider}: ${redirectUri}`);
             } else {
                 // Try localhost callback for other providers (e.g., Google)

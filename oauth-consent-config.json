@@ -1,0 +1,9 @@
+{
+  "consentScreen": {
+    "applicationTitle": "Leviousa",
+    "supportEmail": "viditjn02@gmail.com",
+    "privacyPolicyUri": "https://leviousa-101.web.app/privacy-policy.html",
+    "tosUri": "https://leviousa-101.web.app/terms-of-service.html",
+    "authorizedDomains": ["leviousa-101.web.app"]
+  }
+}

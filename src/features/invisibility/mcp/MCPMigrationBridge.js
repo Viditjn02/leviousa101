@@ -590,6 +590,35 @@ class MCPMigrationBridge extends EventEmitter {
     }
 
     /**
+     * Get answer for a question (compatibility method for InvisibilityService)
+     * Delegates to getEnhancedAnswer for full functionality
+     * Returns STRING answer for compatibility with invisibility service
+     */
+    async getAnswer(question, screenshotBase64 = null) {
+        try {
+            // Handle question object or string
+            const questionText = typeof question === 'object' ? question.text : question;
+            
+            // Use AnswerService directly for better integration
+            const result = await this.newClient.answerService.getAnswer(questionText, {
+                screenshot: screenshotBase64,
+                mockMode: true // Use mock mode for invisibility service for speed
+            });
+            
+            // Return ONLY the answer string for compatibility with invisibility service
+            return result.answer || 'I apologize, but I was unable to generate an answer.';
+            
+        } catch (error) {
+            logger.error('Failed to get answer', { 
+                error: error.message,
+                question: typeof question === 'object' ? question.text : question
+            });
+            // Return fallback answer as string
+            return 'I apologize, but I encountered an error generating an answer.';
+        }
+    }
+
+    /**
      * Create LLM service wrapper for AnswerService with fallback support
      */
     createLLMService() {
@@ -694,6 +723,102 @@ class MCPMigrationBridge extends EventEmitter {
                 }
                 
                 throw new Error('No LLM providers available');
+            },
+
+            // Add chatWithTools method for dynamic tool selection
+            chatWithTools: async (messages, tools = [], tool_choice = 'auto') => {
+                const startTime = Date.now();
+                const timeout = 15000; // INCREASED: 15 second timeout for complex tool selection with many tools
+                
+                // Define provider priorities (primary and fallback)
+                const providers = [
+                    { name: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                    { name: 'openai', model: 'gpt-4o-mini' }
+                ];
+                
+                for (let i = 0; i < providers.length; i++) {
+                    const provider = providers[i];
+                    const isLastProvider = i === providers.length - 1;
+                    
+                    try {
+                        logger.info('LLM service chatWithTools attempting provider', { 
+                            provider: provider.name,
+                            attempt: i + 1,
+                            timeout,
+                            model: provider.model,
+                            toolCount: tools.length
+                        });
+                        
+                        // Get API key for this provider
+                        const apiKey = await this.getProviderApiKey(provider.name);
+                        if (!apiKey) {
+                            logger.warn('No API key available for provider', { provider: provider.name });
+                            continue;
+                        }
+
+                        // Create LLM instance for this provider
+                        const llm = createLLM(provider.name, {
+                            apiKey: apiKey,
+                            model: provider.model,
+                            temperature: 0.3, // Lower temperature for tool selection
+                            maxTokens: 2000,
+                            usePortkey: provider.name === 'openai-leviousa',
+                            portkeyVirtualKey: provider.name === 'openai-leviousa' ? apiKey : undefined,
+                        });
+
+                        // Create timeout promise
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error(`Provider ${provider.name} timeout after ${timeout}ms`)), timeout);
+                        });
+
+                        // Check if provider supports chatWithTools
+                        if (!llm.chatWithTools) {
+                            logger.warn('Provider does not support chatWithTools', { provider: provider.name });
+                            continue;
+                        }
+
+                        // Race between API call and timeout
+                        const response = await Promise.race([
+                            llm.chatWithTools(messages, tools, tool_choice),
+                            timeoutPromise
+                        ]);
+                        
+                        const duration = Date.now() - startTime;
+                        logger.info('LLM service chatWithTools success', { 
+                            provider: provider.name,
+                            model: provider.model,
+                            duration,
+                            messageCount: messages.length,
+                            toolsProvided: tools.length,
+                            hasToolCalls: !!response.toolCalls
+                        });
+                        
+                        return response;
+                        
+                    } catch (error) {
+                        const duration = Date.now() - startTime;
+                        logger.error('LLM service chatWithTools provider failed', { 
+                            provider: provider.name,
+                            model: provider.model,
+                            error: error.message,
+                            duration,
+                            isLastProvider
+                        });
+                        
+                        // If this is the last provider, throw the error
+                        if (isLastProvider) {
+                            throw new Error(`All LLM providers failed for chatWithTools. Last error: ${error.message}`);
+                        }
+                        
+                        // Otherwise, continue to next provider
+                        logger.info('Trying next provider due to chatWithTools failure', { 
+                            failedProvider: provider.name,
+                            nextProvider: providers[i + 1]?.name 
+                        });
+                    }
+                }
+                
+                throw new Error('No LLM providers available for chatWithTools');
             }
         };
     }

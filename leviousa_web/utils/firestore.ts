@@ -13,7 +13,8 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
-  limit
+  limit,
+  startAfter
 } from 'firebase/firestore';
 import { firestore } from './firebase';
 
@@ -380,6 +381,65 @@ export class FirestoreSessionService {
       // For other errors, return empty array to prevent UI hanging
       console.warn('⚠️ [getSessions] Returning empty array due to error');
       return [];
+    }
+  }
+
+  static async getSessionsPaginated(uid: string, pageSize: number = 20, lastDocId?: string): Promise<{sessions: Array<{ id: string } & FirestoreSession>, hasMore: boolean, totalCount?: number}> {
+    try {
+      const sessionsRef = collection(firestore, 'sessions');
+      console.log('🔍 [getSessionsPaginated] Fetching', pageSize, 'sessions for uid:', uid);
+      
+      let q = query(
+        sessionsRef, 
+        where('uid', '==', uid), 
+        orderBy('started_at', 'desc'),
+        limit(pageSize)
+      );
+      
+      if (lastDocId) {
+        const lastDoc = await getDoc(doc(sessionsRef, lastDocId));
+        if (lastDoc.exists()) {
+          q = query(
+            sessionsRef, 
+            where('uid', '==', uid), 
+            orderBy('started_at', 'desc'),
+            startAfter(lastDoc),
+            limit(pageSize)
+          );
+        }
+      }
+      
+      const querySnapshot = await getDocs(q);
+      console.log('🔍 [getSessionsPaginated] Found', querySnapshot.docs.length, 'sessions');
+      
+      const sessions: Array<{ id: string } & FirestoreSession> = [];
+      
+      for (const document of querySnapshot.docs) {
+        try {
+          const data = document.data() as FirestoreSession;
+          let title = data.title;
+          
+          if (!title || title.trim() === '') {
+            title = `Session ${new Date(data.started_at?.toMillis() || Date.now()).toLocaleDateString()}`;
+          }
+          
+          sessions.push({
+            id: document.id,
+            ...data,
+            title,
+          });
+        } catch (sessionError) {
+          console.error('❌ [getSessionsPaginated] Failed to process session', document.id, sessionError);
+        }
+      }
+      
+      const hasMore = querySnapshot.docs.length === pageSize;
+      console.log('✅ [getSessionsPaginated] Returning', sessions.length, 'sessions');
+      
+      return { sessions, hasMore };
+    } catch (error) {
+      console.error('❌ [getSessionsPaginated] Error:', error);
+      return { sessions: [], hasMore: false };
     }
   }
 

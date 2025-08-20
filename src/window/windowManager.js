@@ -425,7 +425,7 @@ const toggleContentProtection = () => {
 
 
 const openLoginPage = () => {
-    const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
+    const webUrl = process.env.leviousa_WEB_URL || 'https://www.leviousa.com';
     const personalizeUrl = `${webUrl}/personalize?desktop=true`;
     shell.openExternal(personalizeUrl);
     console.log('Opening personalization page:', personalizeUrl);

@@ -425,6 +425,51 @@ export const getSessions = async (): Promise<Session[]> => {
   }
 };
 
+export const getSessionsPaginated = async (page: number = 1, pageSize: number = 20, lastDocId?: string): Promise<{sessions: Session[], hasMore: boolean, totalCount?: number}> => {
+  try {
+    await waitForAuthInitialization();
+    
+    if (isFirebaseMode()) {
+      if (!currentAuthUser) {
+        console.warn('Firebase mode but no current user after initialization');
+        return { sessions: [], hasMore: false };
+      }
+      const uid = currentAuthUser.uid;
+      console.log('🔍 [getSessionsPaginated] Fetching page', page, 'with limit', pageSize, 'for uid:', uid);
+      
+      try {
+        const result = await FirestoreSessionService.getSessionsPaginated(uid, pageSize, lastDocId);
+        console.log('✅ [getSessionsPaginated] Returning', result.sessions.length, 'sessions');
+        return {
+          sessions: result.sessions.map(session => convertFirestoreSession(session, uid)),
+          hasMore: result.hasMore,
+          totalCount: result.totalCount
+        };
+      } catch (firestoreError) {
+        console.error('❌ [getSessionsPaginated] Firestore query failed:', firestoreError);
+        return { sessions: [], hasMore: false };
+      }
+    } else {
+      console.log('🔍 [getSessionsPaginated] Fetching sessions from API with pagination');
+      const offset = (page - 1) * pageSize;
+      const response = await apiCall(`/api/conversations?limit=${pageSize}&offset=${offset}`, { method: 'GET' });
+      if (!response.ok) {
+        console.error('❌ [getSessionsPaginated] API call failed:', response.status, response.statusText);
+        return { sessions: [], hasMore: false };
+      }
+      const data = await response.json();
+      return {
+        sessions: data.sessions || data,
+        hasMore: data.hasMore || false,
+        totalCount: data.totalCount
+      };
+    }
+  } catch (error) {
+    console.error('❌ [getSessionsPaginated] Unexpected error:', error);
+    return { sessions: [], hasMore: false };
+  }
+};
+
 export const getSessionDetails = async (sessionId: string): Promise<SessionDetails> => {
   if (isFirebaseMode()) {
     const uid = firebaseAuth.currentUser!.uid;

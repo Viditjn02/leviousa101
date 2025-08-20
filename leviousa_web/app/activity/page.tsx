@@ -8,6 +8,7 @@ import {
   UserProfile,
   Session,
   getSessions,
+  getSessionsPaginated,
   deleteSession,
 } from '@/utils/api'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
@@ -17,75 +18,88 @@ function ActivityPageContent() {
   const { user: userInfo } = useAuth()
   const [sessions, setSessions] = useState<Session[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null)
-  const [showStuckWarning, setShowStuckWarning] = useState(false)
 
-  const fetchSessions = useCallback(async () => {
+  // Load cached sessions on mount for instant display
+  useEffect(() => {
+    const cachedSessions = sessionStorage.getItem('leviousa_cached_sessions');
+    if (cachedSessions) {
+      try {
+        const parsed = JSON.parse(cachedSessions);
+        setSessions(parsed);
+        console.log('🚀 [ActivityPage] Loaded', parsed.length, 'sessions from cache');
+      } catch (error) {
+        console.error('Failed to parse cached sessions:', error);
+      }
+    }
+  }, []);
+
+  const fetchFirstPage = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('🔍 [ActivityPage] Starting to fetch sessions for user:', userInfo?.uid);
+      console.log('🔄 [ActivityPage] User available, fetching first page...');
       
-      // Add timeout to prevent hanging forever
-      const fetchPromise = getSessions();
-      const timeoutPromise = new Promise<Session[]>((_, reject) => 
-        setTimeout(() => reject(new Error('Fetch sessions timeout')), 15000)
-      );
+      const result = await getSessionsPaginated(1, 20);
+      console.log('✅ [ActivityPage] Fetched', result.sessions.length, 'sessions for page 1');
       
-      const fetchedSessions = await Promise.race([fetchPromise, timeoutPromise]);
-      console.log('✅ [ActivityPage] Fetched', fetchedSessions.length, 'sessions');
-      
-      setSessions(fetchedSessions);
+      setSessions(result.sessions);
+      setHasMore(result.hasMore);
+      setCurrentPage(1);
       setLastFetchTime(new Date());
+      
+      // Cache sessions for instant loading
+      sessionStorage.setItem('leviousa_cached_sessions', JSON.stringify(result.sessions));
     } catch (error) {
-      console.error('❌ [ActivityPage] Failed to fetch conversations:', error);
+      console.error('❌ [ActivityPage] Failed to fetch first page:', error);
       setError(error instanceof Error ? error.message : 'Failed to load conversations');
-      // Set an empty array so the UI doesn't stay stuck loading
       setSessions([]);
     } finally {
       setIsLoading(false);
     }
-  }, [userInfo?.uid]);
+  }, []);
 
-  // Self-healing mechanism: if stuck loading, redirect to root (mimics working invalid route behavior)
-  useEffect(() => {
-    const warningTimeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('⚠️ [ActivityPage] Showing stuck loading warning');
-        setShowStuckWarning(true);
-      }
-    }, 8000); // Show warning at 8 seconds
+  const loadMoreSessions = useCallback(async () => {
+    if (!hasMore || isLoadingMore || sessions.length === 0) return;
     
-    const redirectTimeout = setTimeout(() => {
-      if (isLoading) {
-        console.log('🔄 [ActivityPage] Stuck loading detected, redirecting to root for self-healing');
-        router.push('/'); // This will redirect back to /activity but through the working flow
-      }
-    }, 12000); // Redirect at 12 seconds
-    
-    // Reset warning when no longer loading
-    if (!isLoading && showStuckWarning) {
-      setShowStuckWarning(false);
+    try {
+      setIsLoadingMore(true);
+      const lastSession = sessions[sessions.length - 1];
+      const result = await getSessionsPaginated(currentPage + 1, 20, lastSession.id);
+      
+      console.log('✅ [ActivityPage] Loaded', result.sessions.length, 'more sessions');
+      
+      setSessions(prev => [...prev, ...result.sessions]);
+      setHasMore(result.hasMore);
+      setCurrentPage(prev => prev + 1);
+      
+      // Update cache with new sessions
+      const updatedSessions = [...sessions, ...result.sessions];
+      sessionStorage.setItem('leviousa_cached_sessions', JSON.stringify(updatedSessions));
+    } catch (error) {
+      console.error('❌ [ActivityPage] Failed to load more sessions:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
-    
-    return () => {
-      clearTimeout(warningTimeout);
-      clearTimeout(redirectTimeout);
-    };
-  }, [isLoading, router, showStuckWarning]);
+  }, [hasMore, isLoadingMore, sessions, currentPage]);
+
+
 
   useEffect(() => {
     console.log('🔄 [ActivityPage] useEffect triggered - userInfo:', !!userInfo, 'isLoading:', isLoading);
     if (userInfo) {
-      console.log('🔄 [ActivityPage] User available, fetching sessions...');
-      fetchSessions();
+      console.log('🔄 [ActivityPage] User available, fetching first page...');
+      fetchFirstPage();
     } else {
       console.log('⚠️ [ActivityPage] No user available for fetching sessions');
       setIsLoading(false);
     }
-  }, [userInfo, fetchSessions]);
+  }, [userInfo, fetchFirstPage]);
 
   if (!userInfo) {
     return (
@@ -121,7 +135,7 @@ function ActivityPageContent() {
 
   const handleRetry = () => {
     console.log('🔄 [ActivityPage] Manual retry requested');
-    fetchSessions();
+    fetchFirstPage();
   };
 
   return (
@@ -167,15 +181,7 @@ function ActivityPageContent() {
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">Loading conversations...</p>
-              <p className="mt-2 text-sm text-gray-500">This may take a few moments</p>
-              {showStuckWarning && (
-                <p className="mt-3 text-sm text-orange-600 font-medium">
-                  ⚠️ Loading is taking longer than expected. Will auto-refresh in a few seconds...
-                </p>
-              )}
-              <p className="mt-2 text-xs text-gray-400">
-                Debug: Activity isLoading={isLoading.toString()}, userInfo={!!userInfo}
-              </p>
+              <p className="mt-2 text-sm text-gray-500">Loading first page...</p>
             </div>
           ) : sessions.length > 0 ? (
             <div className="space-y-4">
@@ -203,6 +209,26 @@ function ActivityPageContent() {
                   </span>
                 </div>
               ))}
+              
+              {/* Load More Button */}
+              {hasMore && (
+                <div className="text-center pt-6">
+                  <button
+                    onClick={loadMoreSessions}
+                    disabled={isLoadingMore}
+                    className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoadingMore ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        <span>Loading more...</span>
+                      </div>
+                    ) : (
+                      `Load more conversations`
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center bg-white rounded-lg p-12">

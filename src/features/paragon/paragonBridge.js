@@ -24,9 +24,14 @@ function initializeParagonBridge() {
             // Determine web URL based on environment: use localhost in development, else the configured web URL
             const webUrl = process.env.NODE_ENV === 'development'
               ? 'http://localhost:3000'
-              : (process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app');
+              : (process.env.leviousa_WEB_URL || 'https://www.leviousa.com');
             // Include userId for context if available
-            const params = new URLSearchParams({ service, action: 'connect', ...(userId ? { userId } : {}) });
+            // Use 'authenticate' parameter to trigger auto-connect instead of manual connect
+            const params = new URLSearchParams({ 
+                authenticate: service,  // This triggers auto-connect
+                action: 'connect', 
+                ...(userId ? { userId } : {}) 
+            });
             const authUrl = `${webUrl}/integrations?${params.toString()}`;
             console.log(`[ParagonBridge] 🌐 Opening working Paragon integration in-window: ${authUrl}`);
             const connectWin = new BrowserWindow({

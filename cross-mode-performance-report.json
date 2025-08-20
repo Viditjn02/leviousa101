@@ -1,0 +1,250 @@
+{
+  "timestamp": "2025-08-16T08:56:56.981Z",
+  "totalDuration": 470,
+  "successRate": 88,
+  "passedTests": 7,
+  "totalTests": 8,
+  "testResults": [
+    {
+      "test": "Ask Mode Performance",
+      "passed": false,
+      "error": "AskService is not a constructor",
+      "duration": 339
+    },
+    {
+      "test": "Voice Agent Performance",
+      "passed": true,
+      "details": {
+        "passedTests": "4/4",
+        "results": [
+          {
+            "command": "hello leviousa",
+            "responseTime": 5,
+            "target": 10,
+            "passed": true,
+            "intent": "general",
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "command": "send an email",
+            "responseTime": 1,
+            "target": 100,
+            "passed": true,
+            "intent": "general",
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "command": "search for something",
+            "responseTime": 0,
+            "target": 100,
+            "passed": true,
+            "intent": "general",
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "command": "what can you do",
+            "responseTime": 0,
+            "target": 10,
+            "passed": true,
+            "intent": "general",
+            "performance": "⚡ INSTANT"
+          }
+        ]
+      },
+      "duration": 7
+    },
+    {
+      "test": "Listen Mode Performance",
+      "passed": true,
+      "details": {
+        "passedTests": "2/2",
+        "results": [
+          {
+            "conversationLength": 2,
+            "responseTime": 0,
+            "target": 100,
+            "passed": true,
+            "suggestionsCount": 0,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "conversationLength": 2,
+            "responseTime": 0,
+            "target": 100,
+            "passed": true,
+            "suggestionsCount": 0,
+            "performance": "⚡ INSTANT"
+          }
+        ]
+      },
+      "duration": 3
+    },
+    {
+      "test": "AnswerService Performance",
+      "passed": true,
+      "details": {
+        "passedTests": "4/4",
+        "results": [
+          {
+            "question": "hello",
+            "mode": "ask",
+            "responseTime": 1,
+            "target": 10,
+            "passed": true,
+            "hasAnswer": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "question": "help with email",
+            "mode": "voice",
+            "responseTime": 3,
+            "target": 100,
+            "passed": true,
+            "hasAnswer": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "question": "what is AI",
+            "mode": "ask",
+            "responseTime": 42,
+            "target": 100,
+            "passed": true,
+            "hasAnswer": true,
+            "performance": "🚀 ULTRA-FAST"
+          },
+          {
+            "question": "current news",
+            "mode": "listen",
+            "responseTime": 1,
+            "target": 100,
+            "passed": true,
+            "hasAnswer": true,
+            "performance": "⚡ INSTANT"
+          }
+        ]
+      },
+      "duration": 87
+    },
+    {
+      "test": "Web Search Cache Performance",
+      "passed": true,
+      "details": {
+        "passedTests": "4/4",
+        "results": [
+          {
+            "query": "elon musk news",
+            "firstCallTime": 0,
+            "cacheTime": 0,
+            "cacheHit": true,
+            "passed": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "query": "AI developments",
+            "firstCallTime": 0,
+            "cacheTime": 0,
+            "cacheHit": true,
+            "passed": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "query": "current weather",
+            "firstCallTime": 0,
+            "cacheTime": 0,
+            "cacheHit": true,
+            "passed": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "query": "stock market today",
+            "firstCallTime": 0,
+            "cacheTime": 0,
+            "cacheHit": true,
+            "passed": true,
+            "performance": "⚡ INSTANT"
+          }
+        ]
+      },
+      "duration": 1
+    },
+    {
+      "test": "Ultra-Fast Streaming Performance",
+      "passed": true,
+      "details": {
+        "passedTests": "4/4",
+        "results": [
+          {
+            "prompt": "hello",
+            "responseTime": 0,
+            "target": 10,
+            "passed": true,
+            "hasResponse": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "prompt": "thanks",
+            "responseTime": 0,
+            "target": 10,
+            "passed": true,
+            "hasResponse": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "prompt": "what time is it",
+            "responseTime": 0,
+            "target": 10,
+            "passed": true,
+            "hasResponse": true,
+            "performance": "⚡ INSTANT"
+          },
+          {
+            "prompt": "help me with something",
+            "responseTime": 1,
+            "target": 100,
+            "passed": true,
+            "hasResponse": true,
+            "performance": "⚡ INSTANT"
+          }
+        ]
+      },
+      "duration": 1
+    },
+    {
+      "test": "Real LinkedIn Query Performance",
+      "passed": true,
+      "details": {
+        "query": "pullup elon musk from linkedin",
+        "responseTime": 18,
+        "target": 200,
+        "previousTime": "7000ms+",
+        "improvement": "389x faster",
+        "realtimeFeel": true
+      },
+      "duration": 18
+    },
+    {
+      "test": "Concurrent Requests Performance",
+      "passed": true,
+      "details": {
+        "totalRequests": 10,
+        "successfulRequests": 10,
+        "totalTime": 6,
+        "avgTimePerRequest": 1,
+        "passRate": "100%"
+      },
+      "duration": 6
+    }
+  ],
+  "performanceBreakdown": {
+    "instant": 6,
+    "ultraFast": 1,
+    "fast": 0,
+    "slow": 0
+  },
+  "performanceTargets": {
+    "instantResponse": 10,
+    "ultraFast": 100,
+    "fast": 500,
+    "acceptable": 1000
+  }
+}

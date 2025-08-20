@@ -515,6 +515,19 @@ export class ListenView extends LitElement {
     adjustWindowHeight() {
         if (!window.api) return;
 
+        // PERFORMANCE OPTIMIZATION: Throttle window height adjustments
+        if (this._heightAdjustmentTimeout) {
+            clearTimeout(this._heightAdjustmentTimeout);
+        }
+        
+        this._heightAdjustmentTimeout = setTimeout(() => {
+            this._performHeightAdjustment();
+        }, 100); // Throttle to maximum 10 adjustments per second
+    }
+    
+    _performHeightAdjustment() {
+        if (!window.api) return;
+
         this.updateComplete
             .then(() => {
                 const topBar = this.shadowRoot.querySelector('.top-bar');
@@ -525,12 +538,16 @@ export class ListenView extends LitElement {
                 if (!topBar || !activeContent) return;
 
                 const topBarHeight = topBar.offsetHeight;
-
                 const contentHeight = activeContent.scrollHeight;
-
                 const idealHeight = topBarHeight + contentHeight;
-
                 const targetHeight = Math.min(700, idealHeight);
+
+                // PERFORMANCE OPTIMIZATION: Only adjust if height change is significant (>5px)
+                if (this._lastTargetHeight && Math.abs(targetHeight - this._lastTargetHeight) < 5) {
+                    return; // Skip minor adjustments
+                }
+                
+                this._lastTargetHeight = targetHeight;
 
                 console.log(
                     `[Height Adjusted] Mode: ${this.viewMode}, TopBar: ${topBarHeight}px, Content: ${contentHeight}px, Ideal: ${idealHeight}px, Target: ${targetHeight}px`

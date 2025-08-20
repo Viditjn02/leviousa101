@@ -122,18 +122,17 @@ const SERVICE_DEFINITIONS: Record<string, Omit<ParagonService, 'id' | 'status'>>
     icon: '☁️',
     capabilities: ['onedrive_files', 'onedrive_folders'],
   },
-  // Aliases for naming consistency with integrations page
-  googlecalendar: {
-    name: 'Google Calendar',
-    description: 'Manage events and schedules',
-    icon: '📅',
-    capabilities: ['calendar_events'],
-  },
   googledrive: {
     name: 'Google Drive',
     description: 'Access files, folders, and documents',
     icon: '📁',
     capabilities: ['drive_files'],
+  },
+  calendly: {
+    name: 'Calendly',
+    description: 'Manage scheduling and calendar bookings',
+    icon: '🗓️',
+    capabilities: ['calendly_events', 'calendly_scheduling'],
   },
 };
 
@@ -159,7 +158,7 @@ export function getAvailableServices(): ParagonService[] {
       // Fallback to default services (matching integrations page)
       availableServiceIds = [
         'gmail', 'outlook', 'slack', 'salesforce', 'hubspot', 
-        'notion', 'googlecalendar', 'linkedin', 'googledrive', 
+        'notion', 'googleCalendar', 'linkedin', 'googledrive', 
         'dropbox', 'onedrive'
       ];
     }
@@ -192,7 +191,7 @@ export function getAvailableServices(): ParagonService[] {
     // Fallback to default services on error (matching integrations page)
     return [
       'gmail', 'outlook', 'slack', 'salesforce', 'hubspot', 
-      'notion', 'googlecalendar', 'linkedin', 'googledrive', 
+      'notion', 'googleCalendar', 'linkedin', 'googledrive', 
       'dropbox', 'onedrive'
     ].map(serviceId => ({
       id: serviceId,

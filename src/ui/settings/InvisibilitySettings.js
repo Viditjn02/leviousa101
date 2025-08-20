@@ -168,12 +168,7 @@ export class InvisibilitySettings extends LitElement {
             cursor: not-allowed;
         }
 
-        .test-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 12px;
-        }
+
 
         .hotkey-display {
             background: rgba(0, 0, 0, 0.3);
@@ -218,26 +213,12 @@ export class InvisibilitySettings extends LitElement {
             line-height: 1.4;
         }
 
-        .log-output {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-            padding: 8px;
-            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
-            font-size: 9px;
-            color: rgba(255, 255, 255, 0.7);
-            max-height: 120px;
-            overflow-y: auto;
-            margin-top: 8px;
-            white-space: pre-wrap;
-        }
+
     `;
 
     static properties = {
         status: { type: Object },
-        isLoading: { type: Boolean },
-        testResults: { type: Object },
-        showAdvanced: { type: Boolean }
+        isLoading: { type: Boolean }
     };
 
     constructor() {
@@ -250,8 +231,6 @@ export class InvisibilitySettings extends LitElement {
             config: {}
         };
         this.isLoading = true;
-        this.testResults = {};
-        this.showAdvanced = false;
         
         this.loadStatus();
         this.setupEventListeners();
@@ -320,42 +299,7 @@ export class InvisibilitySettings extends LitElement {
         }
     }
 
-    async runTest(testType) {
-        try {
-            this.testResults = { ...this.testResults, [testType]: 'Running...' };
-            
-            let result;
-            switch (testType) {
-                case 'questionDetection':
-                    result = await window.api.invisibility.testQuestionDetection();
-                    break;
-                case 'fieldDetection':
-                    result = await window.api.invisibility.testFieldDetection();
-                    break;
-                case 'typing':
-                    result = await window.api.invisibility.testTyping();
-                    break;
-                case 'answerGeneration':
-                    result = await window.api.invisibility.testAnswerGeneration();
-                    break;
-                case 'remoteAccess':
-                    result = await window.api.invisibility.testRemoteAccessDetection();
-                    break;
-                default:
-                    throw new Error(`Unknown test type: ${testType}`);
-            }
-            
-            this.testResults = { 
-                ...this.testResults, 
-                [testType]: result.success ? 'Success' : `Error: ${result.error}` 
-            };
-        } catch (error) {
-            this.testResults = { 
-                ...this.testResults, 
-                [testType]: `Error: ${error.message}` 
-            };
-        }
-    }
+
 
     async triggerManualAnswer() {
         try {
@@ -382,18 +326,15 @@ export class InvisibilitySettings extends LitElement {
                 <div class="section-title">
                     🕵️ Complete Invisibility Mode
                     <span class="status-badge ${this.status.isInvisibilityModeActive ? 'active' : 'inactive'}">
-                        ${this.status.isInvisibilityModeActive ? 'Active' : 'Inactive'}
+                        ${this.status.isInvisibilityModeActive ? 'On' : 'Off'}
                     </span>
-                    ${this.status.isMonitoring ? html`
-                        <span class="status-badge monitoring">Monitoring</span>
-                    ` : ''}
                 </div>
 
                 <div class="control-group">
                     <div>
                         <div class="control-label">Enable Complete Invisibility</div>
                         <div class="control-description">
-                            Automatically hide overlay during remote access and enable CMD+L auto-answering
+                            Automatically hide Leviousa when screen sharing and enable instant help
                         </div>
                     </div>
                     <div 
@@ -403,7 +344,7 @@ export class InvisibilitySettings extends LitElement {
                 </div>
 
                 <div class="info">
-                    <strong>How it works:</strong> When enabled, the system monitors for remote access and keeps the overlay hidden.
+                    <strong>How it works:</strong> Leviousa automatically hides when you're sharing your screen to keep it private.
                     <br><br>
                     <strong>Shortcuts:</strong><br>
                     • <span class="hotkey-display"><span class="key">⌘</span> + <span class="key">I</span></span> - Toggle complete invisibility mode on/off<br>
@@ -412,7 +353,7 @@ export class InvisibilitySettings extends LitElement {
 
                 ${this.status.lastRemoteAccessState ? html`
                     <div class="warning">
-                        🚨 Remote access currently detected! Overlay is hidden for safety.
+                        🚨 Screen sharing detected! Leviousa is now hidden for privacy.
                     </div>
                 ` : ''}
             </div>
@@ -422,8 +363,8 @@ export class InvisibilitySettings extends LitElement {
                 
                 <div class="control-group">
                     <div>
-                        <div class="control-label">Question Detection</div>
-                        <div class="control-description">Automatically detect coding, interview, and technical questions</div>
+                        <div class="control-label">Smart Recognition</div>
+                        <div class="control-description">Automatically spot questions and problems on your screen</div>
                     </div>
                     <div 
                         class="toggle ${this.status.config?.questionDetectionEnabled ? 'active' : ''}"
@@ -433,8 +374,8 @@ export class InvisibilitySettings extends LitElement {
 
                 <div class="control-group">
                     <div>
-                        <div class="control-label">Auto-Answering</div>
-                        <div class="control-description">Automatically type answers when questions are detected</div>
+                        <div class="control-label">Auto-Type Answers</div>
+                        <div class="control-description">Instantly type solutions when problems are found</div>
                     </div>
                     <div 
                         class="toggle ${this.status.config?.autoAnsweringEnabled ? 'active' : ''}"
@@ -444,8 +385,8 @@ export class InvisibilitySettings extends LitElement {
 
                 <div class="control-group">
                     <div>
-                        <div class="control-label">Typing Speed Mode</div>
-                        <div class="control-description">Choose between human-like or instant typing</div>
+                        <div class="control-label">Typing Style</div>
+                        <div class="control-description">Choose between natural or lightning-fast typing</div>
                     </div>
                     <div 
                         class="toggle ${this.status.config?.typingSpeedMode === 'human' ? 'active' : ''}"
@@ -453,26 +394,26 @@ export class InvisibilitySettings extends LitElement {
                     ></div>
                 </div>
                 <div class="info" style="font-size: 10px; margin-top: 4px;">
-                    ${this.status.config?.typingSpeedMode === 'human' ? '🧑 Human-like typing' : '⚡ Instant typing'}
+                    ${this.status.config?.typingSpeedMode === 'human' ? '🧑 Natural typing style' : '⚡ Lightning-fast typing'}
                 </div>
 
                 <button class="button primary" @click=${this.triggerManualAnswer}>
-                    🧠 Trigger Answer Detection (CMD+L)
+                    🧠 Get Help Now (⌘+L)
                 </button>
             </div>
 
-            <!-- MCP UI Integration - Now integrated throughout the app -->
-            <!-- <mcp-ui-integration></mcp-ui-integration> -->
+
 
             <div class="section">
-                <div class="section-title">ℹ️ Usage Notes</div>
+                <div class="section-title">ℹ️ How to Use</div>
                 <div class="info">
-                    <strong>Requirements:</strong><br>
-                    • Accessibility permissions in System Preferences<br>
-                    • Works with web browsers and most applications<br><br>
-                    <strong>Usage Guidelines:</strong><br>
-                    • Use responsibly and follow platform guidelines<br>
-                    • Best for learning and practice environments
+                    <strong>Setup:</strong><br>
+                    • Allow access in System Preferences → Privacy & Security → Accessibility<br>
+                    • Works with browsers, coding environments, and most apps<br><br>
+                    <strong>Perfect for:</strong><br>
+                    • Learning new skills and practicing<br>
+                    • Getting instant help during coding sessions<br>
+                    • Staying focused without interruptions
                 </div>
             </div>
         `;

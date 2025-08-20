@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Firebase Auth Handler</title>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyC83akWpELNOqnoOjy0nShanxn56pUVhlk",
+      authDomain: "leviousa-101.firebaseapp.com",
+      projectId: "leviousa-101",
+      storageBucket: "leviousa-101.firebasestorage.app",
+      messagingSenderId: "20469321404",
+      appId: "1:20469321404:web:32ccbea0cc4395e79c8ab9",
+      measurementId: "G-YHEX16M4X5"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Handle the auth result
+    firebase.auth().getRedirectResult().then(function(result) {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'firebaseAuthResult', result: result }, '*');
+        window.close();
+      } else {
+        window.location.href = '/activity';
+      }
+    }).catch(function(error) {
+      console.error('Auth error:', error);
+      if (window.opener) {
+        window.opener.postMessage({ type: 'firebaseAuthError', error: error }, '*');
+        window.close();
+      } else {
+        window.location.href = '/login?error=' + encodeURIComponent(error.message);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -10,7 +10,7 @@ class Config {
             apiUrl: process.env.leviousa_API_URL || 'http://localhost:9001',
             apiTimeout: 10000,
             
-            webUrl: process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app',
+            webUrl: process.env.leviousa_WEB_URL || 'https://www.leviousa.com',
             
             enableJWT: false,
             fallbackToHeaderAuth: false,

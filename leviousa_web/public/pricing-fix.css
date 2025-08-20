@@ -1,0 +1,135 @@
+/* Modern pricing card animations that complement the theme */
+
+.price-card {
+  position: relative !important;
+  overflow: hidden !important;
+  transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  background: var(--bg-card) !important;
+  border-radius: 1rem !important;
+  padding: 1.5rem !important;
+  border: 1px solid color-mix(in oklab,var(--text) 12%,transparent) !important;
+  box-shadow: 0 8px 22px var(--shadow) !important;
+}
+
+/* Remove problematic old animations */
+.price-card::after {
+  display: none !important;
+}
+
+/* Elegant breathing glow effect */
+.price-card::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: -2px !important;
+  background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent, rgba(255,255,255,0.05), transparent) !important;
+  border-radius: 1rem !important;
+  opacity: 0 !important;
+  animation: breathingGlow 4s ease-in-out infinite !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+/* Mouse tracking overlay */
+.price-card .mouse-glow {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.08) 0%, transparent 60%) !important;
+  opacity: 0 !important;
+  transition: opacity 0.4s ease !important;
+  pointer-events: none !important;
+  border-radius: 1rem !important;
+}
+
+.price-card:hover .mouse-glow {
+  opacity: 1 !important;
+}
+
+/* Featured card with brand-colored breathing effect */
+.price-card.featured {
+  background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)) !important;
+  border: 1px solid color-mix(in oklab, var(--brand-start) 40%, var(--text)) !important;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand-start) 20%, transparent), 0 20px 40px rgba(0,0,0,.6) !important;
+  transform: scale(1.02) !important;
+}
+
+.price-card.featured::before {
+  background: linear-gradient(45deg, 
+    transparent, 
+    color-mix(in oklab, var(--brand-start) 20%, transparent), 
+    transparent, 
+    color-mix(in oklab, var(--brand-end) 15%, transparent), 
+    transparent
+  ) !important;
+  opacity: 0.6 !important;
+  animation: featuredBreathing 3s ease-in-out infinite !important;
+}
+
+/* Subtle pulse animation for featured card */
+.price-card.featured .mouse-glow {
+  background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+    color-mix(in oklab, var(--brand-start) 12%, transparent) 0%, 
+    transparent 60%) !important;
+}
+
+/* Hover effects with smooth scaling */
+.price-card:hover {
+  transform: translateY(-8px) scale(1.03) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4) !important;
+}
+
+.price-card.featured:hover {
+  transform: translateY(-8px) scale(1.05) !important;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand-start) 40%, transparent), 0 25px 50px rgba(0,0,0,.8) !important;
+}
+
+/* Keyframe animations */
+@keyframes breathingGlow {
+  0%, 100% { 
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.6;
+    transform: scale(1.01);
+  }
+}
+
+@keyframes featuredBreathing {
+  0%, 100% { 
+    opacity: 0.4;
+    transform: scale(1) rotate(0deg);
+  }
+  50% { 
+    opacity: 0.8;
+    transform: scale(1.005) rotate(0.5deg);
+  }
+}
+
+/* Staggered animation delays for visual interest */
+.price-card:nth-child(1)::before { animation-delay: 0s !important; }
+.price-card:nth-child(2)::before { animation-delay: 1s !important; }
+.price-card:nth-child(3)::before { animation-delay: 2s !important; }
+
+/* Card entrance animation */
+@keyframes cardEntrance {
+  0% { 
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  100% { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Initial state for cards */
+.price-card {
+  opacity: 0 !important;
+  transform: translateY(30px) scale(0.95) !important;
+}
+
+/* Remove all old dataFlow animations */
+@keyframes dataFlow {
+  0%, 100% { display: none; }
+}

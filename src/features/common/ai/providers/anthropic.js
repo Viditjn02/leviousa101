@@ -181,6 +181,115 @@ function createLLM({ apiKey, model = "claude-3-5-sonnet-20241022", temperature =
         raw: response,
       }
     },
+
+    // Function calling with tools
+    chatWithTools: async (messages, tools = [], tool_choice = 'auto') => {
+      let systemPrompt = ""
+      const anthropicMessages = []
+
+      for (const msg of messages) {
+        if (msg.role === "system") {
+          systemPrompt = msg.content
+        } else {
+          // Handle multimodal content
+          let content
+          if (Array.isArray(msg.content)) {
+            content = []
+            for (const part of msg.content) {
+              if (typeof part === "string") {
+                content.push({ type: "text", text: part })
+              } else if (part.type === "text") {
+                content.push({ type: "text", text: part.text })
+              } else if (part.type === "image_url" && part.image_url) {
+                // Convert base64 image to Anthropic format
+                const imageUrl = part.image_url.url
+                const [mimeInfo, base64Data] = imageUrl.split(",")
+                const mimeType = mimeInfo.match(/data:([^;]+)/)?.[1] || "image/jpeg"
+
+                content.push({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mimeType,
+                    data: base64Data,
+                  },
+                })
+              }
+            }
+          } else {
+            content = [{ type: "text", text: msg.content }]
+          }
+
+          anthropicMessages.push({
+            role: msg.role === "user" ? "user" : "assistant",
+            content: content,
+          })
+        }
+      }
+
+      // Convert tools to Anthropic format
+      const anthropicTools = tools.map(tool => ({
+        name: tool.name,
+        description: tool.description || '',
+        input_schema: tool.inputSchema || tool.parameters || {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      }));
+
+      const requestOptions = {
+        model: model,
+        max_tokens: maxTokens,
+        temperature: temperature,
+        system: systemPrompt || undefined,
+        messages: anthropicMessages
+      };
+
+      // Add tools if provided
+      if (anthropicTools.length > 0) {
+        requestOptions.tools = anthropicTools;
+        
+        // Handle tool_choice
+        if (tool_choice === 'required' || tool_choice === 'any') {
+          requestOptions.tool_choice = { type: 'any' };
+        } else if (typeof tool_choice === 'string' && tool_choice !== 'auto' && tool_choice !== 'none') {
+          // Specific tool choice
+          requestOptions.tool_choice = {
+            type: 'tool',
+            name: tool_choice
+          };
+        }
+        // 'auto' is the default, no need to set it
+      }
+
+      const response = await client.messages.create(requestOptions);
+
+      // Parse tool calls from response
+      const toolCalls = [];
+      const textContent = [];
+
+      for (const contentBlock of response.content) {
+        if (contentBlock.type === 'text') {
+          textContent.push(contentBlock.text);
+        } else if (contentBlock.type === 'tool_use') {
+          toolCalls.push({
+            id: contentBlock.id,
+            type: 'function',
+            function: {
+              name: contentBlock.name,
+              arguments: JSON.stringify(contentBlock.input)
+            }
+          });
+        }
+      }
+
+      return {
+        content: textContent.join(' '),
+        toolCalls: toolCalls,
+        raw: response
+      };
+    },
   }
 }
 

@@ -91,9 +91,16 @@ function IntegrationsContentInner() {
           </p>
         </div>
 
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Email & Communication</h2>
+        <div className="space-y-8">
+          {/* Available Now Section */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-green-600 text-xl">✅</span>
+              <h2 className="text-xl font-semibold text-green-900">Available Now</h2>
+              <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                Ready to use
+              </span>
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <ParagonIntegration
                 service="gmail"
@@ -105,69 +112,21 @@ function IntegrationsContentInner() {
                 userId={userId || undefined}
               />
               <ParagonIntegration
-                service="outlook"
-                displayName="Microsoft Outlook"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('outlook')}
-                userId={userId || undefined}
-              />
-              <ParagonIntegration
-                service="slack"
-                displayName="Slack"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('slack')}
-                userId={userId || undefined}
-              />
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">CRM & Sales</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <ParagonIntegration
-                service="salesforce"
-                displayName="Salesforce"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('salesforce')}
-                userId={userId || undefined}
-              />
-              <ParagonIntegration
-                service="hubspot"
-                displayName="HubSpot"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('hubspot')}
-                userId={userId || undefined}
-              />
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Productivity</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <ParagonIntegration
-                service="notion"
-                displayName="Notion"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('notion')}
-                userId={userId || undefined}
-              />
-              <ParagonIntegration
-                service="googlecalendar"
+                service="googleCalendar"
                 displayName="Google Calendar"
                 onSuccess={handleSuccess}
                 onError={handleError}
                 registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('googlecalendar')}
+                autoConnect={shouldAutoConnect('googleCalendar')}
+                userId={userId || undefined}
+              />
+              <ParagonIntegration
+                service="calendly"
+                displayName="Calendly"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('calendly')}
                 userId={userId || undefined}
               />
               <ParagonIntegration
@@ -179,39 +138,139 @@ function IntegrationsContentInner() {
                 autoConnect={shouldAutoConnect('linkedin')}
                 userId={userId || undefined}
               />
+              <ParagonIntegration
+                service="notion"
+                displayName="Notion"
+                onSuccess={handleSuccess}
+                onError={handleError}
+                registerTrigger={registerTrigger}
+                autoConnect={shouldAutoConnect('notion')}
+                userId={userId || undefined}
+              />
             </div>
           </div>
 
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Cloud Storage</h2>
+          {/* Enterprise Services Section */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-purple-600 text-xl">🏢</span>
+              <h2 className="text-xl font-semibold text-purple-900">Enterprise Services</h2>
+              <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                Enterprise Plan Required
+              </span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="relative">
+                <ParagonIntegration
+                  service="salesforce"
+                  displayName="Salesforce"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={shouldAutoConnect('salesforce')}
+                  userId={userId || undefined}
+                />
+                <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                  Enterprise
+                </div>
+              </div>
+              <div className="relative">
+                <ParagonIntegration
+                  service="hubspot"
+                  displayName="HubSpot"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={shouldAutoConnect('hubspot')}
+                  userId={userId || undefined}
+                />
+                <div className="absolute top-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded">
+                  Enterprise
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Coming Soon Section */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-gray-600 text-xl">⏳</span>
+              <h2 className="text-xl font-semibold text-gray-900">Coming Soon</h2>
+              <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                In development
+              </span>
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <ParagonIntegration
-                service="googledrive"
-                displayName="Google Drive"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('googledrive')}
-                userId={userId || undefined}
-              />
-              <ParagonIntegration
-                service="dropbox"
-                displayName="Dropbox"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('dropbox')}
-                userId={userId || undefined}
-              />
-              <ParagonIntegration
-                service="onedrive"
-                displayName="OneDrive"
-                onSuccess={handleSuccess}
-                onError={handleError}
-                registerTrigger={registerTrigger}
-                autoConnect={shouldAutoConnect('onedrive')}
-                userId={userId || undefined}
-              />
+              <div className="relative opacity-60">
+                <ParagonIntegration
+                  service="outlook"
+                  displayName="Microsoft Outlook"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={false}
+                  userId={userId || undefined}
+                />
+                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
+                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                </div>
+              </div>
+              <div className="relative opacity-60">
+                <ParagonIntegration
+                  service="slack"
+                  displayName="Slack"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={false}
+                  userId={userId || undefined}
+                />
+                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
+                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                </div>
+              </div>
+              <div className="relative opacity-60">
+                <ParagonIntegration
+                  service="googledrive"
+                  displayName="Google Drive"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={false}
+                  userId={userId || undefined}
+                />
+                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
+                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                </div>
+              </div>
+              <div className="relative opacity-60">
+                <ParagonIntegration
+                  service="dropbox"
+                  displayName="Dropbox"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={false}
+                  userId={userId || undefined}
+                />
+                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
+                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                </div>
+              </div>
+              <div className="relative opacity-60">
+                <ParagonIntegration
+                  service="onedrive"
+                  displayName="OneDrive"
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                  registerTrigger={registerTrigger}
+                  autoConnect={false}
+                  userId={userId || undefined}
+                />
+                <div className="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg">
+                  <span className="text-gray-600 font-medium">Coming Soon</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

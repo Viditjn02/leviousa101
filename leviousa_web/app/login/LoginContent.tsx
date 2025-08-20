@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Head from 'next/head'
 import { Chrome, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth } from '@/utils/firebase'
@@ -687,44 +688,62 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center py-12 px-4 relative">
+    <div 
+      className="min-h-screen flex flex-col items-center justify-center py-12 px-4 relative"
+      style={{
+        background: 'radial-gradient(circle at center, rgba(144, 81, 81, 0.25), #000)',
+        color: '#fff'
+      }}
+    >
       {/* Loading overlay */}
       {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 flex flex-col items-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-            <p className="text-gray-700 font-medium">Authenticating...</p>
-            <p className="text-gray-500 text-sm mt-1">Please wait while we sign you in</p>
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+          <div style={{
+            background: '#1a1a1a',
+            border: '1px solid #333'
+          }} className="rounded-lg p-6 flex flex-col items-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 mb-4" style={{borderColor: '#905151'}}></div>
+            <p style={{color: '#fff'}} className="font-medium">Authenticating...</p>
+            <p style={{color: '#bbb'}} className="text-sm mt-1">Please wait while we sign you in</p>
           </div>
         </div>
       )}
       
       {/* Auth state is now managed by AuthProvider in root layout */}
 
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Welcome to Leviousa</h1>
-        <p className="text-gray-600 mt-2">
-          {mode === 'signin' ? 'Sign in to your account' : 'Create your account'} to access AI-powered meeting assistance.
-        </p>
+      <div className="text-center mb-8 relative z-10">
+        <h1 className="text-4xl mb-4 font-extrabold tracking-wider uppercase" style={{
+          background: 'linear-gradient(45deg, #905151, #f2e9e9)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent'
+        }}>LEVIOUSA</h1>
         {isElectronMode ? (
-          <p className="text-sm text-blue-600 mt-1 font-medium">🔗 Login requested from Leviousa app</p>
+          <p style={{color: '#905151'}} className="text-sm mt-1 font-medium">🔗 Login requested from Leviousa app</p>
         ) : isServerMode ? (
-          <p className="text-sm text-purple-600 mt-1 font-medium">🔒 Server-side authentication mode</p>
+          <p style={{color: '#905151'}} className="text-sm mt-1 font-medium">🔒 Server-side authentication mode</p>
         ) : null}
       </div>
 
-      <div className="w-full max-w-md">
-        <div className="bg-white shadow-md rounded-lg p-8">
+      <div className="w-full max-w-md relative z-10">
+        <div className="rounded-lg p-8 shadow-2xl" style={{
+          background: '#1a1a1a',
+          border: '1px solid #333'
+        }}>
           {/* Mode Toggle */}
-          <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
+          <div className="flex mb-6 rounded-lg p-1" style={{background: '#070707'}}>
             <button
               type="button"
               onClick={() => setMode('signin')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 mode === 'signin'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'shadow-sm'
+                  : 'hover:opacity-80'
               }`}
+              style={{
+                background: mode === 'signin' ? '#1e1e1e' : 'transparent',
+                color: mode === 'signin' ? '#fff' : '#bbb',
+              }}
             >
               Sign In
             </button>
@@ -733,9 +752,13 @@ function LoginContent() {
               onClick={() => setMode('signup')}
               className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                 mode === 'signup'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'shadow-sm'
+                  : 'hover:opacity-80'
               }`}
+              style={{
+                background: mode === 'signup' ? '#1e1e1e' : 'transparent',
+                color: mode === 'signup' ? '#fff' : '#bbb',
+              }}
             >
               Sign Up
             </button>
@@ -745,7 +768,12 @@ function LoginContent() {
           <button
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
+            className="w-full flex items-center justify-center px-4 py-3 rounded-md shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors mb-4"
+            style={{
+              background: '#1e1e1e',
+              border: '1px solid #333',
+              color: '#fff'
+            }}
           >
             <Chrome className="w-5 h-5 mr-2" />
             {isLoading ? 'Signing in...' : `Continue with Google`}
@@ -753,10 +781,10 @@ function LoginContent() {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
+              <div className="w-full border-t" style={{borderColor: '#333'}} />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with email</span>
+              <span className="px-2" style={{background: '#1a1a1a', color: '#bbb'}}>Or continue with email</span>
             </div>
           </div>
 
@@ -764,7 +792,7 @@ function LoginContent() {
           <form onSubmit={handleEmailAuth} className="space-y-4">
             {mode === 'signup' && (
               <div>
-                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="displayName" className="block text-sm font-medium mb-2" style={{color: '#fff'}}>
                   <User className="w-4 h-4 inline mr-2" />
                   Display Name
                 </label>
@@ -773,14 +801,19 @@ function LoginContent() {
                   type="text"
                   value={formData.displayName}
                   onChange={(e) => handleInputChange('displayName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                  style={{
+                    background: '#070707',
+                    border: '1px solid #333',
+                    color: '#fff'
+                  }}
                   placeholder="Enter your display name"
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium mb-2" style={{color: '#fff'}}>
                 <Mail className="w-4 h-4 inline mr-2" />
                 Email
               </label>
@@ -789,18 +822,21 @@ function LoginContent() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                  errors.email ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className="w-full px-3 py-2 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style={{
+                  background: '#070707',
+                  border: errors.email ? '1px solid #ef4444' : '1px solid #333',
+                  color: '#fff'
+                }}
                 placeholder="Enter your email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                <p className="mt-1 text-sm" style={{color: '#ef4444'}}>{errors.email}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium mb-2" style={{color: '#fff'}}>
                 <Lock className="w-4 h-4 inline mr-2" />
                 Password
               </label>
@@ -810,9 +846,12 @@ function LoginContent() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 ${
-                    errors.password ? 'border-red-300' : 'border-gray-300'
-                  }`}
+                  className="w-full px-3 py-2 rounded-md shadow-sm focus:outline-none focus:ring-2 pr-10"
+                  style={{
+                    background: '#070707',
+                    border: errors.password ? '1px solid #ef4444' : '1px solid #333',
+                    color: '#fff'
+                  }}
                   placeholder="Enter your password"
                 />
                 <button
@@ -821,27 +860,35 @@ function LoginContent() {
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4 text-gray-400" />
+                    <EyeOff className="h-4 w-4" style={{color: '#bbb'}} />
                   ) : (
-                    <Eye className="h-4 w-4 text-gray-400" />
+                    <Eye className="h-4 w-4" style={{color: '#bbb'}} />
                   )}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                <p className="mt-1 text-sm" style={{color: '#ef4444'}}>{errors.password}</p>
               )}
             </div>
 
             {errors.general && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-600">{errors.general}</p>
+              <div className="p-3 rounded-md" style={{
+                background: 'rgba(239, 68, 68, 0.1)', 
+                border: '1px solid rgba(239, 68, 68, 0.3)'
+              }}>
+                <p className="text-sm" style={{color: '#ef4444'}}>{errors.general}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3 px-4 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold transition-all hover:transform hover:-translate-y-0.5 hover:shadow-lg"
+              style={{
+                background: 'linear-gradient(45deg, #905151, #f2e9e9)',
+                color: '#000',
+                border: 'none'
+              }}
             >
               {isLoading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
             </button>

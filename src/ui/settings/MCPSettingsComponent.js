@@ -1,3 +1,4 @@
+console.log('🔥🔥🔥 [GOOGLE CALENDAR FIX] LOADING MCPSettingsComponent.js FILE! 🔥🔥🔥');
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
 import { unsafeSVG } from 'lit-html/directives/unsafe-svg.js';
 
@@ -33,73 +34,78 @@ export class MCPSettingsComponent extends LitElement {
 
         .services-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
+            grid-template-columns: 1fr;
+            gap: 4px;
             margin-bottom: 16px;
         }
 
         .service-card {
             width: 100%;
             box-sizing: border-box;
-            background: var(--background-secondary, #2a2a2a);
-            border: 1px solid var(--border-color, #333);
-            border-radius: 8px;
-            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 8px 12px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             transition: all 0.2s ease;
-            min-height: 56px;
+            min-height: 44px;
         }
 
         .service-card:hover {
-            border-color: var(--accent-color, #4a90e2);
-            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .service-info {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex: 1;
         }
 
         .service-logo {
-            width: 28px;
-            height: 28px;
+            width: 20px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 6px;
-            padding: 4px;
+            border-radius: 4px;
+            padding: 2px;
+            flex-shrink: 0;
         }
 
         .service-logo svg {
-            width: 16px;
-            height: 16px;
+            width: 12px;
+            height: 12px;
+            display: block;
+            margin: auto;
         }
 
         /* Added logo image styling */
         .service-logo__img {
-            width: 16px;
-            height: 16px;
+            width: 12px;
+            height: 12px;
             object-fit: contain;
+            filter: brightness(0) invert(1);
+            display: block;
+            margin: auto;
         }
 
         .service-logo__emoji {
             display: none;
-            font-size: 16px;
+            font-size: 12px;
         }
 
         .service-details h4 {
             color: var(--text-primary, #ffffff);
             margin: 0 0 2px 0;
-            font-size: 0.9em;
-            font-weight: 600;
+            font-size: 0.8em;
+            font-weight: 500;
         }
 
         .service-status {
-            font-size: 0.75em;
+            font-size: 0.7em;
             opacity: 0.7;
         }
 
@@ -217,21 +223,15 @@ export class MCPSettingsComponent extends LitElement {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px;
-            background: var(--background-secondary, #2a2a2a);
-            border: 1px solid var(--border-color, #333);
-            border-radius: 8px;
+            padding: 8px 12px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
             transition: all 0.2s ease;
         }
 
         .service-card:hover {
-            background: var(--background-hover, #353535);
-            border-color: var(--accent-color, #4a90e2);
-        }
-
-        .service-card.needs-auth {
-            border-color: #3498db;
-            background: rgba(52, 152, 219, 0.1);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         /* More Services Section */
@@ -499,6 +499,16 @@ export class MCPSettingsComponent extends LitElement {
         this.setupPeriodicCleanup();
     }
 
+    // Refresh status when component becomes visible (e.g. invisible overlay)
+    connectedCallback() {
+        super.connectedCallback();
+        console.log('[MCPSettings] Component connected, refreshing status...');
+        // Small delay to ensure component is fully initialized
+        setTimeout(() => {
+            this.forceRefreshStatus();
+        }, 100);
+    }
+
     // Initialize Paragon status with retry mechanism for timing issues
     async initializeParagonStatus() {
         console.log('[MCPSettings] 🚀 Initializing Paragon status with retry mechanism...');
@@ -510,7 +520,7 @@ export class MCPSettingsComponent extends LitElement {
         const tryLoadStatus = async () => {
             try {
                 console.log(`[MCPSettings] 🔄 Attempt ${retryCount + 1}/${maxRetries} to load Paragon status...`);
-                await this.loadParagonServiceStatus();
+                await this.loadServiceStatus();
                 
                 // Check if we actually got authentication data
                 const hasAuthData = Object.keys(this.paragonServiceStatus || {}).length > 0;
@@ -582,7 +592,7 @@ export class MCPSettingsComponent extends LitElement {
         window.api?.mcp?.onAuthStatusUpdated((event, data) => {
             console.log('[MCPSettings] Auth status updated event received:', data);
             this.loadAuthenticationStatus();
-            this.loadParagonServiceStatus(); // Also refresh Paragon service authentication status
+            this.loadServiceStatus(); // Also refresh Paragon service authentication status
             if (data.success) {
                 this.showSuccess('Connected successfully!');
                 // Remove from connecting state - clear all since we don't know which service completed
@@ -590,11 +600,23 @@ export class MCPSettingsComponent extends LitElement {
                 // Force a full reload to get the latest status
                 setTimeout(async () => {
                     await this.loadServerStatus();
-                    await this.loadParagonServiceStatus(); // Ensure Paragon status is refreshed after delay too
+                    await this.loadServiceStatus(); // Ensure Paragon status is refreshed after delay too
                     this.requestUpdate();
                 }, 500); // Small delay to ensure backend state is updated
             }
         });
+    }
+
+    // Force refresh authentication status (useful for invisible overlay)
+    async forceRefreshStatus() {
+        console.log('[MCPSettings] 🔄 Force refreshing authentication status...');
+        try {
+            await this.loadServiceStatus();
+            this.requestUpdate();
+            console.log('[MCPSettings] ✅ Force refresh completed');
+        } catch (error) {
+            console.error('[MCPSettings] ❌ Force refresh failed:', error);
+        }
     }
 
     async loadServerStatus() {
@@ -712,7 +734,7 @@ export class MCPSettingsComponent extends LitElement {
             }
             
             // Load Paragon service status - individual service authentication status
-            await this.loadParagonServiceStatus();
+            await this.loadServiceStatus();
             
         } catch (error) {
             console.error('[MCPSettings] ❌ Error loading supported services:', error);
@@ -741,11 +763,19 @@ export class MCPSettingsComponent extends LitElement {
                 
                 // Refresh both server status and Paragon status
                 await this.loadServerStatus();
-                await this.loadParagonServiceStatus();
+                await this.loadServiceStatus();
                 
-                // Check if the service is now authenticated
+                // Check if the service is now authenticated using multiple methods
                 const service = this.supportedServices[serviceKey];
-                if (service && service.status === 'connected') {
+                const isConnected = this.isServiceConnected(serviceKey);
+                const paragonConnected = this.paragonServiceStatus?.[serviceKey]?.authenticated === true;
+                
+                console.log(`[MCPSettings] 🔍 Authentication check for ${serviceKey}:`);
+                console.log(`  - service.status: ${service?.status}`);
+                console.log(`  - isServiceConnected(): ${isConnected}`);
+                console.log(`  - paragonServiceStatus: ${paragonConnected}`);
+                
+                if (isConnected || paragonConnected || (service && service.status === 'connected')) {
                     console.log(`[MCPSettings] ✅ ${serviceKey} authentication completed successfully!`);
                     
                     // Clear polling
@@ -757,7 +787,7 @@ export class MCPSettingsComponent extends LitElement {
                     this.connectingTimeouts.delete(serviceKey);
                     
                     // Show success message
-                    this.showSuccess(`${service.name || serviceKey} connected successfully!`);
+                    this.showSuccess(`${service?.name || serviceKey} connected successfully!`);
                     this.requestUpdate();
                     
                     return;
@@ -791,9 +821,9 @@ export class MCPSettingsComponent extends LitElement {
     }
     
     // New method to load Paragon individual service authentication status
-    async loadParagonServiceStatus() {
+    async loadServiceStatus() {
         try {
-            console.log('[MCPSettings] 🔄 Starting loadParagonServiceStatus...');
+            console.log('[MCPSettings] 🔄 Starting loadServiceStatus...');
             console.log('[MCPSettings] 🔍 Current supportedServices keys:', Object.keys(this.supportedServices || {}));
             
             const paragonResult = await window.api?.mcp?.getParagonServiceStatus();
@@ -849,10 +879,10 @@ export class MCPSettingsComponent extends LitElement {
                 this.performUpdate();
             }, 50);
             
-            console.log('[MCPSettings] ✅ loadParagonServiceStatus completed');
+            console.log('[MCPSettings] ✅ loadServiceStatus completed');
             
         } catch (error) {
-            console.error('[MCPSettings] ❌ Error in loadParagonServiceStatus:', error);
+            console.error('[MCPSettings] ❌ Error in loadServiceStatus:', error);
             console.error('[MCPSettings] ❌ Error stack:', error.stack);
             this.paragonServiceStatus = {};
             throw error; // Re-throw so retry mechanism can catch it
@@ -1028,7 +1058,7 @@ export class MCPSettingsComponent extends LitElement {
                 // This is a fallback in case the auth status event doesn't fire
                 const checkInterval = setInterval(async () => {
                     console.log(`[MCPSettings] Checking Paragon authentication status for ${service}...`);
-                    await this.loadParagonServiceStatus();
+                    await this.loadServiceStatus();
                     
                     // Check if service is now authenticated via Paragon
                     const isAuthenticated = this.isServiceAuthenticated(service);
@@ -1161,6 +1191,7 @@ export class MCPSettingsComponent extends LitElement {
 
     getServiceBrandColor(serviceName) {
         const colors = {
+            'calendly': '#006BFF',
             'google-drive': '#4285f4',
             'github': '#24292e', 
             'notion': '#000000',
@@ -1295,7 +1326,7 @@ export class MCPSettingsComponent extends LitElement {
             await this.loadServerStatus();
             await this.loadSupportedServices();
             await this.loadAuthenticationStatus();
-            await this.loadParagonServiceStatus();
+            await this.loadServiceStatus();
             
             this.successMessage = 'Status refreshed successfully';
             this.errorMessage = '';
@@ -1378,7 +1409,7 @@ export class MCPSettingsComponent extends LitElement {
                 <div class="mcp-settings">
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Loading MCP services...</p>
+                        <p>Loading integrations...</p>
                     </div>
                 </div>
             `;
@@ -1394,8 +1425,8 @@ export class MCPSettingsComponent extends LitElement {
                 
                 <div class="header" @click="${this.toggleExpanded}">
                     <div class="title">
-                        <span>🔌</span>
-                        <span>MCP Server Connections</span>
+                        <span>🔗</span>
+                        <span>Integrations</span>
                     </div>
                     <div>
                         <span class="refresh-btn" @click="${this.handleRefreshClick}">🔄</span>
@@ -1405,192 +1436,74 @@ export class MCPSettingsComponent extends LitElement {
 
                 <div class="stats-summary">
                     <div class="stat-item">
-                        <span class="stat-value">${runningCount}</span> running
+                        <span class="stat-value">${runningCount}</span> connected
                     </div>
                     <div class="stat-item">
-                        <span class="stat-value">${totalTools}</span> tools
+                        <span class="stat-value">${totalTools}</span> features
                     </div>
                 </div>
 
                 <div class="content ${this.isExpanded ? 'expanded' : ''}">
-                    ${this.renderParagonServicesSection()}
-                    ${this.renderAddCustomButton()}
+                    ${this.renderIntegrationsSection()}
                 </div>
             </div>
         `;
     }
 
-    renderParagonServicesSection() {
-        // Load available services dynamically from LIMIT_TO_INTEGRATIONS configuration
-        // This replaces hardcoded service definitions with environment-based configuration
-        let paragonServices;
+    renderIntegrationsSection() {
+        // Load available services dynamically
+        let availableServices;
         
         try {
-            // Try to use the ParagonServices utility if available
+            // Try to use available services utility if available
             if (typeof window !== 'undefined' && window.ParagonServices) {
-                paragonServices = window.ParagonServices.getAvailableServices();
-                console.log('Loaded services from ParagonServices utility:', Object.keys(paragonServices));
+                availableServices = window.ParagonServices.getAvailableServices();
+                console.log('[MCPSettings] Loaded available services:', Object.keys(availableServices));
             } else {
-                // Fallback to manual environment variable parsing
+                // Fallback to configuration parsing
                 const limitToIntegrations = this.getLimitToIntegrations();
-                paragonServices = this.createServicesFromConfig(limitToIntegrations);
-                console.log('Loaded services from environment config:', Object.keys(paragonServices));
+                console.log('[MCPSettings] limitToIntegrations config:', limitToIntegrations);
+                availableServices = this.createServicesFromConfig(limitToIntegrations);
+                console.log('[MCPSettings] Loaded services from config:', Object.keys(availableServices));
             }
         } catch (error) {
-            console.error('Error loading dynamic Paragon services, falling back to defaults:', error);
-            paragonServices = this.getDefaultParagonServices();
+            console.error('Error loading services, using defaults:', error);
+            availableServices = this.getDefaultServices();
+            console.log('[MCPSettings] Using default services:', Object.keys(availableServices));
         }
+        
+        // Google Calendar service name now matches backend (googleCalendar camelCase)
 
         // Bypass server connection check to always render service toggles
         return html`
             <div class="more-services" style="margin-bottom: 20px;">
-                <summary>🚀 Paragon Services (Configured Integrations)</summary>
+                <summary>🔗 Available Integrations</summary>
                 <p style="color: var(--text-secondary, #a0a0a0); font-size: 0.9em; margin: 12px 0;">
-                    Authenticate individual services to access their tools and capabilities through Paragon.
+                    Connect your accounts to access their features and capabilities.
                 </p>
                 
                 <div class="services-grid">
-                    ${Object.entries(paragonServices).map(([serviceKey, service]) => 
-                        this.renderParagonServiceCard(serviceKey, service)
+                    ${Object.entries(availableServices).map(([serviceKey, service]) => 
+                        this.renderServiceCard(serviceKey, service)
                     )}
                 </div>
                 
                 <div style="margin-top: 16px; padding: 12px; background: var(--background-secondary, #2a2a2a); border-radius: 6px; border: 1px solid var(--border-color, #333);">
                     <p style="margin: 0; font-size: 0.85em; color: var(--text-secondary, #a0a0a0);">
-                        💡 <strong>Configured Services:</strong> These are the services enabled in your Paragon configuration. 
-                        <a href="https://docs.useparagon.com" target="_blank" style="color: var(--accent-color, #4a90e2);">Learn more about Paragon</a>
+                        💡 <strong>Available Services:</strong> These are the services you can connect to enhance your experience.
                     </p>
                 </div>
             </div>
         `;
     }
 
-    renderParagonServiceCard(serviceKey, service) {
-        // const isConnecting = this.connectingServices.has(serviceKey);
-        const isConnecting = this.isServiceConnecting(serviceKey);
-        // Determine enabled/auth state from dynamic paragonServiceStatus
-        const isEnabled = !!(this.paragonServiceStatus && this.paragonServiceStatus[serviceKey] && this.paragonServiceStatus[serviceKey].authenticated);
-        const needsAuth = !isEnabled && !isConnecting;
-        
-        return html`
-            <div class="service-card ${needsAuth ? 'needs-auth' : ''}">
-                <div class="service-info">
-                    <div class="service-logo">
-                        <!-- Attempt to load brand logo from Simple Icons CDN, fallback to emoji -->
-                        <img
-                            src="https://cdn.jsdelivr.net/npm/simple-icons@v8/icons/${serviceKey.toLowerCase()}.svg"
-                            class="service-logo__img"
-                            alt="${service.name} logo"
-                            @error="${(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex'; }}"
-                        />
-                        <span class="service-logo__emoji">${service.icon}</span>
-                    </div>
-                    <div class="service-details">
-                        <h4>${service.name}</h4>
-                        <div class="service-status ${service.status}">
-                            ${isConnecting ? 'Connecting...' : 
-                              isEnabled ? 'Connected' :
-                              needsAuth ? 'Needs Authentication' : 'Disconnected'}
-                        </div>
-                    </div>
-                </div>
-                
-                <label class="toggle-switch ${isConnecting ? 'connecting' : ''} ${needsAuth ? 'needs-auth' : ''}">
-                    <input 
-                        type="checkbox" 
-                        .checked="${isEnabled}"
-                        .disabled="${isConnecting}"
-                        @change="${(e) => this.handleParagonServiceToggle(serviceKey, service, e.target.checked)}"
-                    />
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-        `;
-    }
 
-    async handleParagonServiceToggle(serviceKey, service, isChecked) {
-        if (isChecked) {
-            await this.connectParagonService(serviceKey, service);
-        } else {
-            await this.disconnectParagonService(serviceKey, service);
-        }
-    }
 
-    async connectParagonService(serviceKey, service) {
-        try {
-            this.connectingServices.add(serviceKey);
-            this.connectingTimeouts.set(serviceKey, Date.now());
-            this.requestUpdate();
 
-            console.log(`[MCPSettings] 🚀 Connecting Paragon service: ${serviceKey}`);
 
-            // Get the current user ID from auth service
-            const currentUser = await window.api.common.getCurrentUser();
-            const userId = currentUser?.uid || 'default-user';
-            
-            // Use Electron BrowserWindow for authentication
-            console.log(`[MCPSettings] 🌐 Opening Electron BrowserWindow for ${serviceKey} authentication`);
-            console.log(`[MCPSettings] 🔑 Using user ID: ${userId}`);
-            
-            const result = await window.api.mcp.paragon.authenticate(serviceKey);
-            if (result.success) {
-                this.showSuccess(`${service.name} authentication window opened`);
-            } else {
-                throw new Error(result.error || 'Failed to open authentication window');
-            }
-            
-            // Start polling for authentication completion with the same user ID
-            this.startAuthenticationPolling(serviceKey, userId);
-            
-            // Note: Don't remove from connecting here - polling will handle completion
-            return;
 
-        } catch (error) {
-            console.error(`[MCPSettings] ❌ Error connecting ${serviceKey}:`, error);
-            this.errorMessage = `Failed to connect ${service.name}: ${error.message}`;
-            this.successMessage = '';
-            
-            // If authentication was cancelled or failed, uncheck the toggle
-            if (this.supportedServices[serviceKey]) {
-                this.supportedServices[serviceKey].status = 'needs_auth';
-            }
-            
-            this.connectingServices.delete(serviceKey);
-            this.connectingTimeouts.delete(serviceKey);
-            this.requestUpdate();
-        }
-    }
 
-    async disconnectParagonService(serviceKey, service) {
-        try {
-            console.log(`[MCPSettings] 🔌 Disconnecting Paragon service: ${serviceKey}`);
 
-            const result = await window.api?.mcp?.disconnectParagonService(serviceKey);
-
-            if (result?.success) {
-                this.successMessage = `${service.name} disconnected successfully.`;
-                this.errorMessage = '';
-                
-                // Update service status
-                if (this.supportedServices[serviceKey]) {
-                    this.supportedServices[serviceKey].status = 'needs_auth';
-                    this.supportedServices[serviceKey].toolsCount = 0;
-                }
-                
-                // Refresh server status
-                await this.loadServerStatus();
-                await this.loadParagonServiceStatus();
-                
-            } else {
-                throw new Error(result?.error || 'Disconnection failed');
-            }
-
-        } catch (error) {
-            console.error(`[MCPSettings] ❌ Error disconnecting ${serviceKey}:`, error);
-            this.errorMessage = `Failed to disconnect ${service.name}: ${error.message}`;
-            this.successMessage = '';
-        }
-    }
 
     async handleRefreshClick(e) {
         e.stopPropagation(); // Prevent header toggle
@@ -1663,11 +1576,11 @@ This feature is coming soon! Contact support for help adding custom integrations
                 return window.PARAGON_LIMIT_TO_INTEGRATIONS;
             }
 
-            // Fallback to default services (matching integrations page)
-            return 'gmail,outlook,slack,salesforce,hubspot,notion,googlecalendar,linkedin,googledrive,dropbox,onedrive';
+            // Core services only for invisible overlay
+            return 'gmail,googleCalendar,calendly,linkedin,notion';
         } catch (error) {
             console.warn('Error getting LIMIT_TO_INTEGRATIONS config:', error);
-            return 'gmail,outlook,slack,salesforce,hubspot,notion,googlecalendar,linkedin,googledrive,dropbox,onedrive';
+            return 'gmail,googleCalendar,calendly,linkedin,notion';
         }
     }
 
@@ -1730,6 +1643,12 @@ This feature is coming soon! Contact support for help adding custom integrations
                 icon: '💼',
                 capabilities: ['linkedin_posts', 'linkedin_connections'],
             },
+            calendly: {
+                name: 'Calendly',
+                description: 'Manage scheduling and calendar bookings',
+                icon: '🗓️',
+                capabilities: ['calendly_events', 'calendly_scheduling'],
+            },
             slack: {
                 name: 'Slack',
                 description: 'Send messages and manage channels',
@@ -1790,13 +1709,7 @@ This feature is coming soon! Contact support for help adding custom integrations
                 icon: '☁️',
                 capabilities: ['onedrive_files', 'onedrive_folders'],
             },
-            // Aliases for naming consistency with integrations page
-            googlecalendar: {
-                name: 'Google Calendar',
-                description: 'Manage events and schedules',
-                icon: '📅',
-                capabilities: ['calendar_events'],
-            },
+            // Removed duplicate googlecalendar alias - using googleCalendar (camelCase) to match backend
             googledrive: {
                 name: 'Google Drive',
                 description: 'Access files, folders, and documents',
@@ -1821,7 +1734,7 @@ This feature is coming soon! Contact support for help adding custom integrations
         return services;
     }
 
-    getDefaultParagonServices() {
+    getDefaultServices() {
         // Fallback to default services matching the integrations page
         return {
             'gmail': {
@@ -1866,13 +1779,13 @@ This feature is coming soon! Contact support for help adding custom integrations
                 capabilities: ['notion_pages'],
                 status: 'needs_auth'
             },
-            'googlecalendar': {
-                name: 'Google Calendar',
-                description: 'Manage events and schedules',
-                icon: '📅',
-                capabilities: ['calendar_events'],
-                status: 'needs_auth'
-            },
+                    'googleCalendar': {  // Fixed: Use camelCase to match backend
+            name: 'Google Calendar',
+            description: 'Manage events and schedules',
+            icon: '📅',
+            capabilities: ['calendar_events'],
+            status: 'needs_auth'
+        },
             'linkedin': {
                 name: 'LinkedIn',
                 description: 'Access professional network and posts',

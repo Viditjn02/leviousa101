@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leviousa – Your AI Hub</title>
+  <meta name="description" content="Leviousa is your real-time AI hub. Automate follow-ups, meetings, and cross-app chores with 130+ integrations." />
+  <meta property="og:title" content="Leviousa – Your Invisible Upgrade" />
+  <meta property="og:description" content="Automate the busywork. Keep the impact. 130+ integrations, real-time answers." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23905151'/%3E%3Cstop offset='1' stop-color='%23ffffff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M50 8C34 10 20 24 14 36c-3 6-4 12-4 12s6-1 12-4c12-6 26-20 28-36z' fill='url(%23g)'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/pricing-fix.css" />
+  
+  <!-- Preload critical above-the-fold images for smooth loading -->
+  <link rel="preload" as="image" href="https://cdn.simpleicons.org/apple/000000">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Finder.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Launchpad.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Safari.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Messages.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Mail.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Reminders.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Notes.png">
+  <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/FaceTime.png">
+  <link rel="preload" as="image" href="https://commons.wikimedia.org/wiki/Special:FilePath/WhatsApp.svg?width=256">
+  <link rel="preload" as="image" href="https://commons.wikimedia.org/wiki/Special:FilePath/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg?width=256">
+</head>
+<body id="top">
+  <header>
+    <div class="logo" aria-label="Leviousa">
+      LEVIOUSA
+    </div>
+    <nav aria-label="Primary">
+      <ul>
+        <li><a href="#top" class="active">Home</a></li>
+        <li><a href="#everything-ai">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#help">Help</a></li>
+      </ul>
+    </nav>
+    <div class="header-actions">
+      
+      <a href="/login" class="btn secondary" id="signUpBtn" style="padding-right: 1.1rem;">Get Started</a>
+      <a href="#download" class="btn" id="downloadBtn">
+        <img src="https://cdn.simpleicons.org/apple/000000" alt="" aria-hidden="true" loading="eager" />
+        <span>Download</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero" aria-labelledby="hero-title">
+    <h1 id="hero-title">Your <span class="gradient">Invisible</span> <span class="upgrade-word">Upgrade<span class="floating-L-under-e" aria-hidden="true">L</span></span></h1>
+    <p class="typed-phrase" aria-live="polite"></p>
+    <div class="scroll-indicator" aria-hidden="true">▼</div>
+    <div class="floating-icons" aria-hidden="true">
+      <div class="icon">⌘</div>
+      <div class="icon">↑</div>
+      <div class="icon">→</div>
+    </div>
+    <!-- Global overlay pill -->
+    <div class="lev-overlay" role="toolbar" aria-label="Leviousa overlay">
+      <div class="ov-left">
+        <span class="ov-chip listen">Listen <span class="eq-mini" aria-hidden="true"><i></i><i></i><i></i></span></span>
+      </div>
+      <div class="ov-center">
+        <span class="ov-chip">Ask</span>
+        <span class="ov-chip"><span class="kbd">⌘</span></span>
+        <span class="ov-chip"><span class="kbd">↩︎</span></span>
+      </div>
+      <div class="ov-right">
+        <span class="ov-chip">Hide</span>
+        <span class="ov-chip"><span class="kbd">⌘</span></span>
+        <span class="ov-chip"><span class="kbd">\</span></span>
+      </div>
+      <span class="ov-chevron">▾</span>
+    </div>
+    <div class="hero-bubble">
+      <strong>Leviousa response</strong>
+      <span>Hello there! I'm Leviousa, your real-time AI hub with over 130 integrations to make your work effortless. Scroll to see me in action.</span>
+    </div>
+    <div class="waitlist-inline" id="waitlist">
+      <div class="waitlist-counter">
+        <div class="counter-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="counter-icon">
+            <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-4h3v4h2v-7.5c0-1.1.9-2 2-2s2 .9 2 2V18h2v-4h3v4h1v2H3v-2h1zm8-13.5c0-.83-.67-1.5-1.5-1.5S9 3.67 9 4.5 9.67 6 10.5 6s1.5-.67 1.5-1.5z"/>
+          </svg>
+          <span class="counter-text">
+            <span id="waitlistCount">101</span> people already joined
+          </span>
+          <div class="counter-pulse"></div>
+        </div>
+        <div class="waitlist-cta">
+          <p class="cta-message" id="ctaMessage">
+            What are you waiting for? <span class="cta-highlight">Join now!</span>
+          </p>
+        </div>
+      </div>
+      <form id="wlForm" class="wl-form" novalidate>
+        <div class="wl-input">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm2 0 8 6 8-6H4zm16 12V9l-8 6-8-6v9h16z"/></svg>
+          <input id="wlEmail" type="email" required placeholder="Enter your email" aria-label="Email address"/>
+        </div>
+        <button class="btn" id="wlBtn" type="submit">Join Waitlist</button>
+      </form>
+      <p class="wl-msg" id="wlMsg" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- Mac overlay demo -->
+  <section class="mac-demo reveal" aria-label="Mac overlay demo">
+    <div class="macbook" role="img" aria-label="MacBook frame">
+      <div class="mac-inner">
+        <div class="mac-screen home" id="macScreen">
+          <div class="mac-wallpaper" aria-hidden="true"></div>
+          <div class="mac-menubar"><div class="left"><span class="apple" aria-label="Apple menu">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path fill="currentColor" d="M19.665 13.954c-.017-1.769.794-3.098 2.42-4.074-.912-1.33-2.286-2.068-4.1-2.213-1.72-.137-3.6 1.002-4.284 1.002-.722 0-2.38-.958-3.674-.958-2.77.042-5.71 2.185-5.71 6.54 0 1.307.24 2.66.72 4.06.64 1.84 2.95 6.35 5.35 6.28 1.26-.03 2.16-.89 3.81-.89 1.61 0 2.46.89 3.86.86 2.42-.04 4.53-3.92 5.16-5.77-3.28-1.55-3.45-5.07-3.55-5.83zm-3.37-9.79c1.32-1.59 1.2-3.04 1.16-3.56-1.15.07-2.48.79-3.26 1.74-.84 1.03-1.33 2.29-1.23 3.61 1.25.1 2.46-.56 3.33-1.79z"/>
+            </svg>
+          </span><span>Leviousa</span></div><div class="right"><span class="menubar-time" id="menubarTime">--:--</span></div></div>
+          <div class="mac-lock" aria-hidden="true">
+            <div class="lock-center-time" id="lockCenterTime">--:--</div>
+            <div class="lock-center-date" id="lockCenterDate">—</div>
+          </div>
+          <ul class="mac-toasts" id="macToasts" aria-live="polite"></ul>
+          <div class="mac-dock" id="macDock" aria-label="Dock">
+            <div class="dock-item" title="Finder"><div class="dock-icon"><img alt="Finder" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Finder.png" loading="eager"/></div></div>
+            <div class="dock-item" title="Launchpad"><div class="dock-icon"><img alt="Launchpad" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Launchpad.png" loading="eager"/></div></div>
+            <div class="dock-item" title="Safari"><div class="dock-icon"><img alt="Safari" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Safari.png" loading="eager"/></div></div>
+            <div class="dock-item" title="Messages"><div class="dock-icon"><img alt="Messages" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Messages.png" loading="eager"/></div><span class="dock-badge">37</span></div>
+            <div class="dock-item" title="Mail"><div class="dock-icon"><img alt="Mail" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Mail.png" loading="eager"/></div></div>
+            <div class="dock-item" title="Reminders"><div class="dock-icon"><img alt="Reminders" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Reminders.png" loading="eager"/></div></div>
+            <div class="dock-item" title="Notes"><div class="dock-icon"><img alt="Notes" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Notes.png" loading="eager"/></div></div>
+            <div class="dock-item" title="FaceTime"><div class="dock-icon"><img alt="FaceTime" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/FaceTime.png" loading="eager"/></div></div>
+
+            <div class="dock-item" title="Photos"><div class="dock-icon"><img alt="Photos" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Photos.png"/></div></div>
+            <div class="dock-item" title="TV"><div class="dock-icon"><img alt="TV" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Apple%20TV.png"/></div></div>
+            <div class="dock-item" title="Music"><div class="dock-icon"><img alt="Music" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Music.png"/></div></div>
+            <div class="dock-item" title="App Store"><div class="dock-icon"><img alt="App Store" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/App%20Store.png"/></div></div>
+            <div class="dock-item" title="WhatsApp"><div class="dock-icon"><img alt="WhatsApp" src="https://commons.wikimedia.org/wiki/Special:FilePath/WhatsApp.svg?width=256" referrerpolicy="no-referrer" loading="eager"/></div><span class="dock-badge">84</span></div>
+            <div class="dock-item" title="Microsoft Teams"><div class="dock-icon"><img alt="Microsoft Teams" src="https://commons.wikimedia.org/wiki/Special:FilePath/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg?width=256" referrerpolicy="no-referrer" loading="eager"/></div></div>
+            <div class="dock-item" title="System Settings"><div class="dock-icon"><img alt="System Settings" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/System%20Preferences.png"/></div></div>
+          </div>
+        </div>
+        <ul id="macList" aria-live="polite"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features reveal" id="everything-ai">
+    <div class="kiro-container">
+      <div class="kiro-header">
+        <div class="kiro-eyebrow">Everything you need</div>
+        <h2 class="kiro-title">One hub. Zero busywork.</h2>
+        <p class="kiro-subtitle">Screen‑aware AI that understands context, executes actions, and learns your workflow.</p>
+      </div>
+    </div>
+    <div class="feature-grid">
+      <div class="ai-card meeting-card">
+        <div class="ai-icon card-icon">🧠</div>
+        <h3 class="ai-title card-title">Contextual Intelligence</h3>
+        <p class="ai-desc card-desc">Leviousa follows your workflow and routes tasks to the best AI models.</p>
+      </div>
+      <div class="ai-card meeting-card">
+        <div class="ai-icon card-icon">⚡</div>
+        <h3 class="ai-title card-title">Real-time Answers</h3>
+        <p class="ai-desc card-desc">Get instant responses without switching tabs or losing focus.</p>
+      </div>
+      <div class="ai-card meeting-card">
+        <div class="ai-icon card-icon">🔒</div>
+        <h3 class="ai-title card-title">Private &amp; Secure</h3>
+        <p class="ai-desc card-desc">Your data stays on your device — we never share or sell your information.</p>
+      </div>
+      <div class="ai-card meeting-card">
+        <div class="ai-icon card-icon">🧩</div>
+        <h3 class="ai-title card-title">Seamless Integrations</h3>
+        <p class="ai-desc card-desc">Connect to over 130 services to automate your day-to-day tasks.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tagline marquee -->
+  <section class="tagline-section reveal">
+    <h2>It’s Time To Focus On What Matters</h2>
+    <div class="tagline-marquee">
+      <div class="marquee">
+        <span>Interviews · Sales calls · Follow‑ups · Homework · Meetings · Everything&nbsp;</span>
+        <span>Interviews · Sales calls · Follow‑ups · Homework · Meetings · Everything&nbsp;</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Undetectable in meetings -->
+  <section class="undetectable reveal">
+    <h2>Undetectable in Meetings</h2>
+    <div class="undetectable-grid">
+      <div class="undetectable-item">
+        <img src="https://openmoji.org/data/color/svg/1F4DD.svg" alt="Notes icon" />
+        <h3>Takes notes without joining</h3>
+        <p>Leviousa listens in the background to capture actionable notes without ever joining your calls.</p>
+      </div>
+      <div class="undetectable-item">
+        <div class="emoji-badge" aria-hidden="true">🤫</div>
+        <h3>Invisible to others</h3>
+        <p>Hidden from screen shares and recordings so your professionalism stays intact.</p>
+      </div>
+      <div class="undetectable-item">
+        <img src="https://cdn.simpleicons.org/minutemailer/6B7280" alt="Minimal overlay icon" />
+        <h3>Never in your way</h3>
+        <p>A subtle overlay keeps answers close at hand without cluttering your workspace.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Integrations -->
+  <section class="platforms reveal">
+    <h3>Seamlessly integrated with over 130 apps on demand</h3>
+        <div class="platform-icons rotating-logos" role="list" aria-label="Popular integrations">
+      <div class="logo-slot" data-logos='["https://cdn.simpleicons.org/hubspot/FF7A59", "https://cdn.simpleicons.org/dropbox/0061FF", "https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png"]'>
+        <img src="https://cdn.simpleicons.org/hubspot/FF7A59" alt="HubSpot" role="listitem">
+    </div>
+            <div class="logo-slot" data-logos='["https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg", "https://cdn.simpleicons.org/apollographql/FFFFFF", "https://cdn.simpleicons.org/jira/0052CC"]'>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" role="listitem">
+    </div>
+      <div class="logo-slot" data-logos='["https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg", "https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg", "https://cdn.simpleicons.org/calendly/006BFF"]'>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg" alt="Google Calendar" role="listitem">
+      </div>
+      <div class="logo-slot" data-logos='["https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png", "https://cdn.simpleicons.org/stripe/635BFF", "https://upload.wikimedia.org/wikipedia/commons/c/c9/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg"]'>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png" alt="LinkedIn" role="listitem">
+      </div>
+      <span class="and-many-more">&amp; many more</span>
+    </div>
+  </section>
+
+  <!-- Answers overlay demo (removed; merged into #spotlight) -->
+
+
+  <!-- Demo (reimagined: Live Action Stream) -->
+  <section class="demo reveal" id="demo">
+    <div class="demo-content">
+      <h2>Live Meeting Insights</h2>
+      <p>We listen privately, extract signal, and trigger actions — while you stay present.</p>
+      <ul>
+        <li>Smart notes with owners and due dates</li>
+        <li>Instant follow‑ups and calendar invites</li>
+        <li>One stream for actions across 130+ apps</li>
+      </ul>
+    </div>
+    <div class="live-stream" aria-label="Live action stream">
+      <div class="stream-head">
+        <span class="chip app">Gmail</span>
+        <span class="chip app">Slack</span>
+        <span class="chip app">Drive</span>
+        <span class="chip app">Calendar</span>
+        <span class="chip app">LinkedIn</span>
+      </div>
+      <ul id="streamList" class="stream"></ul>
+    </div>
+  </section>
+  <!-- Experience Leviousa (AI at Light Speed) -->
+  <section class="experience-leviousa reveal" id="ai-magic">
+    <!-- Ambient aurora gradient -->
+    <div class="ambient-aurora" aria-hidden="true">
+      <div class="aurora-top"></div>
+      <div class="aurora-bottom-left"></div>
+      <div class="aurora-bottom-right"></div>
+        </div>
+
+    <div class="experience-header">
+      <div class="lightning-badge">
+        <span class="badge-text">Lightning Layer</span>
+      </div>
+      <h2 class="experience-title">Experience AI at Light Speed</h2>
+      <p class="experience-subtitle">Screen‑aware intelligence that understands context, executes actions, and learns from every interaction.</p>
+    </div>
+
+    <div class="experience-container">
+      <div class="feature-grid">
+        <!-- Command Card -->
+        <article class="feature-card command-card" data-tint="from-rose-300/30 to-rose-500/10">
+          <div class="spotlight command-spotlight"></div>
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">
+            Command
+            <span class="title-subtle">. Say it once.</span>
+          </h3>
+          <p class="feature-desc">Speak naturally—'Hey Leviousa, move the client call to 2pm and send the deck.' No tab‑hopping, no macros.</p>
+          <div class="feature-viz">
+            <div class="eq-viz">
+              <div class="eq-bar" style="--delay: 0s"></div>
+              <div class="eq-bar" style="--delay: 0.08s"></div>
+              <div class="eq-bar" style="--delay: 0.16s"></div>
+              <div class="eq-bar" style="--delay: 0.24s"></div>
+              <div class="eq-bar" style="--delay: 0.32s"></div>
+        </div>
+      </div>
+          <div class="card-sheen"></div>
+        </article>
+
+        <!-- Comprehend Card -->
+        <article class="feature-card comprehend-card" data-tint="from-fuchsia-300/30 to-indigo-500/10">
+          <div class="spotlight comprehend-spotlight"></div>
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/>
+            </svg>
+          </div>
+          <h3 class="feature-title">
+            Comprehend
+            <span class="title-subtle">. Context‑aware.</span>
+          </h3>
+          <p class="feature-desc">Understands people, projects, and preferences. Routes to the right model and the right app—automatically.</p>
+          <div class="feature-viz">
+            <div class="route-viz">
+              <div class="route-start"></div>
+              <div class="route-end"></div>
+              <div class="route-path">
+                <div class="route-slider"></div>
+              </div>
+      </div>
+    </div>
+          <div class="card-sheen"></div>
+        </article>
+
+        <!-- Complete Card -->
+        <article class="feature-card complete-card" data-tint="from-amber-300/30 to-rose-500/10">
+          <div class="spotlight complete-spotlight"></div>
+          <div class="feature-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/>
+            </svg>
+    </div>
+          <h3 class="feature-title">
+            Complete
+            <span class="title-subtle">. Instantly.</span>
+          </h3>
+          <p class="feature-desc">Executes across Gmail, Slack, Sheets and 130+ integrations in milliseconds—and reports back.</p>
+          <div class="feature-viz">
+            <div class="pulse-viz">
+              <div class="pulse-ring ring-1"></div>
+              <div class="pulse-ring ring-2"></div>
+              <div class="pulse-ring ring-3"></div>
+              <div class="pulse-core"></div>
+    </div>
+      </div>
+          <div class="card-sheen"></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+
+  
+
+  
+
+  
+
+  <!-- Customer Testimonials -->
+  <section class="testimonials reveal">
+    <div class="testimonials-container">
+      <h2>Loved by People Worldwide</h2>
+      <div class="testimonials-marquee">
+        <div class="testimonials-track">
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face" alt="Marcus Chen" />
+            <div class="testimonial-content">
+              <p>"Leviousa transformed my workflow. It handles my emails and scheduling while I focus on strategy. The meeting insights are game-changing."</p>
+              <div class="testimonial-author">
+                <strong>Marcus Chen</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face" alt="Sarah Rodriguez" />
+            <div class="testimonial-content">
+              <p>"Finally, an AI that actually understands context. It drafts perfect follow-ups and never misses a detail from our client calls."</p>
+              <div class="testimonial-author">
+                <strong>Sarah Rodriguez</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" alt="David Kim" />
+            <div class="testimonial-content">
+              <p>"The invisible meeting assistance is incredible. I get real-time insights without anyone knowing, and my productivity has doubled."</p>
+              <div class="testimonial-author">
+                <strong>David Kim</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face" alt="Emma Thompson" />
+            <div class="testimonial-content">
+              <p>"Leviousa handles all my administrative tasks seamlessly. I can focus on creative work while it manages my entire workflow."</p>
+              <div class="testimonial-author">
+                <strong>Emma Thompson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face" alt="James Wilson" />
+            <div class="testimonial-content">
+              <p>"The real-time meeting insights give me a competitive edge. I always know the right questions to ask and never miss key points."</p>
+              <div class="testimonial-author">
+                <strong>James Wilson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face" alt="Lisa Park" />
+            <div class="testimonial-content">
+              <p>"As a consultant, time is everything. Leviousa automates my entire client communication process while maintaining a personal touch."</p>
+              <div class="testimonial-author">
+                <strong>Lisa Park</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?w=100&h=100&fit=crop&crop=face" alt="Michael Brown" />
+            <div class="testimonial-content">
+              <p>"The integration with all my tools is flawless. It's like having a super-intelligent assistant that never sleeps."</p>
+              <div class="testimonial-author">
+                <strong>Michael Brown</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100&h=100&fit=crop&crop=face" alt="Rachel Green" />
+            <div class="testimonial-content">
+              <p>"Leviousa's invisible presence in meetings is revolutionary. I get perfect summaries and action items without any disruption."</p>
+              <div class="testimonial-author">
+                <strong>Rachel Green</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop&crop=face" alt="Alex Johnson" />
+            <div class="testimonial-content">
+              <p>"The AI understands my work patterns better than I do. It anticipates my needs and handles tasks before I even think of them."</p>
+              <div class="testimonial-author">
+                <strong>Alex Johnson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=face" alt="Jennifer Lee" />
+            <div class="testimonial-content">
+              <p>"From scheduling to follow-ups, Leviousa handles everything. My team thinks I've become incredibly organized overnight."</p>
+              <div class="testimonial-author">
+                <strong>Jennifer Lee</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop&crop=face" alt="Robert Davis" />
+            <div class="testimonial-content">
+              <p>"The real-time insights during client meetings are invaluable. I never miss important details and always stay ahead of the conversation."</p>
+              <div class="testimonial-author">
+                <strong>Robert Davis</strong>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Duplicate set for seamless infinite loop -->
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face" alt="Marcus Chen" />
+            <div class="testimonial-content">
+              <p>"Leviousa transformed my workflow. It handles my emails and scheduling while I focus on strategy. The meeting insights are game-changing."</p>
+              <div class="testimonial-author">
+                <strong>Marcus Chen</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face" alt="Sarah Rodriguez" />
+            <div class="testimonial-content">
+              <p>"Finally, an AI that actually understands context. It drafts perfect follow-ups and never misses a detail from our client calls."</p>
+              <div class="testimonial-author">
+                <strong>Sarah Rodriguez</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" alt="David Kim" />
+            <div class="testimonial-content">
+              <p>"The invisible meeting assistance is incredible. I get real-time insights without anyone knowing, and my productivity has doubled."</p>
+              <div class="testimonial-author">
+                <strong>David Kim</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face" alt="Emma Thompson" />
+            <div class="testimonial-content">
+              <p>"Leviousa handles all my administrative tasks seamlessly. I can focus on creative work while it manages my entire workflow."</p>
+              <div class="testimonial-author">
+                <strong>Emma Thompson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face" alt="James Wilson" />
+            <div class="testimonial-content">
+              <p>"The real-time meeting insights give me a competitive edge. I always know the right questions to ask and never miss key points."</p>
+              <div class="testimonial-author">
+                <strong>James Wilson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Complete duplicate set for seamless infinite loop -->
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face" alt="Marcus Chen" />
+            <div class="testimonial-content">
+              <p>"Leviousa transformed my workflow. It handles my emails and scheduling while I focus on strategy. The meeting insights are game-changing."</p>
+              <div class="testimonial-author">
+                <strong>Marcus Chen</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop&crop=face" alt="Sarah Rodriguez" />
+            <div class="testimonial-content">
+              <p>"Finally, an AI that actually understands context. It drafts perfect follow-ups and never misses a detail from our client calls."</p>
+              <div class="testimonial-author">
+                <strong>Sarah Rodriguez</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" alt="David Kim" />
+            <div class="testimonial-content">
+              <p>"The invisible meeting assistance is incredible. I get real-time insights without anyone knowing, and my productivity has doubled."</p>
+              <div class="testimonial-author">
+                <strong>David Kim</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face" alt="Emma Thompson" />
+            <div class="testimonial-content">
+              <p>"Leviousa handles all my administrative tasks seamlessly. I can focus on creative work while it manages my entire workflow."</p>
+              <div class="testimonial-author">
+                <strong>Emma Thompson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face" alt="James Wilson" />
+            <div class="testimonial-content">
+              <p>"The real-time meeting insights give me a competitive edge. I always know the right questions to ask and never miss key points."</p>
+              <div class="testimonial-author">
+                <strong>James Wilson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face" alt="Lisa Park" />
+            <div class="testimonial-content">
+              <p>"As a consultant, time is everything. Leviousa automates my entire client communication process while maintaining a personal touch."</p>
+              <div class="testimonial-author">
+                <strong>Lisa Park</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?w=100&h=100&fit=crop&crop=face" alt="Michael Brown" />
+            <div class="testimonial-content">
+              <p>"The integration with all my tools is flawless. It's like having a super-intelligent assistant that never sleeps."</p>
+              <div class="testimonial-author">
+                <strong>Michael Brown</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=100&h=100&fit=crop&crop=face" alt="Rachel Green" />
+            <div class="testimonial-content">
+              <p>"Leviousa's invisible presence in meetings is revolutionary. I get perfect summaries and action items without any disruption."</p>
+              <div class="testimonial-author">
+                <strong>Rachel Green</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop&crop=face" alt="Alex Johnson" />
+            <div class="testimonial-content">
+              <p>"The AI understands my work patterns better than I do. It anticipates my needs and handles tasks before I even think of them."</p>
+              <div class="testimonial-author">
+                <strong>Alex Johnson</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=face" alt="Jennifer Lee" />
+            <div class="testimonial-content">
+              <p>"From scheduling to follow-ups, Leviousa handles everything. My team thinks I've become incredibly organized overnight."</p>
+              <div class="testimonial-author">
+                <strong>Jennifer Lee</strong>
+              </div>
+            </div>
+          </div>
+          
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100&h=100&fit=crop&crop=face" alt="Robert Davis" />
+            <div class="testimonial-content">
+              <p>"The real-time insights during client meetings are invaluable. I never miss important details and always stay ahead of the conversation."</p>
+              <div class="testimonial-author">
+                <strong>Robert Davis</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="pricing reveal" id="pricing">
+    <h2>Pricing</h2>
+    <p class="pricing-hint">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="cursor-icon">
+        <path d="M13.64 21.97c-.16-.02-.3-.06-.44-.11l-4.39-1.45c-.86-.28-1.44-1.08-1.44-1.98v-6.43c0-.9.58-1.7 1.44-1.98l4.39-1.45c.28-.09.58-.09.86 0l4.39 1.45c.86.28 1.44 1.08 1.44 1.98v6.43c0 .9-.58 1.7-1.44 1.98l-4.39 1.45c-.14.05-.28.09-.42.11zm0-2.97l4-1.33v-5.34l-4-1.33-4 1.33v5.34l4 1.33z"/>
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      Hover below to reveal each plan
+    </p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="mouse-glow"></div>
+        <h3>Free</h3>
+        <div class="price">$0<span>/mo</span></div>
+        <ul class="price-features">
+          <li>All features included</li>
+          <li>160 minutes per month</li>
+        </ul>
+        <a href="#download" class="btn secondary price-cta">Get started</a>
+      </div>
+      <div class="price-card featured">
+        <div class="mouse-glow"></div>
+        <h3>Pro</h3>
+        <div class="price">$18<span>/mo</span></div>
+        <ul class="price-features">
+          <li>Unlimited actions</li>
+          <li>All integrations</li>
+        </ul>
+        <a href="#download" class="btn price-cta">Start Pro</a>
+      </div>
+      <div class="price-card">
+        <div class="mouse-glow"></div>
+        <h3>Enterprise</h3>
+        <div class="price">$159<span>/seat</span></div>
+        <ul class="price-features">
+          <li>Custom workflows</li>
+          <li>Admin controls</li>
+        </ul>
+        <a href="#contact" class="btn secondary price-cta">Talk to sales</a>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- FAQ -->
+  <section class="faq reveal" id="faq">
+    <h2>Frequently Asked Questions</h2>
+    <div class="faq-grid">
+      <details class="faq-card"><summary>Why is Leviousa an AI hub?<span class="chev">▾</span></summary><div class="answer">Leviousa combines multiple AI models to provide the best answer for your task. You no longer need to switch between tools — everything you need is in one place.</div></details>
+      <details class="faq-card"><summary>What platforms does Leviousa support?<span class="chev">▾</span></summary><div class="answer">You can use Leviousa on macOS and Windows today. Mobile apps are on our roadmap.</div></details>
+      <details class="faq-card"><summary>How does Leviousa ensure privacy?<span class="chev">▾</span></summary><div class="answer">All your conversations are processed locally or through trusted providers with robust encryption. We never sell or share your data.</div></details>
+      <details class="faq-card"><summary>Does Leviousa work during meetings without joining?<span class="chev">▾</span></summary><div class="answer">Yes. Our overlay listens locally to your device audio, generates notes and actions, and never appears on call participant lists or recordings.</div></details>
+      <details class="faq-card"><summary>What actions can Leviousa take automatically?<span class="chev">▾</span></summary><div class="answer">Draft and send emails, schedule calendar events, create tickets, file docs, post to Slack, update CRM stages and more — all with audit trails.</div></details>
+      <details class="faq-card"><summary>How do I trigger the command palette?<span class="chev">▾</span></summary><div class="answer">Press <b>⌘K</b> (or Ctrl+K on Windows) to open the runway anywhere. Type to search apps, press ↩︎ to run.</div></details>
+      <details class="faq-card"><summary>Do you offer admin controls?<span class="chev">▾</span></summary><div class="answer">Admins can manage integrations, approval flows, prompts, and policies. SSO (SAML), SCIM, and audit logging included on Enterprise.</div></details>
+    </div>
+  </section>
+
+  <!-- Help -->
+  <section class="help reveal" id="help">
+    <div class="help-container">
+      <h2>Need Help?</h2>
+      <p class="help-subtitle">We're here to help you get the most out of Leviousa</p>
+      <a href="#" class="btn chat-cta-btn" id="chatAgentBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+        </svg>
+        <span>Start a Chat</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-final reveal" id="download">
+    <h2>The AI hub that works for you</h2>
+    <p>Try Leviousa today and experience next-level productivity.</p>
+    <div class="cta-buttons">
+      <a href="#" id="macLink"><img src="https://cdn.simpleicons.org/apple/000000" alt="Apple logo" /><span>Download for Mac</span></a>
+    </div>
+  </section>
+
+  <footer>
+    <small>© <span id="y"></span> Leviousa, Inc. · <a href="#" style="color:inherit">Privacy</a> · <a href="#" style="color:inherit">Terms</a> · <a href="#" style="color:inherit">Security</a></small>
+  </footer>
+
+  <script src="/main.js"></script>
+  <script src="/avatar-fix.js"></script></body></html>

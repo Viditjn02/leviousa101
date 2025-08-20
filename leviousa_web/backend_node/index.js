@@ -6,7 +6,7 @@ const { identifyUser } = require('./middleware/auth');
 function createApp(eventBridge) {
     const app = express();
 
-    const webUrl = process.env.leviousa_WEB_URL || 'https://leviousa-101.web.app';
+    const webUrl = process.env.leviousa_WEB_URL || 'https://www.leviousa.com';
     console.log(`🔧 Backend CORS configured for: ${webUrl}`);
     
     // Allow requests from both Firebase hosting and localhost development

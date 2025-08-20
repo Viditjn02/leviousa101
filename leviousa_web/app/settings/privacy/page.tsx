@@ -47,7 +47,7 @@ function PrivacySettingsPageContent() {
             </div>
             <div className="flex justify-end mt-6">
               <button
-                onClick={() => window.open('https://www.leviousa.com/ko/privacy-policy', '_blank')}
+                onClick={() => window.open('/privacy-policy', '_blank')}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors"
               >
                 Privacy
@@ -65,7 +65,7 @@ function PrivacySettingsPageContent() {
             </div>
             <div className="flex justify-end mt-6">
               <button
-                onClick={() => window.open('https://www.leviousa.com/ko/terms-of-service', '_blank')}
+                onClick={() => window.open('/terms-of-service', '_blank')}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors"
               >
                 Terms
