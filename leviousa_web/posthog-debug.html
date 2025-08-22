@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PostHog Debug Test</title>
+    <script>
+        !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]);var n=t;if("undefined"!=typeof e)n=t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))};return n}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+        
+        // Initialize with your key
+        posthog.init('phc_RorBSQpmhJphA9WtA54unRLwWUo7Ik6CQiMQ84Qsp12', {
+            api_host: 'https://app.posthog.com',
+            debug: true,
+            autocapture: true,
+            session_recording: {
+                maskTextClass: 'ph-mask',
+                maskTextSelector: undefined,
+            },
+            loaded: function(posthog) {
+                console.log('PostHog loaded successfully in test page')
+                // Send test events
+                posthog.capture('test_page_load', {
+                    test: true,
+                    timestamp: Date.now()
+                })
+                
+                posthog.identify('test_user_' + Date.now())
+                
+                posthog.capture('manual_test_event', {
+                    message: 'This is a manual test from debug page',
+                    browser: navigator.userAgent
+                })
+            }
+        })
+        
+        function sendTestEvent() {
+            posthog.capture('button_click_test', {
+                button: 'test_button',
+                timestamp: Date.now()
+            })
+            console.log('Test event sent!')
+        }
+    </script>
+</head>
+<body>
+    <h1>PostHog Debug Test Page</h1>
+    <p>This page tests PostHog tracking. Check the console and network tab in developer tools.</p>
+    
+    <button onclick="sendTestEvent()">Send Test Event</button>
+    
+    <p>If PostHog is working correctly, you should see:</p>
+    <ul>
+        <li>Network requests to PostHog in the Network tab</li>
+        <li>Console logs showing PostHog initialization</li>
+        <li>Events appearing in your PostHog dashboard</li>
+    </ul>
+    
+    <script>
+        // Additional debug info
+        setTimeout(() => {
+            console.log('PostHog loaded status:', posthog.__loaded)
+            console.log('PostHog config:', posthog.config)
+            console.log('PostHog distinct_id:', posthog.get_distinct_id())
+        }, 2000)
+    </script>
+</body>
+</html>

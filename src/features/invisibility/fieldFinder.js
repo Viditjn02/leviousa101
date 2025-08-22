@@ -417,8 +417,12 @@ class FieldFinder extends EventEmitter {
                 throw new Error('Accessibility permissions required');
             }
 
-            // Check Safari-specific permissions
-            await this.checkSafariPermissions();
+            // Check Safari-specific permissions (optional - won't block initialization)
+            try {
+                await this.checkSafariPermissions();
+            } catch (safariError) {
+                console.log('[FieldFinder] Safari permission check failed (non-critical):', safariError.message);
+            }
 
             this.isInitialized = true;
             console.log('[FieldFinder] ✅ Field detection initialized successfully');
@@ -468,17 +472,16 @@ class FieldFinder extends EventEmitter {
                 console.log('[FieldFinder] ✅ Safari JavaScript from Apple Events is enabled');
                 return true;
             } else {
-                console.warn('[FieldFinder] ⚠️ Safari JavaScript permission issue:', result);
-                console.log('\n🚨 SETUP REQUIRED:');
-                console.log('1. Open Safari');
-                console.log('2. Go to Safari > Preferences > Advanced');
-                console.log('3. Check "Show Develop menu in menu bar"');
-                console.log('4. In menu bar: Develop > Allow JavaScript from Apple Events ✅');
-                console.log('5. Restart your application\n');
+                console.log('[FieldFinder] ℹ️ Safari JavaScript from Apple Events is disabled (optional feature)');
+                console.log('[FieldFinder] To enable Safari integration (optional):');
+                console.log('[FieldFinder] 1. Open Safari > Preferences > Advanced');
+                console.log('[FieldFinder] 2. Check "Show Develop menu in menu bar"');
+                console.log('[FieldFinder] 3. In menu bar: Develop > Allow JavaScript from Apple Events');
+                console.log('[FieldFinder] Note: This is only needed for Safari-specific automation features');
                 return false;
             }
         } catch (error) {
-            console.warn('[FieldFinder] Could not check Safari permissions:', error.message);
+            console.log('[FieldFinder] Safari permissions check skipped:', error.message);
             return false;
         }
     }
@@ -1037,6 +1040,42 @@ class FieldFinder extends EventEmitter {
         } catch (error) {
             console.error('[FieldFinder] Error filtering and prioritizing fields:', error);
             return [];
+        }
+    }
+
+    async focusApplication(applicationName) {
+        if (!applicationName || applicationName === 'Unknown') {
+            console.log('[FieldFinder] ❌ Invalid application name provided for focusing');
+            return false;
+        }
+
+        try {
+            console.log(`[FieldFinder] 🎯 Focusing application: ${applicationName}`);
+
+            const focusScript = `
+                tell application "System Events"
+                    try
+                        set targetApp to application process "${applicationName}"
+                        set frontmost of targetApp to true
+                        return "SUCCESS"
+                    on error errMsg
+                        return "ERROR: " & errMsg
+                    end try
+                end tell
+            `;
+
+            const result = await this.runAppleScript(focusScript);
+            
+            if (result.includes('SUCCESS')) {
+                console.log(`[FieldFinder] ✅ Successfully focused application: ${applicationName}`);
+                return true;
+            } else {
+                console.log(`[FieldFinder] ⚠️ Failed to focus application ${applicationName}: ${result}`);
+                return false;
+            }
+        } catch (error) {
+            console.error(`[FieldFinder] Error focusing application ${applicationName}:`, error);
+            return false;
         }
     }
 

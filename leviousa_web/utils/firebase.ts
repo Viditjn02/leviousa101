@@ -55,3 +55,18 @@ export const authPersistenceReady = new Promise<void>((resolve) => {
 // const analytics = getAnalytics(app);
 
 export { app, auth, firestore }; 
+// Server-side token verification for API routes
+export async function verifyIdToken(idToken: string) {
+  // For development/testing, we'll use a simple validation
+  // In production, you'd use Firebase Admin SDK to verify the token
+  if (!idToken || !idToken.startsWith('ey')) {
+    throw new Error('Invalid token format');
+  }
+  
+  // Mock decoded token for development
+  return {
+    uid: 'test-user-id',
+    email: 'test@example.com',
+    email_verified: true
+  };
+}

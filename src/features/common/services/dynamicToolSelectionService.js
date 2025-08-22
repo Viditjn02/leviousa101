@@ -247,7 +247,16 @@ class DynamicToolSelectionService {
                 });
                 
                 const finalResponse = await this.llmProvider.chatWithTools([
-                    { role: 'system', content: `You are a helpful assistant. Based on the tool execution results, provide a clear, formatted response to the user. Extract and present the key information in a readable way. For profiles, show key details. For posts/content creation, confirm success. For search results, list relevant items.` },
+                    { role: 'system', content: `You are a helpful assistant. Based on the tool execution results, provide a clear, formatted response to the user. Extract and present the key information in a readable way. For profiles, show key details. For posts/content creation, confirm success. For search results, list relevant items.
+
+IMPORTANT: If the tool results include web search results with citations, you MUST include the reference links at the end of your response. Format them as:
+
+**References:**
+1. [Source Name](URL)
+2. [Source Name](URL)
+etc.
+
+Always include citations when they are provided in the tool results to give users access to the original sources.` },
                     { role: 'user', content: `User asked: "${userQuery}"\n\nTool execution results:${toolResultsText}\n\nPlease provide a helpful response based on these results.` }
                 ], []);
                 
@@ -491,7 +500,28 @@ INTELLIGENT TOOL USAGE - UNDERSTAND USER INTENT:
 **CREATE EVENTS:**
 - User says: "create event", "schedule meeting", "book appointment", "set up meeting"
 - → Call: google_calendar_create_event with {user_id, title, start_time, end_time, description, location, attendees}
-- → Convert relative times like "25th at 8pm" to RFC3339: "2025-08-25T20:00:00Z"
+
+**CRITICAL TIME CONVERSION EXAMPLES (MUST USE 24-HOUR FORMAT):**
+- "8pm today" → "${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}T20:00:00"
+- "3pm today" → "${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}T15:00:00"
+- "1pm today" → "${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}T13:00:00"
+- "8 PM" → "T20:00:00" (NOT T13:00:00 or T08:00:00)
+- "3 PM" → "T15:00:00" (NOT T12:00:00 or T03:00:00)
+- "1 PM" → "T13:00:00" (NOT T12:00:00 or T01:00:00)
+- "8am" → "T08:00:00"  
+- "3:30pm" → "T15:30:00"
+- "tomorrow at 2pm" → Calculate tomorrow's date + "T14:00:00"
+
+⚠️ **CRITICAL PM/AM CONVERSION - DO NOT GET THIS WRONG:**
+- 8pm = 20:00 (add 12 to PM hours except 12pm)
+- 3pm = 15:00 (add 12: 3 + 12 = 15)
+- 1pm = 13:00 (add 12: 1 + 12 = 13) 
+- 12pm = 12:00 (noon - don't add 12)
+- 12am = 00:00 (midnight)
+- AM hours stay the same (8am = 08:00)
+
+- If no end time specified, default to 1 hour duration  
+- Format: YYYY-MM-DDTHH:MM:SS (DO NOT add Z suffix, let timezone be handled by calendar service)
 
 **READ/CHECK EVENTS:**  
 - User says: "what do I have", "check schedule", "any events", "show calendar"
@@ -509,10 +539,37 @@ INTELLIGENT TOOL USAGE - UNDERSTAND USER INTENT:
 - → For contextual references like "delete it", look at previous responses to find event IDs
 
 **SMART DATE HANDLING:**
-- "25th of this month" → ${currentYear}-${String(currentMonth).padStart(2, '0')}-25T00:00:00Z
-- "tomorrow at 3pm" → Calculate tomorrow + 15:00:00Z  
+- "25th of this month at 8pm" → ${currentYear}-${String(currentMonth).padStart(2, '0')}-25T20:00:00
+- "tomorrow at 3pm" → Calculate tomorrow + T15:00:00
+- "today at 8pm" → ${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}T20:00:00
 - "next week" → Calculate date range for next week
 - ALWAYS include user_id: "${userId}"
+
+**TIME PARSING RULES (CRITICAL - FOLLOW EXACTLY):**
+- 8pm/8 PM → 20:00 (24-hour format) ⚠️ NOT 13:00 or 08:00
+- 3pm/3 PM → 15:00 (24-hour format) ⚠️ NOT 12:00 or 03:00  
+- 1pm/1 PM → 13:00 (24-hour format) ⚠️ NOT 12:00 or 01:00
+- 8am/8 AM → 08:00 (24-hour format)
+- 12pm → 12:00 (noon)
+- 12am → 00:00 (midnight)
+- PM times: Add 12 to hour (except 12pm stays 12:00)
+- AM times: Keep same hour (except 12am becomes 00:00)
+- Default meeting duration: 1 hour if no end time specified
+
+**EXAMPLE CONVERSIONS TO VERIFY:**
+- "Meeting at 8pm" → start_time: "YYYY-MM-DDTHH:MM:SS" where HH = 20
+- "Meeting at 3pm" → start_time: "YYYY-MM-DDTHH:MM:SS" where HH = 15
+- "Meeting at 1pm" → start_time: "YYYY-MM-DDTHH:MM:SS" where HH = 13
+
+**CRITICAL: If user says "3pm" and you generate "12:00", that is WRONG! 3pm MUST be 15:00**
+
+**ATTENDEE/EMAIL HANDLING:**
+- Only include attendees if valid email addresses are provided
+- If only names are mentioned (e.g., "meeting with John"), create the event WITHOUT attendees
+- DO NOT create fake email addresses like "john@example.com"
+- DO NOT guess email addresses
+- Example: "meeting with Shreya at 8pm" → title="Meeting with Shreya", attendees=[] (empty array)
+- Only add to attendees array if user explicitly provides email: "meeting with shreya@company.com"
 
 ⚠️ **CRITICAL: UNDERSTAND WHAT USER WANTS** ⚠️
 - Don't just default to LIST operations

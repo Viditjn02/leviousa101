@@ -26,6 +26,80 @@ module.exports = {
     ipcMain.handle('get-header-position', () => windowManager.getHeaderPosition());
     ipcMain.handle('move-header-to', (event, newX, newY) => windowManager.moveHeaderTo(newX, newY));
     ipcMain.handle('adjust-window-height', (event, { winName, height }) => windowManager.adjustWindowHeight(winName, height));
+    
+    // Close window handler for popup windows (close the window that sent the event)
+    ipcMain.handle('window:close', (event) => {
+      const senderWindow = event.sender.getOwnerBrowserWindow();
+      if (senderWindow) {
+        senderWindow.close();
+        console.log('[WindowBridge] Window closed via close button');
+      }
+    });
+    
+    // Browser window toggle handler
+    ipcMain.handle('main-header:browser-toggle', () => {
+      return windowManager.toggleBrowserWindow();
+    });
+    
+    // Browser window navigation handler
+    ipcMain.handle('main-header:browser-navigate', (event, url) => {
+      return windowManager.navigateBrowserWindow(url);
+    });
+    
+    // BrowserView control handlers
+    ipcMain.handle('browser-view:go-back', () => {
+      return windowManager.browserViewGoBack();
+    });
+    
+    ipcMain.handle('browser-view:go-forward', () => {
+      return windowManager.browserViewGoForward();
+    });
+    
+    ipcMain.handle('browser-view:reload', () => {
+      return windowManager.browserViewReload();
+    });
+    
+    ipcMain.handle('browser-view:position', () => {
+      return windowManager.positionBrowserView();
+    });
+    
+    // Browser window opacity control
+    ipcMain.handle('browser-window:set-opacity', (event, opacity) => {
+      return windowManager.setBrowserWindowOpacity(opacity);
+    });
+    
+    // Multi-tab support
+    ipcMain.handle('browser-tabs:create-new', () => {
+      return windowManager.createNewTab();
+    });
+    
+    ipcMain.handle('browser-tabs:create-new-with-url', (event, url, title) => {
+      return windowManager.createNewTabWithUrl(url, title);
+    });
+    
+    ipcMain.handle('browser-tabs:switch', (event, tabId) => {
+      return windowManager.switchTab(tabId);
+    });
+    
+    ipcMain.handle('browser-tabs:switch-by-index', (event, tabIndex) => {
+      return windowManager.switchTabByIndex(tabIndex);
+    });
+    
+    ipcMain.handle('browser-tabs:close', (event, tabId) => {
+      return windowManager.closeTab(tabId);
+    });
+    
+    ipcMain.handle('browser-tabs:close-by-index', (event, tabIndex) => {
+      return windowManager.closeTabByIndex(tabIndex);
+    });
+    
+    ipcMain.handle('browser-tabs:update-ui', () => {
+      return windowManager.updateTabUI();
+    });
+    
+    ipcMain.handle('browser-window:resize', (event, deltaWidth, deltaHeight) => {
+      return windowManager.resizeBrowserWindow(deltaWidth, deltaHeight);
+    });
   },
 
   notifyFocusChange(win, isFocused) {

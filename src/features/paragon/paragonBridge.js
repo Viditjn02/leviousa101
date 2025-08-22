@@ -38,19 +38,91 @@ function initializeParagonBridge() {
               width: 1200,
               height: 800,
               show: true,
-              parent: require('../../window/windowManager').windowPool.header,
-              modal: true,
+              frame: false, // Frameless like listen overlay
+              transparent: true, // Transparent like listen overlay
               webPreferences: {
                 preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                 contextIsolation: true,
                 nodeIntegration: false,
                 // Use the default session which already has CSP patches
                 session: session.defaultSession
-              }
+              },
+              // Make it independent overlay like listen system
+              parent: undefined, // No parent relationship like listen
+              modal: false, // Not modal - independent like listen
+              alwaysOnTop: true, // Always on top like listen overlay
+              skipTaskbar: true, // Don't show in taskbar like listen overlay
+              hasShadow: false,
+              resizable: true,
+              minimizable: false,
+              maximizable: false,
+              focusable: true,
+              title: `Connect ${service} - Leviousa`
+            });
+            
+            // Set up window close on Escape key like listen overlay
+            connectWin.webContents.on('before-input-event', (event, input) => {
+                if (input.key === 'Escape' && input.type === 'keyDown') {
+                    connectWin.close();
+                }
             });
             
             console.log(`[ParagonBridge] 🔧 Connect window using session with CSP patches`);
             await connectWin.loadURL(authUrl);
+            
+            // Add custom close button after page loads
+            connectWin.webContents.once('did-finish-load', () => {
+                connectWin.webContents.executeJavaScript(`
+                    // Create close button container
+                    const closeBtn = document.createElement('div');
+                    closeBtn.id = 'leviousa-close-btn';
+                    closeBtn.innerHTML = '✕';
+                    closeBtn.style.cssText = \`
+                        position: fixed !important;
+                        top: 15px !important;
+                        right: 15px !important;
+                        width: 32px !important;
+                        height: 32px !important;
+                        background: rgba(0, 0, 0, 0.8) !important;
+                        color: white !important;
+                        border: none !important;
+                        border-radius: 50% !important;
+                        cursor: pointer !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        font-size: 16px !important;
+                        font-weight: bold !important;
+                        z-index: 999999 !important;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+                        transition: all 0.2s ease !important;
+                    \`;
+                    
+                    // Add hover effects
+                    closeBtn.addEventListener('mouseenter', () => {
+                        closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
+                        closeBtn.style.transform = 'scale(1.1)';
+                    });
+                    
+                    closeBtn.addEventListener('mouseleave', () => {
+                        closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
+                        closeBtn.style.transform = 'scale(1)';
+                    });
+                    
+                    // Close window when clicked
+                    closeBtn.addEventListener('click', () => {
+                        window.electronAPI?.closeWindow?.() || window.close();
+                    });
+                    
+                    // Append to body
+                    document.body.appendChild(closeBtn);
+                    
+                    console.log('[Leviousa] Close button added to popup window');
+                `).catch(err => {
+                    console.error('[ParagonBridge] Failed to inject close button:', err);
+                });
+            });
             
             // Return success immediately - the external browser will handle the auth
             return { 

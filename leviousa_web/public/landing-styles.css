@@ -1516,7 +1516,7 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .answer-chip.show{animation:popIn .22s ease forwards}
 
 /* Global Leviousa overlay (pill) */
-.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:min(860px,92vw);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:auto;min-width:300px;max-width:min(90vw,1200px);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .ov-left,.ov-center,.ov-right{display:flex;align-items:center;gap:.4rem}
 .ov-center{justify-content:center;flex:1}
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
@@ -2456,7 +2456,7 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .answer-chip.show{animation:popIn .22s ease forwards}
 
 /* Global Leviousa overlay (pill) */
-.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:min(860px,92vw);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:auto;min-width:300px;max-width:min(90vw,1200px);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .ov-left,.ov-center,.ov-right{display:flex;align-items:center;gap:.4rem}
 .ov-center{justify-content:center;flex:1}
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
@@ -3396,7 +3396,7 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .answer-chip.show{animation:popIn .22s ease forwards}
 
 /* Global Leviousa overlay (pill) */
-.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:min(860px,92vw);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:auto;min-width:300px;max-width:min(90vw,1200px);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .ov-left,.ov-center,.ov-right{display:flex;align-items:center;gap:.4rem}
 .ov-center{justify-content:center;flex:1}
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
@@ -4336,7 +4336,7 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .answer-chip.show{animation:popIn .22s ease forwards}
 
 /* Global Leviousa overlay (pill) */
-.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:min(860px,92vw);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:auto;min-width:300px;max-width:min(90vw,1200px);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .ov-left,.ov-center,.ov-right{display:flex;align-items:center;gap:.4rem}
 .ov-center{justify-content:center;flex:1}
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
@@ -5276,7 +5276,7 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .answer-chip.show{animation:popIn .22s ease forwards}
 
 /* Global Leviousa overlay (pill) */
-.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:min(860px,92vw);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.lev-overlay{position:fixed;top:88px;left:50%;transform:translateX(-50%);width:auto;min-width:300px;max-width:min(90vw,1200px);display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.6rem .75rem;border-radius:999px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .ov-left,.ov-center,.ov-right{display:flex;align-items:center;gap:.4rem}
 .ov-center{justify-content:center;flex:1}
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}

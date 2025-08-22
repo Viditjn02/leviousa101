@@ -135,12 +135,13 @@ const IconComponent = memo<{
     isLucide: boolean;
     alt: string;
     className?: string;
-}>(({ icon, isLucide, alt, className = 'h-[18px] w-[18px] transition-transform duration-200' }) => {
+    style?: React.CSSProperties;
+}>(({ icon, isLucide, alt, className = 'h-[18px] w-[18px] transition-transform duration-200', style }) => {
     if (isLucide) {
-        return createElement(icon as LucideIcon, { className, 'aria-hidden': true });
+        return createElement(icon as LucideIcon, { className, style, 'aria-hidden': true });
     }
 
-    return <Image src={icon as string} alt={alt} width={18} height={18} className={className} loading="lazy" />;
+    return <Image src={icon as string} alt={alt} width={18} height={18} className={className} style={style} loading="lazy" />;
 });
 
 IconComponent.displayName = 'IconComponent';
@@ -199,6 +200,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
             { name: 'Personal Profile', href: '/settings', icon: '/user.svg', isLucide: false, ariaLabel: 'Personal profile settings' },
             { name: 'Data & privacy', href: '/settings/privacy', icon: '/privacy.svg', isLucide: false, ariaLabel: 'Data and privacy settings' },
             { name: 'Billing', href: '/settings/billing', icon: '/credit-card.svg', isLucide: false, ariaLabel: 'Billing settings' },
+            { name: 'Referrals', href: '/settings/referrals', icon: '/linkout.svg', isLucide: false, ariaLabel: 'Referral program' },
         ],
         []
     );
@@ -328,16 +330,25 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                                             href={subItem.href}
                                             className={`
                                   group flex items-center rounded-lg px-[12px] py-[8px] text-[13px] gap-x-[9px]
-                      focus:outline-none
-                                  ${
-                                      pathname === subItem.href
-                                          ? 'bg-subtle-active-bg text-[#282828]'
-                                          : 'text-[#282828] hover:text-[#282828] hover:bg-[#f7f7f7]'
-                                  }
-                      transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
+                      focus:outline-none transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
                                 `}
                                             style={{
                                                 willChange: 'background-color, color',
+                                                backgroundColor: pathname === subItem.href ? 'rgba(144, 81, 81, 0.2)' : 'transparent',
+                                                color: pathname === subItem.href ? 'var(--text)' : 'var(--muted)',
+                                                border: pathname === subItem.href ? '1px solid rgba(144, 81, 81, 0.3)' : 'none'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (pathname !== subItem.href) {
+                                                    e.currentTarget.style.backgroundColor = 'var(--bg-card-2)';
+                                                    e.currentTarget.style.color = 'var(--text)';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (pathname !== subItem.href) {
+                                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                                    e.currentTarget.style.color = 'var(--muted)';
+                                                }
                                             }}
                                             role="menuitem"
                                             aria-label={subItem.ariaLabel || subItem.name}
@@ -347,6 +358,11 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                                                 isLucide={subItem.isLucide}
                                                 alt={`${subItem.name} icon`}
                                                 className="h-4 w-4 shrink-0"
+                                                style={{
+                                                    filter: pathname === subItem.href 
+                                                        ? 'brightness(0) saturate(100%) invert(17%) sepia(60%) saturate(3471%) hue-rotate(337deg) brightness(89%) contrast(91%)' 
+                                                        : 'brightness(0) saturate(100%) invert(75%) sepia(11%) saturate(0%) hue-rotate(208deg) brightness(97%) contrast(89%)'
+                                                }}
                                             />
                                             <span className="whitespace-nowrap">{subItem.name}</span>
                                         </Link>
@@ -359,11 +375,22 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                                             onKeyDown={e => handleKeyDown(e, handleLogout)}
                                             className={`
                                     group flex items-center rounded-lg px-[12px] py-[8px] text-[13px] gap-x-[9px]
-                                    text-red-600 hover:text-red-700 hover:bg-[#f7f7f7] w-full 
-                                    transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
+                                    w-full transition-colors duration-${ANIMATION_DURATION.COLOR_TRANSITION} ease-out
                                     focus:outline-none
                                   `}
-                                            style={{ willChange: 'background-color, color' }}
+                                            style={{ 
+                                                willChange: 'background-color, color',
+                                                color: '#ef4444',
+                                                backgroundColor: 'transparent'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                                                e.currentTarget.style.color = '#ef4444';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                                e.currentTarget.style.color = '#ef4444';
+                                            }}
                                             role="menuitem"
                                             aria-label="Logout"
                                         >
@@ -554,12 +581,17 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                 >
                     <div
                         className={`
-              h-[30px] w-[30px] rounded-full border border-[#8d8d8d] flex items-center justify-center text-[#282828] text-[13px] 
+              h-[30px] w-[30px] rounded-full border flex items-center justify-center text-[13px] 
               shrink-0 cursor-pointer transition-all duration-${ANIMATION_DURATION.ICON_HOVER} 
-              hover:bg-[#f7f7f7] focus:outline-none
+              focus:outline-none
             `}
                         title={getUserDisplayName()}
-                        style={{ willChange: 'background-color, transform' }}
+                        style={{ 
+                            willChange: 'background-color, transform',
+                            background: isFirebaseUser ? 'linear-gradient(45deg, var(--brand-start), var(--brand-end))' : 'var(--bg-card-2)',
+                            color: isFirebaseUser ? '#000' : 'var(--muted)',
+                            borderColor: isFirebaseUser ? 'transparent' : 'var(--border)'
+                        }}
                         tabIndex={0}
                         role="button"
                         aria-label={`User: ${getUserDisplayName()}`}
@@ -572,6 +604,16 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                                 }
                             })
                         }
+                        onMouseEnter={(e) => {
+                            if (!isFirebaseUser) {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-softer)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!isFirebaseUser) {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-card-2)';
+                            }
+                        }}
                     >
                         {getUserInitial()}
                     </div>

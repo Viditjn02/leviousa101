@@ -6,7 +6,9 @@ export class ListenView extends LitElement {
     static styles = css`
         :host {
             display: block;
-            width: 400px;
+            width: auto;
+            min-width: 400px;
+            max-width: 600px;
             transform: translate3d(0, 0, 0);
             backface-visibility: hidden;
             transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.2s ease-out;
@@ -540,7 +542,8 @@ export class ListenView extends LitElement {
                 const topBarHeight = topBar.offsetHeight;
                 const contentHeight = activeContent.scrollHeight;
                 const idealHeight = topBarHeight + contentHeight;
-                const targetHeight = Math.min(700, idealHeight);
+                const maxHeight = 700; // Maximum window height like AskView
+                const targetHeight = Math.min(maxHeight, idealHeight);
 
                 // PERFORMANCE OPTIMIZATION: Only adjust if height change is significant (>5px)
                 if (this._lastTargetHeight && Math.abs(targetHeight - this._lastTargetHeight) < 5) {
@@ -549,14 +552,40 @@ export class ListenView extends LitElement {
                 
                 this._lastTargetHeight = targetHeight;
 
+                // If content exceeds max height, enable scrolling in active content
+                if (idealHeight > maxHeight) {
+                    const availableContentHeight = maxHeight - topBarHeight - 20; // Add some padding
+                    if (activeContent.shadowRoot) {
+                        const contentContainer = activeContent.shadowRoot.querySelector('.insights-container') || 
+                                               activeContent.shadowRoot.querySelector('.transcription-container');
+                        if (contentContainer) {
+                            contentContainer.style.maxHeight = `${availableContentHeight}px`;
+                            contentContainer.style.overflowY = 'auto';
+                            contentContainer.style.paddingBottom = '10px';
+                            console.log(`[ListenView] Content exceeds max height. Enabling scroll. Available content height: ${availableContentHeight}px`);
+                        }
+                    }
+                } else {
+                    // Remove scroll if content fits and ensure content is visible
+                    if (activeContent.shadowRoot) {
+                        const contentContainer = activeContent.shadowRoot.querySelector('.insights-container') || 
+                                               activeContent.shadowRoot.querySelector('.transcription-container');
+                        if (contentContainer) {
+                            contentContainer.style.maxHeight = 'none';
+                            contentContainer.style.overflowY = 'visible';
+                            contentContainer.style.paddingBottom = '';
+                        }
+                    }
+                }
+
                 console.log(
-                    `[Height Adjusted] Mode: ${this.viewMode}, TopBar: ${topBarHeight}px, Content: ${contentHeight}px, Ideal: ${idealHeight}px, Target: ${targetHeight}px`
+                    `[ListenView Height Debug] Mode: ${this.viewMode}, TopBar: ${topBarHeight}px, Content: ${contentHeight}px, Ideal: ${idealHeight}px, Target: ${targetHeight}px`
                 );
 
                 window.api.listenView.adjustWindowHeight('listen', targetHeight);
             })
             .catch(error => {
-                console.error('Error in adjustWindowHeight:', error);
+                console.error('Error in ListenView adjustWindowHeight:', error);
             });
     }
 
@@ -627,6 +656,11 @@ export class ListenView extends LitElement {
 
         if (changedProperties.has('viewMode')) {
             this.adjustWindowHeight();
+        }
+        
+        // Also adjust height when other properties change that might affect content size
+        if (changedProperties.has('isSessionActive') || changedProperties.has('hasCompletedRecording')) {
+            setTimeout(() => this.adjustWindowHeight(), 100);
         }
     }
 

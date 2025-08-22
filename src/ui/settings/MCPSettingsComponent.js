@@ -1,4 +1,3 @@
-console.log('🔥🔥🔥 [GOOGLE CALENDAR FIX] LOADING MCPSettingsComponent.js FILE! 🔥🔥🔥');
 import { html, css, LitElement } from '../assets/lit-core-2.7.4.min.js';
 import { unsafeSVG } from 'lit-html/directives/unsafe-svg.js';
 
@@ -1177,16 +1176,73 @@ export class MCPSettingsComponent extends LitElement {
         }
     }
 
-    getServiceLogo(serviceName) {
-        const logos = {
-            'google-drive': `<svg viewBox="0 0 24 24"><path fill="#4285f4" d="M6.4 5.7h13.2L24 12.8L16.8 24H7.2L0 12.8L6.4 5.7z"/><path fill="#34a853" d="M6.4 5.7L0 12.8L7.2 24L16.8 24L24 12.8L19.6 5.7H6.4z"/><path fill="#ea4335" d="M6.4 5.7L0 12.8L7.2 24L13.6 16.2L6.4 5.7z"/><path fill="#fbbc04" d="M19.6 5.7L24 12.8L16.8 24L10.4 16.2L19.6 5.7z"/></svg>`,
-            'github': `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.374 0 0 5.373 0 12 0 17.302 3.438 21.8 8.207 23.387c.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`,
-            'notion': `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933z"/></svg>`,
-            'slack': `<svg viewBox="0 0 24 24"><path fill="#e01e5a" d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/><path fill="#36c5f0" d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"/><path fill="#2eb67d" d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z"/><path fill="#ecb22e" d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"/><path fill="#e01e5a" d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z"/><path fill="#36c5f0" d="M17.688 8.834a2.528 2.528 0 0 1-2.523-2.521 2.527 2.527 0 0 1 2.523-2.521A2.527 2.527 0 0 1 20.21 6.313v6.312a2.528 2.528 0 0 1-2.522 2.523 2.528 2.528 0 0 1-2.523-2.523V8.834z"/><path fill="#2eb67d" d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521z"/><path fill="#ecb22e" d="M15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.526 2.526 a="0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`,
-            'discord': `<svg viewBox="0 0 71 55"><path fill="currentColor" d="M104.4 104.8c-5.7 0-10.2 5-10.2 11.2 0..."/><path fill="currentColor" d="M189.5 20h-134C37.3 20 30 27.5 30 37.5v165c0 10 7.3 17.5 25.5 17.5h113..."/></svg>`,
-            'linkedin': `<svg viewBox="0 0 448 512"><path fill="currentColor" d="M100.28 448H7.4V148.9h92.88zm-46.44-341C24.6 107 0 82..."/></svg>`
+    normalizeServiceName(serviceName) {
+        // Handle different naming conventions between registry and our SVG definitions
+        const nameMap = {
+            'googleCalendar': 'google-calendar',
+            'google_calendar': 'google-calendar', 
+            'googlecalendar': 'google-calendar',
+            'Google Calendar': 'google-calendar',
+            'googleDrive': 'google-drive',
+            'google_drive': 'google-drive',
+            'googledrive': 'google-drive',
+            'Google Drive': 'google-drive',
+            'googleDocs': 'google-docs',
+            'google_docs': 'google-docs',
+            'googledocs': 'google-docs',
+            'Google Docs': 'google-docs',
+            'googleSheets': 'google-sheets',
+            'google_sheets': 'google-sheets',
+            'googlesheets': 'google-sheets',
+            'Google Sheets': 'google-sheets',
+            'googleTasks': 'google-tasks',
+            'google_tasks': 'google-tasks',
+            'googletasks': 'google-tasks',
+            'Google Tasks': 'google-tasks',
+            'Calendly': 'calendly',
+            'Gmail': 'gmail',
+            'GitHub': 'github',
+            'Github': 'github',
+            'Notion': 'notion',
+            'Slack': 'slack',
+            'Discord': 'discord',
+            'LinkedIn': 'linkedin',
+            'Dropbox': 'dropbox',
+            'Salesforce': 'salesforce',
+            'Trello': 'trello',
+            'Microsoft': 'microsoft',
+            'Paragon': 'paragon'
         };
-        return logos[serviceName] || `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>`;
+        
+        return nameMap[serviceName] || serviceName.toLowerCase().replace(/\s+/g, '-');
+    }
+
+    getServiceLogo(serviceName) {
+        // Handle different naming conventions
+        const normalizedName = this.normalizeServiceName(serviceName);
+        console.log(`[MCPSettings] getServiceLogo called with: "${serviceName}", normalized to: "${normalizedName}"`);
+        
+        const logos = {
+            'google': `<svg viewBox="0 0 24 24"><path fill="white" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="white" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="white" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="white" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`,
+            'google-drive': `<svg viewBox="0 0 24 24"><path fill="white" d="M6.4 5.7h13.2L24 12.8L16.8 24H7.2L0 12.8L6.4 5.7z"/><path fill="white" d="M6.4 5.7L0 12.8L7.2 24L16.8 24L24 12.8L19.6 5.7H6.4z"/><path fill="white" d="M6.4 5.7L0 12.8L7.2 24L13.6 16.2L6.4 5.7z"/><path fill="white" d="M19.6 5.7L24 12.8L16.8 24L10.4 16.2L19.6 5.7z"/></svg>`,
+            'google-docs': `<svg viewBox="0 0 24 24"><path fill="white" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>`,
+            'google-sheets': `<svg viewBox="0 0 24 24"><path fill="white" d="M19,3A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H19M19,5H5V19H19V5M14,17V15.5H9.5V17H14M14,13.5V12H9.5V13.5H14M14,10V8.5H9.5V10H14Z"/></svg>`,
+            'google-calendar': `<svg viewBox="0 0 24 24"><path fill="white" d="M6 1v2.5h2V1zm10 0v2.5h2V1zM3 5v16h18V5zm16 2v2H5V7zM5 11h4v4H5zm6 0h4v4h-4zm6 0h2v4h-2zM5 17h4v2H5zm6 0h4v2h-4zm6 0h2v2h-2z"/></svg>`,
+            'google-tasks': `<svg viewBox="0 0 24 24"><path fill="white" d="M19,3H14.82C14.25,1.44 12.53,0.64 11,1.2C10.14,1.5 9.5,2.16 9.18,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5A2,2 0 0,0 19,3M12,3A1,1 0 0,1 13,4A1,1 0 0,1 12,5A1,1 0 0,1 11,4A1,1 0 0,1 12,3M7,7H17V9H7V7M7,11H17V13H7V11M7,15H13V17H7V15Z"/></svg>`,
+            'gmail': `<svg viewBox="0 0 24 24"><path fill="white" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/><path fill="white" d="M0 5.457C0 3.434 2.309 2.28 3.927 3.493L5.455 4.64 12 9.548V16.64L6.545 11.73V3.273H1.636C.732 3.273 0 4.005 0 4.909V5.457z"/><path fill="white" d="M12 9.548L18.545 4.64l1.528-1.145C21.69 2.28 24 3.434 24 5.457V4.909c0-.904-.732-1.636-1.636-1.636H17.455V11.73L12 16.64V9.548z"/></svg>`,
+            'github': `<svg viewBox="0 0 24 24"><path fill="white" d="M12 0C5.374 0 0 5.373 0 12 0 17.302 3.438 21.8 8.207 23.387c.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`,
+            'notion': `<svg viewBox="0 0 24 24"><path fill="white" d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933z"/></svg>`,
+            'slack': `<svg viewBox="0 0 24 24"><path fill="white" d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/><path fill="white" d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z"/><path fill="white" d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z"/><path fill="white" d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z"/><path fill="white" d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z"/><path fill="white" d="M17.688 8.834a2.528 2.528 0 0 1-2.523-2.521 2.527 2.527 0 0 1 2.523-2.521A2.527 2.527 0 0 1 20.21 6.313v6.312a2.528 2.528 0 0 1-2.522 2.523 2.528 2.528 0 0 1-2.523-2.523V8.834z"/><path fill="white" d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.521-2.522v-2.522h2.521z"/><path fill="white" d="M15.165 17.688a2.527 2.527 0 0 1-2.521-2.523 2.527 2.527 0 0 1 2.521-2.521h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>`,
+            'discord': `<svg viewBox="0 0 24 24"><path fill="white" d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.375-.445.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>`,
+            'linkedin': `<svg viewBox="0 0 24 24"><path fill="white" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
+            'dropbox': `<svg viewBox="0 0 24 24"><path fill="white" d="M6 2L12 6L6 10L0 6L6 2ZM18 2L24 6L18 10L12 6L18 2ZM0 14L6 10L12 14L6 18L0 14ZM12 14L18 10L24 14L18 18L12 14ZM6 22L12 18L18 22L12 26L6 22Z"/></svg>`,
+            'salesforce': `<svg viewBox="0 0 24 24"><path fill="white" d="M8.5 10.5C8.5 9.12 9.62 8 11 8s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5S8.5 11.88 8.5 10.5zM16 8c.83 0 1.5.67 1.5 1.5S16.83 11 16 11s-1.5-.67-1.5-1.5S15.17 8 16 8zM8.5 16c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5S8.5 17.38 8.5 16z"/></svg>`,
+            'trello': `<svg viewBox="0 0 24 24"><path fill="white" d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.657 1.343 3 3 3h18c1.657 0 3-1.343 3-3V3c0-1.657-1.343-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.645-1.44-1.44V5.82c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v12.36zm10.44-6c0 .795-.645 1.44-1.44 1.44H15c-.795 0-1.44-.645-1.44-1.44V5.82c0-.795.645-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v6.36z"/></svg>`,
+            'microsoft': `<svg viewBox="0 0 24 24"><path fill="white" d="M0 0h11.377v11.372H0V0z"/><path fill="white" d="M12.623 0H24v11.372H12.623V0z"/><path fill="white" d="M0 12.623h11.377V24H0V12.623z"/><path fill="white" d="M12.623 12.623H24V24H12.623V12.623z"/></svg>`,
+            'calendly': `<svg viewBox="0 0 24 24"><path fill="white" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.568 7.432a7.572 7.572 0 11-11.136 0 .855.855 0 111.568.72 5.862 5.862 0 108.568.72.855.855 0 011.568-.72z"/></svg>`,
+            'paragon': `<svg viewBox="0 0 24 24"><path fill="white" d="M12 2L2 7v10l10 5 10-5V7l-10-5zM12 4.236L19.528 8 12 11.764 4.472 8 12 4.236zM4 9.764L11 13.236v7.528L4 17.236V9.764zm16 0v7.472L13 20.764v-7.528L20 9.764z"/></svg>`
+        };
+        return logos[normalizedName] || logos[serviceName] || `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="white"/></svg>`;
     }
 
     getServiceBrandColor(serviceName) {
@@ -1228,10 +1284,13 @@ export class MCPSettingsComponent extends LitElement {
         const description = service?.description || '';
         const icon = service?.icon;
         
-        // If no icon from registry, use the existing logo method
-        const logo = icon ? 
-            html`<img src="${icon}" alt="${displayName}" style="width: 16px; height: 16px;" />` : 
-            this.getServiceLogo(serviceName);
+        // ALWAYS use inline SVG logos first, ignore external URLs to avoid broken images
+        console.log(`[MCPSettings] Rendering service: "${serviceName}", icon URL: "${icon}"`);
+        const inlineLogo = this.getServiceLogo(serviceName);
+        console.log(`[MCPSettings] Inline logo for "${serviceName}":`, inlineLogo.substring(0, 50) + '...');
+        
+        // Always prefer inline SVG over external URLs
+        const logo = inlineLogo;
         const brandColor = this.getServiceBrandColor(serviceName);
         
         const isConnected = status === 'connected' || status === 'authenticated';
@@ -1242,7 +1301,7 @@ export class MCPSettingsComponent extends LitElement {
             <div class="service-card" title="${description}">
                 <div class="service-info">
                     <div class="service-logo" style="background-color: ${brandColor}20; color: ${brandColor};">
-                        ${icon ? logo : html`<div .innerHTML=${logo}></div>`}
+                        <div .innerHTML=${logo}></div>
                     </div>
                     <div class="service-details">
                         <h4>${displayName}</h4>

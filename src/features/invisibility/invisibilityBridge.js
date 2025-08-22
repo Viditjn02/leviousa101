@@ -664,11 +664,13 @@ function initializeInvisibilityBridge() {
                 console.log(`[InvisibilityBridge] 🌐 Creating OAuth window for Paragon Connect Portal for ${service}`);
                 const { BrowserWindow } = require('electron');
                 
-                // Create a new browser window specifically for Paragon OAuth
+                // Create an independent overlay window specifically for Paragon OAuth (like listen system)
                 const oauthWindow = new BrowserWindow({
                     width: 500,
                     height: 700,
                     show: true,
+                    frame: false, // Frameless like listen overlay
+                    transparent: true, // Transparent like listen overlay
                     webPreferences: {
                         nodeIntegration: false,
                         contextIsolation: true,
@@ -676,8 +678,16 @@ function initializeInvisibilityBridge() {
                         webSecurity: true
                     },
                     title: `Connect ${service}`,
-                    modal: true,
-                    parent: BrowserWindow.getAllWindows()[0]
+                    // Make it independent overlay like listen system
+                    modal: false, // Not modal - independent like listen
+                    parent: undefined, // No parent relationship like listen
+                    alwaysOnTop: true, // Always on top like listen overlay
+                    skipTaskbar: true, // Don't show in taskbar like listen overlay
+                    hasShadow: false,
+                    resizable: true,
+                    minimizable: false,
+                    maximizable: false,
+                    focusable: true
                 });
                 
                 // Set user agent to avoid Electron detection by Paragon Connect Portal
@@ -689,8 +699,69 @@ function initializeInvisibilityBridge() {
                 console.log(`[InvisibilityBridge] 🔧 Original UA: ${originalUserAgent}`);
                 console.log(`[InvisibilityBridge] 🔧 Modified UA: ${chromeUserAgent}`);
                 
+                // Set up window close on Escape key like listen overlay
+                oauthWindow.webContents.on('before-input-event', (event, input) => {
+                    if (input.key === 'Escape' && input.type === 'keyDown') {
+                        oauthWindow.close();
+                    }
+                });
+                
                 // Load the Paragon Connect Portal
                 oauthWindow.loadURL(authUrl);
+                
+                // Add custom close button after page loads
+                oauthWindow.webContents.once('did-finish-load', () => {
+                    oauthWindow.webContents.executeJavaScript(`
+                        // Create close button container
+                        const closeBtn = document.createElement('div');
+                        closeBtn.id = 'leviousa-close-btn';
+                        closeBtn.innerHTML = '✕';
+                        closeBtn.style.cssText = \`
+                            position: fixed !important;
+                            top: 15px !important;
+                            right: 15px !important;
+                            width: 32px !important;
+                            height: 32px !important;
+                            background: rgba(0, 0, 0, 0.8) !important;
+                            color: white !important;
+                            border: none !important;
+                            border-radius: 50% !important;
+                            cursor: pointer !important;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            font-size: 16px !important;
+                            font-weight: bold !important;
+                            z-index: 999999 !important;
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+                            transition: all 0.2s ease !important;
+                        \`;
+                        
+                        // Add hover effects
+                        closeBtn.addEventListener('mouseenter', () => {
+                            closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
+                            closeBtn.style.transform = 'scale(1.1)';
+                        });
+                        
+                        closeBtn.addEventListener('mouseleave', () => {
+                            closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
+                            closeBtn.style.transform = 'scale(1)';
+                        });
+                        
+                        // Close window when clicked
+                        closeBtn.addEventListener('click', () => {
+                            window.electronAPI?.closeWindow?.() || window.close();
+                        });
+                        
+                        // Append to body
+                        document.body.appendChild(closeBtn);
+                        
+                        console.log('[Leviousa] Close button added to OAuth popup window');
+                    `).catch(err => {
+                        console.error('[InvisibilityBridge] Failed to inject close button:', err);
+                    });
+                });
                 
                 // Handle the OAuth callback by listening for navigation to callback URL
                 oauthWindow.webContents.on('will-navigate', (event, navigationUrl) => {
@@ -1578,17 +1649,92 @@ function initializeInvisibilityBridge() {
                                   width: 1200,
                                   height: 800,
                                   show: true,
+                                  frame: false, // Frameless like listen overlay
+                                  transparent: true, // Transparent like listen overlay
                                   webPreferences: {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
                                     nodeIntegration: false,
                                     // CRITICAL: Use the same session as main app to get CSP patches
                                     session: session.defaultSession
-                                  }
+                                  },
+                                  // Make it independent overlay like listen system
+                                  modal: false, // Not modal - independent like listen
+                                  parent: undefined, // No parent relationship like listen
+                                  alwaysOnTop: true, // Always on top like listen overlay
+                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
+                                  hasShadow: false,
+                                  resizable: true,
+                                  minimizable: false,
+                                  maximizable: false,
+                                  focusable: true,
+                                  title: `Connect ${serviceKey} - Leviousa`
+                                });
+                                
+                                // Set up window close on Escape key like listen overlay
+                                connectWin.webContents.on('before-input-event', (event, input) => {
+                                    if (input.key === 'Escape' && input.type === 'keyDown') {
+                                        connectWin.close();
+                                    }
                                 });
                                 
                                 console.log(`[InvisibilityBridge] 🔧 Connect window using session with CSP patches`);
                                 await connectWin.loadURL(integrationsUrl);
+                                
+                                // Add custom close button after page loads
+                                connectWin.webContents.once('did-finish-load', () => {
+                                    connectWin.webContents.executeJavaScript(`
+                                        // Create close button container
+                                        const closeBtn = document.createElement('div');
+                                        closeBtn.id = 'leviousa-close-btn';
+                                        closeBtn.innerHTML = '✕';
+                                        closeBtn.style.cssText = \`
+                                            position: fixed !important;
+                                            top: 15px !important;
+                                            right: 15px !important;
+                                            width: 32px !important;
+                                            height: 32px !important;
+                                            background: rgba(0, 0, 0, 0.8) !important;
+                                            color: white !important;
+                                            border: none !important;
+                                            border-radius: 50% !important;
+                                            cursor: pointer !important;
+                                            display: flex !important;
+                                            align-items: center !important;
+                                            justify-content: center !important;
+                                            font-size: 16px !important;
+                                            font-weight: bold !important;
+                                            z-index: 999999 !important;
+                                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+                                            transition: all 0.2s ease !important;
+                                        \`;
+                                        
+                                        // Add hover effects
+                                        closeBtn.addEventListener('mouseenter', () => {
+                                            closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
+                                            closeBtn.style.transform = 'scale(1.1)';
+                                        });
+                                        
+                                        closeBtn.addEventListener('mouseleave', () => {
+                                            closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
+                                            closeBtn.style.transform = 'scale(1)';
+                                        });
+                                        
+                                        // Close window when clicked
+                                        closeBtn.addEventListener('click', () => {
+                                            window.electronAPI?.closeWindow?.() || window.close();
+                                        });
+                                        
+                                        // Append to body
+                                        document.body.appendChild(closeBtn);
+                                        
+                                        console.log('[Leviousa] Close button added to integration popup window');
+                                    `).catch(err => {
+                                        console.error('[InvisibilityBridge] Failed to inject close button:', err);
+                                    });
+                                });
+                                
                                 console.log(`[InvisibilityBridge] ✅ Dedicated window opened successfully`);
 
                             return {
@@ -1635,17 +1781,92 @@ function initializeInvisibilityBridge() {
                                   width: 1200,
                                   height: 800,
                                   show: true,
+                                  frame: false, // Frameless like listen overlay
+                                  transparent: true, // Transparent like listen overlay
                                   webPreferences: {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
                                     nodeIntegration: false,
                                     // CRITICAL: Use the same session as main app to get CSP patches
                                     session: session.defaultSession
-                                  }
+                                  },
+                                  // Make it independent overlay like listen system
+                                  modal: false, // Not modal - independent like listen
+                                  parent: undefined, // No parent relationship like listen
+                                  alwaysOnTop: true, // Always on top like listen overlay
+                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
+                                  hasShadow: false,
+                                  resizable: true,
+                                  minimizable: false,
+                                  maximizable: false,
+                                  focusable: true,
+                                  title: `Connect ${serviceKey} - Leviousa`
+                                });
+                                
+                                // Set up window close on Escape key like listen overlay
+                                connectWin.webContents.on('before-input-event', (event, input) => {
+                                    if (input.key === 'Escape' && input.type === 'keyDown') {
+                                        connectWin.close();
+                                    }
                                 });
                                 
                                 console.log(`[InvisibilityBridge] 🔧 Connect window using session with CSP patches`);
                                 await connectWin.loadURL(integrationsUrl);
+                                
+                                // Add custom close button after page loads
+                                connectWin.webContents.once('did-finish-load', () => {
+                                    connectWin.webContents.executeJavaScript(`
+                                        // Create close button container
+                                        const closeBtn = document.createElement('div');
+                                        closeBtn.id = 'leviousa-close-btn';
+                                        closeBtn.innerHTML = '✕';
+                                        closeBtn.style.cssText = \`
+                                            position: fixed !important;
+                                            top: 15px !important;
+                                            right: 15px !important;
+                                            width: 32px !important;
+                                            height: 32px !important;
+                                            background: rgba(0, 0, 0, 0.8) !important;
+                                            color: white !important;
+                                            border: none !important;
+                                            border-radius: 50% !important;
+                                            cursor: pointer !important;
+                                            display: flex !important;
+                                            align-items: center !important;
+                                            justify-content: center !important;
+                                            font-size: 16px !important;
+                                            font-weight: bold !important;
+                                            z-index: 999999 !important;
+                                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+                                            transition: all 0.2s ease !important;
+                                        \`;
+                                        
+                                        // Add hover effects
+                                        closeBtn.addEventListener('mouseenter', () => {
+                                            closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
+                                            closeBtn.style.transform = 'scale(1.1)';
+                                        });
+                                        
+                                        closeBtn.addEventListener('mouseleave', () => {
+                                            closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
+                                            closeBtn.style.transform = 'scale(1)';
+                                        });
+                                        
+                                        // Close window when clicked
+                                        closeBtn.addEventListener('click', () => {
+                                            window.electronAPI?.closeWindow?.() || window.close();
+                                        });
+                                        
+                                        // Append to body
+                                        document.body.appendChild(closeBtn);
+                                        
+                                        console.log('[Leviousa] Close button added to integration popup window');
+                                    `).catch(err => {
+                                        console.error('[InvisibilityBridge] Failed to inject close button:', err);
+                                    });
+                                });
+                                
                                 console.log(`[InvisibilityBridge] ✅ Dedicated window opened successfully`);
 
                             return {

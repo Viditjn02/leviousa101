@@ -34,6 +34,9 @@ async function handleAppExit(signal) {
             await global.invisibilityService.shutdown();
         }
         
+        // Shutdown PostHog service
+        await posthogService.shutdown();
+        
         console.log('[GlobalShutdown] Cleanup complete');
     } catch (error) {
         console.error('[GlobalShutdown] Error during cleanup:', error);
@@ -74,10 +77,12 @@ const modelStateService = require('./features/common/services/modelStateService'
 const featureBridge = require('./bridge/featureBridge');
 const windowBridge = require('./bridge/windowBridge');
 const leviousaBridge = require('./bridge/leviousaBridge');
+const posthogService = require('./features/common/services/posthogService');
 
 // Set up global services for voice agent dependencies
 global.listenService = listenService;
 global.askService = askService;
+global.posthogService = posthogService;
 
 // Global variables
 const eventBridge = new EventEmitter();
@@ -486,6 +491,10 @@ app.whenReady().then(async () => {
 
     // Initialize core services
     await initializeFirebase();
+    
+    // Initialize PostHog analytics
+    await posthogService.initialize();
+    console.log('>>> [index.js] PostHog service initialized successfully');
     
     try {
         await databaseInitializer.initialize();

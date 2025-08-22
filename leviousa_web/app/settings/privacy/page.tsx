@@ -1,6 +1,7 @@
 'use client'
 
 import { ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
 
 function PrivacySettingsPageContent() {
@@ -12,27 +13,27 @@ function PrivacySettingsPageContent() {
   ]
 
   return (
-    <div className="bg-stone-50 min-h-screen">
+    <div className="min-h-screen" style={{background: 'var(--bg)'}}>
       <div className="px-8 py-8">
         <div className="mb-6">
-          <p className="text-xs text-gray-500 mb-1">Settings</p>
-          <h1 className="text-3xl font-bold text-gray-900">Personal settings</h1>
+          <p className="text-xs mb-1" style={{color: 'var(--muted)'}}>Settings</p>
+          <h1 className="text-3xl font-bold brand-gradient">Personal settings</h1>
         </div>
         
         <div className="mb-8">
           <nav className="flex space-x-10">
             {tabs.map((tab) => (
-              <a
+              <Link
                 key={tab.id}
                 href={tab.href}
-                className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
-                  tab.id === 'privacy'
-                    ? 'border-gray-900 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors`}
+                style={{
+                  borderBottomColor: tab.id === 'privacy' ? 'var(--brand-start)' : 'transparent',
+                  color: tab.id === 'privacy' ? 'var(--text)' : 'var(--muted)'
+                }}
               >
                 {tab.name}
-              </a>
+              </Link>
             ))}
           </nav>
         </div>

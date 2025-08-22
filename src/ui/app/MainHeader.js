@@ -5,6 +5,7 @@ export class MainHeader extends LitElement {
         isTogglingSession: { type: Boolean, state: true },
         shortcuts: { type: Object, state: true },
         listenSessionStatus: { type: String, state: true },
+        isBrowserWindowOpen: { type: Boolean, state: true },
     };
 
     static styles = css`
@@ -41,17 +42,19 @@ export class MainHeader extends LitElement {
         .header {
             -webkit-app-region: drag;
             width: max-content;
+            min-width: 349px; /* Optimized width for globe icon */
             height: 47px;
-            padding: 2px 10px 2px 13px;
+            padding: 2px 10px 2px 13px; /* Back to original padding */
             background: transparent;
             overflow: hidden;
             border-radius: 9000px;
             /* backdrop-filter: blur(1px); */
-            justify-content: space-between;
+            justify-content: flex-start; /* Changed to flex-start to keep buttons close */
             align-items: center;
             display: inline-flex;
             box-sizing: border-box;
             position: relative;
+            gap: 2px; /* Very small gap between all elements */
         }
 
         .header::before {
@@ -194,9 +197,9 @@ export class MainHeader extends LitElement {
             box-sizing: border-box;
             justify-content: flex-start;
             align-items: center;
-            gap: 9px;
+            gap: 4px; /* Further reduced gap to 4px */
             display: flex;
-            padding: 0 8px;
+            padding: 0 4px; /* Further reduced padding to 4px */
             border-radius: 6px;
             transition: background 0.15s ease;
         }
@@ -206,7 +209,7 @@ export class MainHeader extends LitElement {
         }
 
         .ask-action {
-            margin-left: 4px;
+            margin-left: 0px; /* Removed margin to keep buttons as close as possible */
         }
 
         .action-button,
@@ -248,13 +251,13 @@ export class MainHeader extends LitElement {
 
         .icon-box {
             color: white;
-            font-size: 12px;
+            font-size: 11px; /* Reduced font size from 12px to 11px to save space */
             font-family: 'Helvetica Neue', sans-serif;
             font-weight: 500;
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: 13%;
-            width: 18px;
-            height: 18px;
+            width: 16px; /* Reduced width from 18px to 16px */
+            height: 16px; /* Reduced height from 18px to 16px */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -262,7 +265,7 @@ export class MainHeader extends LitElement {
 
         .settings-button {
             -webkit-app-region: no-drag;
-            padding: 5px;
+            padding: 4px;
             border-radius: 50%;
             background: transparent;
             transition: background 0.15s ease;
@@ -271,7 +274,8 @@ export class MainHeader extends LitElement {
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            margin: 0; /* Removed margin to keep buttons closer */
         }
 
         .settings-button:hover {
@@ -289,11 +293,51 @@ export class MainHeader extends LitElement {
             width: 16px;
             height: 16px;
         }
+        
+        .browser-button {
+            -webkit-app-region: no-drag;
+            padding: 4px;
+            border-radius: 50%;
+            background: transparent;
+            transition: background 0.15s ease;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0 0 0 3px; /* 3px left margin to move browser icon right */
+        }
+
+        .browser-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .browser-button.active {
+            background: rgba(34, 139, 34, 0.3);
+        }
+        
+        .browser-button.active:hover {
+            background: rgba(34, 139, 34, 0.4);
+        }
+
+        .browser-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px;
+        }
+
+        .browser-icon svg {
+            width: 16px;
+            height: 16px;
+        }
         /* ────────────────[ GLASS BYPASS ]─────────────── */
         :host-context(body.has-glass) .header,
         :host-context(body.has-glass) .listen-button,
         :host-context(body.has-glass) .header-actions,
-        :host-context(body.has-glass) .settings-button {
+        :host-context(body.has-glass) .settings-button,
+        :host-context(body.has-glass) .browser-button {
             background: transparent !important;
             filter: none !important;
             box-shadow: none !important;
@@ -313,6 +357,7 @@ export class MainHeader extends LitElement {
 
         :host-context(body.has-glass) .header-actions:hover,
         :host-context(body.has-glass) .settings-button:hover,
+        :host-context(body.has-glass) .browser-button:hover,
         :host-context(body.has-glass) .listen-button:hover::before {
             background: transparent !important;
         }
@@ -329,6 +374,7 @@ export class MainHeader extends LitElement {
         :host-context(body.has-glass) .listen-button,
         :host-context(body.has-glass) .header-actions,
         :host-context(body.has-glass) .settings-button,
+        :host-context(body.has-glass) .browser-button,
         :host-context(body.has-glass) .icon-box {
             border-radius: 0 !important;
         }
@@ -355,6 +401,7 @@ export class MainHeader extends LitElement {
         this.handleMouseUp = this.handleMouseUp.bind(this);
         this.dragState = null;
         this.wasJustDragged = false;
+        this.isBrowserWindowOpen = false;
     }
 
     _getListenButtonText(status) {
@@ -493,6 +540,20 @@ export class MainHeader extends LitElement {
             };
             window.api.mainHeader.onShortcutsUpdated(this._shortcutListener);
         }
+        
+        // Listen for browser window close events to update globe icon
+        this._browserCloseListener = (event) => {
+            if (event.data && event.data.type === 'browser-window-closed') {
+                this.isBrowserWindowOpen = false;
+                this.requestUpdate();
+                console.log('[MainHeader] Globe icon updated - browser window closed');
+            }
+        };
+        
+        // Add event listener for browser close
+        if (typeof window !== 'undefined') {
+            window.addEventListener('message', this._browserCloseListener);
+        }
     }
 
     disconnectedCallback() {
@@ -511,6 +572,11 @@ export class MainHeader extends LitElement {
             if (this._shortcutListener) {
                 window.api.mainHeader.removeOnShortcutsUpdated(this._shortcutListener);
             }
+        }
+        
+        // Clean up browser close listener
+        if (this._browserCloseListener && typeof window !== 'undefined') {
+            window.removeEventListener('message', this._browserCloseListener);
         }
     }
 
@@ -571,6 +637,23 @@ export class MainHeader extends LitElement {
             }
         } catch (error) {
             console.error('IPC invoke for all windows visibility button failed:', error);
+        }
+    }
+
+    async _handleBrowserToggle() {
+        if (this.wasJustDragged) return;
+
+        try {
+            if (window.api) {
+                const result = await window.api.mainHeader.sendBrowserToggle();
+                if (result && typeof result.isOpen === 'boolean') {
+                    this.isBrowserWindowOpen = result.isOpen;
+                    this.requestUpdate();
+                    console.log('[MainHeader] Browser toggle result:', result.isOpen);
+                }
+            }
+        } catch (error) {
+            console.error('IPC invoke for browser toggle failed:', error);
         }
     }
 
@@ -659,6 +742,33 @@ export class MainHeader extends LitElement {
                         ${this.renderShortcut(this.shortcuts.toggleVisibility)}
                     </div>
                 </div>
+
+                <button 
+                    class="browser-button ${this.isBrowserWindowOpen ? 'active' : ''}"
+                    @click=${() => this._handleBrowserToggle()}
+                    title="${this.isBrowserWindowOpen ? 'Close Browser Window' : 'Open Browser Window'}"
+                >
+                    <div class="browser-icon">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <!-- Professional globe design inspired by modern icon libraries -->
+                            <!-- Outer circle (globe) -->
+                            <circle cx="8" cy="8" r="7" stroke="white" stroke-width="1.2" fill="none"/>
+                            
+                            <!-- Vertical meridian lines -->
+                            <path d="M8 1 C5.5 4 5.5 12 8 15" stroke="white" stroke-width="0.8" fill="none"/>
+                            <path d="M8 1 C10.5 4 10.5 12 8 15" stroke="white" stroke-width="0.8" fill="none"/>
+                            
+                            <!-- Horizontal latitude lines -->
+                            <ellipse cx="8" cy="5" rx="6" ry="1.5" stroke="white" stroke-width="0.6" fill="none"/>
+                            <ellipse cx="8" cy="8" rx="7" ry="0.8" stroke="white" stroke-width="0.8" fill="none"/>
+                            <ellipse cx="8" cy="11" rx="6" ry="1.5" stroke="white" stroke-width="0.6" fill="none"/>
+                            
+                            <!-- Simple continent shapes for visual appeal -->
+                            <path d="M3 6 Q4 5 5 6 Q6 7 5 8 Q4 9 3 8 Z" fill="white" opacity="0.4"/>
+                            <path d="M11 7 Q12 6 13 7 Q12.5 8 12 9 Q11.5 8.5 11 7 Z" fill="white" opacity="0.4"/>
+                        </svg>
+                    </div>
+                </button>
 
                 <button 
                     class="settings-button"

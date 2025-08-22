@@ -1,6 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/utils/auth'
+import { PostHogProvider } from '@/components/PostHogProvider'
 import '@/utils/urlParams'  // Initialize URL parameter preservation
 
 const inter = Inter({ subsets: ['latin'] })
@@ -18,9 +19,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <PostHogProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </PostHogProvider>
       </body>
     </html>
   )

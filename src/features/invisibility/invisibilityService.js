@@ -585,12 +585,37 @@ class InvisibilityService extends EventEmitter {
                                     console.log('[InvisibilityService] ❌ HumanTyper not available - cannot use fallback typing');
                                     return;
                                 }
-                                await this.humanTyper.typeText(result.answer, {
-                                    humanLike: false,
-                                    includeErrors: false,
-                                    includeBackspacing: false
-                                });
-                                console.log('[InvisibilityService] ✅ Answer typed successfully via HumanTyper fallback');
+                                
+                                // CRITICAL FIX: Ensure focus remains on original target application before fallback typing
+                                const originalApp = inputField.application || 'Unknown';
+                                console.log(`[InvisibilityService] 🎯 Re-focusing original target application: ${originalApp}`);
+                                
+                                try {
+                                    // Re-focus the original application
+                                    await this.fieldFinder.focusApplication(originalApp);
+                                    
+                                    // Re-focus the specific field if possible
+                                    const refocusSuccess = await this.fieldFinder.focusField(inputField);
+                                    if (refocusSuccess) {
+                                        console.log(`[InvisibilityService] ✅ Successfully re-focused original target field in ${originalApp}`);
+                                    } else {
+                                        console.log(`[InvisibilityService] ⚠️ Could not re-focus original field, but application ${originalApp} is active`);
+                                    }
+                                    
+                                    // Wait a moment for focus to stabilize
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                    
+                                    await this.humanTyper.typeText(result.answer, {
+                                        humanLike: false,
+                                        includeErrors: false,
+                                        includeBackspacing: false
+                                    });
+                                    console.log('[InvisibilityService] ✅ Answer typed successfully via HumanTyper fallback');
+                                } catch (focusError) {
+                                    console.error(`[InvisibilityService] ❌ Failed to re-focus original target ${originalApp}:`, focusError);
+                                    console.log('[InvisibilityService] ⚠️ Skipping fallback typing to prevent typing in wrong application');
+                                    return;
+                                }
                             }
                         }
                         

@@ -255,6 +255,8 @@ contextBridge.exposeInMainWorld('api', {
     sendListenButtonClick: (listenButtonText) => ipcRenderer.invoke('listen:changeSession', listenButtonText),
     sendAskButtonClick: () => ipcRenderer.invoke('ask:toggleAskButton'),
     sendToggleAllWindowsVisibility: () => ipcRenderer.invoke('shortcut:toggleAllWindowsVisibility'),
+    sendBrowserToggle: () => ipcRenderer.invoke('main-header:browser-toggle'),
+    sendBrowserNavigate: (url) => ipcRenderer.invoke('main-header:browser-navigate', url),
     
     // Listeners
     onListenChangeSessionResult: (callback) => ipcRenderer.on('listen:changeSessionResult', callback),
@@ -630,7 +632,23 @@ contextBridge.exposeInMainWorld('paragonSDK', {
 // Expose ElectronAPI for Paragon SDK integration
 contextBridge.exposeInMainWorld('electronAPI', {
   getParagonCredentials: (userId) => ipcRenderer.invoke('paragon:getCredentials', userId),
-  callMCPTool: (tool, args) => ipcRenderer.invoke('mcp:callTool', tool, args)
+  callMCPTool: (tool, args) => ipcRenderer.invoke('mcp:callTool', tool, args),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  // BrowserView controls for advanced browser functionality
+  navigateBrowserView: (url) => ipcRenderer.invoke('main-header:browser-navigate', url),
+  browserViewGoBack: () => ipcRenderer.invoke('browser-view:go-back'),
+  browserViewGoForward: () => ipcRenderer.invoke('browser-view:go-forward'),
+  browserViewReload: () => ipcRenderer.invoke('browser-view:reload'),
+  positionBrowserView: () => ipcRenderer.invoke('browser-view:position'),
+  setBrowserWindowOpacity: (opacity) => ipcRenderer.invoke('browser-window:set-opacity', opacity),
+  createNewTab: () => ipcRenderer.invoke('browser-tabs:create-new'),
+  createNewTabWithUrl: (url, title) => ipcRenderer.invoke('browser-tabs:create-new-with-url', url, title),
+  switchTab: (tabId) => ipcRenderer.invoke('browser-tabs:switch', tabId),
+  switchTabByIndex: (tabIndex) => ipcRenderer.invoke('browser-tabs:switch-by-index', tabIndex),
+  closeTab: (tabId) => ipcRenderer.invoke('browser-tabs:close', tabId),
+  closeTabByIndex: (tabIndex) => ipcRenderer.invoke('browser-tabs:close-by-index', tabIndex),
+  updateTabUI: () => ipcRenderer.invoke('browser-tabs:update-ui'),
+  resizeBrowserWindow: (deltaWidth, deltaHeight) => ipcRenderer.invoke('browser-window:resize', deltaWidth, deltaHeight)
 });
 
 // OAuth server management for MCP

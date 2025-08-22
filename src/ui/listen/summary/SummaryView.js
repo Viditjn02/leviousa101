@@ -721,7 +721,18 @@ export class SummaryView extends LitElement {
             summary: [],
             topic: { header: '', bullets: [] },
             actions: [],
+            followUps: []
         };
+        
+        // Ensure actions are always available, even if empty from data
+        if (!data.actions || data.actions.length === 0) {
+            data.actions = ['✨ What should I say next?', '💬 Suggest follow-up questions'];
+        }
+        
+        // Ensure followUps are available when recording is completed
+        if (this.hasCompletedRecording && (!data.followUps || data.followUps.length === 0)) {
+            data.followUps = ['✉️ Draft a follow-up email', '✅ Generate action items', '📝 Show summary'];
+        }
 
         const hasAnyContent = data.summary.length > 0 || data.topic.bullets.length > 0 || data.actions.length > 0;
 
@@ -766,31 +777,19 @@ export class SummaryView extends LitElement {
                                       )}
                               `
                             : ''}
-                        ${data.actions.length > 0
+                        ${data.actions.length > 0 || this.hasCompletedRecording
                             ? html`
                                   <insights-title>Actions</insights-title>
                                   <mcp-action-bar
                                       .context=${{
-                                          type: 'listen-summary',
+                                          type: this.hasCompletedRecording ? 'listen-complete' : 'listen-summary',
                                           summary: this.getSummaryText(),
                                           structuredData: this.structuredData,
                                           sessionType: 'listen',
-                                          message: 'Meeting completed',
-                                          response: this.getSummaryText()
-                                      }}
-                                      @mcp-action=${this.handleMCPAction}
-                                  ></mcp-action-bar>
-                              `
-                            : ''}
-                        ${this.hasCompletedRecording && data.followUps && data.followUps.length > 0
-                            ? html`
-                                  <insights-title>Actions</insights-title>
-                                  <mcp-action-bar
-                                      .context=${{
-                                          type: 'listen-complete',
-                                          summary: this.getSummaryText(),
-                                          structuredData: this.structuredData,
-                                          sessionType: 'listen'
+                                          message: this.hasCompletedRecording ? 'Meeting completed' : 'Live insights',
+                                          response: this.getSummaryText(),
+                                          actions: data.actions || [],
+                                          followUps: data.followUps || []
                                       }}
                                       @mcp-action=${this.handleMCPAction}
                                   ></mcp-action-bar>

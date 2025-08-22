@@ -83,7 +83,7 @@
         "workspace"
       ],
       "documentation": "https://developers.google.com/workspace",
-      "icon": "https://developers.google.com/identity/images/g-logo.png"
+      "icon": "https://cdn.simpleicons.org/google/4285F4"
     },
     "notion": {
       "name": "Notion",
@@ -121,7 +121,7 @@
         "content"
       ],
       "documentation": "https://developers.notion.com/docs/getting-started",
-      "icon": "https://www.notion.so/images/favicon.ico"
+      "icon": "https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png"
     },
     "slack": {
       "name": "Slack",
@@ -172,7 +172,7 @@
         "search"
       ],
       "documentation": "https://api.slack.com/authentication/oauth-v2",
-      "icon": "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+      "icon": "https://cdn.simpleicons.org/slack/4A154B"
     },
     "github": {
       "name": "GitHub",
@@ -215,7 +215,7 @@
         "actions"
       ],
       "documentation": "https://docs.github.com/en/developers/apps/building-oauth-apps",
-      "icon": "https://github.githubassets.com/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/github/181717"
     },
     "google-drive": {
       "name": "Google Drive",
@@ -257,7 +257,7 @@
         "sharing"
       ],
       "documentation": "https://developers.google.com/drive/api/v3/about-auth",
-      "icon": "https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png"
+      "icon": "https://cdn.simpleicons.org/googledrive/4285F4"
     },
     "google-docs": {
       "name": "Google Docs",
@@ -301,7 +301,7 @@
         "collaboration"
       ],
       "documentation": "https://developers.google.com/docs/api/how-tos/authorizing",
-      "icon": "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico"
+      "icon": "https://cdn.simpleicons.org/googledocs/4285F4"
     },
     "gmail": {
       "name": "Gmail",
@@ -350,7 +350,7 @@
         "threads"
       ],
       "documentation": "https://developers.google.com/gmail/api/auth/scopes",
-      "icon": "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"
+      "icon": "https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg"
     },
     "google-calendar": {
       "name": "Google Calendar",
@@ -396,7 +396,7 @@
         "invitations"
       ],
       "documentation": "https://developers.google.com/calendar/api/auth",
-      "icon": "https://calendar.google.com/googlecalendar/images/favicons_2020q4/calendar_31.ico"
+      "icon": "https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg"
     },
     "google-sheets": {
       "name": "Google Sheets",
@@ -440,7 +440,7 @@
         "collaboration"
       ],
       "documentation": "https://developers.google.com/sheets/api/guides/authorizing",
-      "icon": "https://ssl.gstatic.com/docs/spreadsheets/favicon_jfk2.png"
+      "icon": "https://cdn.simpleicons.org/googlesheets/34A853"
     },
     "google-tasks": {
       "name": "Google Tasks",
@@ -482,7 +482,7 @@
         "completion-tracking"
       ],
       "documentation": "https://developers.google.com/tasks/auth",
-      "icon": "https://ssl.gstatic.com/tasks/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/googletasks/4285F4"
     },
     "dropbox": {
       "name": "Dropbox",
@@ -528,7 +528,7 @@
         "sync"
       ],
       "documentation": "https://www.dropbox.com/developers/documentation/http/documentation#oauth2-authorize",
-      "icon": "https://cfl.dropboxstatic.com/static/images/favicon-vflk5FiAC.ico"
+      "icon": "https://cdn.simpleicons.org/dropbox/0061FF"
     },
     "microsoft-graph": {
       "name": "Microsoft Graph",
@@ -578,7 +578,7 @@
         "calendar"
       ],
       "documentation": "https://docs.microsoft.com/en-us/graph/auth-overview",
-      "icon": "https://c.s-microsoft.com/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/microsoft/5E5E5E"
     },
     "salesforce": {
       "name": "Salesforce",
@@ -623,7 +623,7 @@
         "opportunities"
       ],
       "documentation": "https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_web_server_flow.htm",
-      "icon": "https://c1.sfdcstatic.com/content/dam/web/en_us/www/images/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/salesforce/00A1E0"
     },
     "discord": {
       "name": "Discord",
@@ -671,7 +671,7 @@
         "channels"
       ],
       "documentation": "https://discord.com/developers/docs/topics/oauth2",
-      "icon": "https://discord.com/assets/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/discord/5865F2"
     },
     "linkedin": {
       "name": "LinkedIn", 
@@ -723,7 +723,7 @@
         "company_following"
       ],
       "documentation": "https://docs.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow",
-      "icon": "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca"
+      "icon": "https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png"
     },
     "trello": {
       "name": "Trello",
@@ -770,7 +770,7 @@
         "organizations"
       ],
       "documentation": "https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/",
-      "icon": "https://trello.com/favicon.ico"
+      "icon": "https://cdn.simpleicons.org/trello/0052CC"
     },
     "paragon": {
       "name": "Paragon MCP",

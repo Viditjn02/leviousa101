@@ -106,6 +106,16 @@ export class MCPActionBar extends LitElement {
 
   async connectedCallback() {
     super.connectedCallback();
+    
+    // Show built-in actions immediately if available
+    const builtInActions = this.getBuiltInActions();
+    if (builtInActions.length > 0) {
+      this.actions = builtInActions;
+      this.requestUpdate();
+      console.log(`[MCPActionBar] Showing ${builtInActions.length} built-in actions immediately`);
+    }
+    
+    // Then try to load MCP actions (these may replace or supplement built-in actions)
     await this.loadContextualActions();
   }
 
@@ -118,34 +128,92 @@ export class MCPActionBar extends LitElement {
     try {
       // Get contextual actions from the LLM-based MCP UI Integration Service
       const result = await window.api.mcp.getContextualActions({
-        type: 'ask',
+        type: this.context.type || 'ask',
         message: this.context.message || '',
         history: this.context.history || [],
-        response: this.context.response || ''
+        response: this.context.response || '',
+        ...this.context // Pass through all context properties
       });
 
       if (result.success && result.actions) {
         this.actions = result.actions;
         console.log(`[MCPActionBar] Loaded ${this.actions.length} contextual actions via LLM classification`);
       } else {
-        this.actions = [];
+        // Fallback to built-in actions from context if MCP actions aren't available
+        this.actions = this.getBuiltInActions();
+        console.log(`[MCPActionBar] Using ${this.actions.length} built-in actions as fallback`);
         if (result.error) {
-          console.warn(`[MCPActionBar] Failed to load actions: ${result.error}`);
+          console.warn(`[MCPActionBar] Failed to load MCP actions: ${result.error}`);
         }
       }
     } catch (error) {
       console.error('[MCPActionBar] Error loading contextual actions:', error);
-      this.actions = [];
+      // Fallback to built-in actions if there's an error
+      this.actions = this.getBuiltInActions();
+      console.log(`[MCPActionBar] Using ${this.actions.length} built-in actions due to error`);
     } finally {
       this.isLoading = false;
       this.requestUpdate(); // Trigger re-render with results
     }
   }
 
+  /**
+   * Get built-in actions from context as fallback when MCP actions aren't available
+   */
+  getBuiltInActions() {
+    const builtInActions = [];
+    
+    // Use actions from context if available
+    if (this.context.actions && Array.isArray(this.context.actions)) {
+      this.context.actions.forEach((action, index) => {
+        builtInActions.push({
+          id: `builtin-action-${index}`,
+          label: action,
+          type: 'builtin.action',
+          confidence: 0.9,
+          autoTrigger: false,
+          isBuiltIn: true
+        });
+      });
+    }
+    
+    // Use followUps from context if available and recording completed
+    if (this.context.followUps && Array.isArray(this.context.followUps)) {
+      this.context.followUps.forEach((followUp, index) => {
+        builtInActions.push({
+          id: `builtin-followup-${index}`,
+          label: followUp,
+          type: 'builtin.followup',
+          confidence: 0.8,
+          autoTrigger: false,
+          isBuiltIn: true
+        });
+      });
+    }
+    
+    return builtInActions;
+  }
+
   async handleActionClick(action) {
     console.log('[MCPActionBar] Action clicked:', action);
     
-    // Emit event for parent to handle
+    // Handle built-in actions differently
+    if (action.isBuiltIn) {
+      console.log('[MCPActionBar] Built-in action clicked, sending to ask service:', action.label);
+      
+      // Send built-in actions to the ask service for processing
+      if (window.api?.summaryView?.sendQuestionFromSummary) {
+        try {
+          await window.api.summaryView.sendQuestionFromSummary(action.label);
+          console.log('[MCPActionBar] Built-in action sent successfully');
+        } catch (error) {
+          console.error('[MCPActionBar] Error sending built-in action:', error);
+        }
+      }
+      return;
+    }
+    
+    // Emit event for parent to handle MCP actions
     this.dispatchEvent(new CustomEvent('mcp-action', {
       detail: { action },
       bubbles: true,
@@ -194,6 +262,15 @@ export class MCPActionBar extends LitElement {
   // Add lifecycle hook to reload actions on context change
   updated(changedProps) {
     if (changedProps.has('context')) {
+      // Show built-in actions immediately if available
+      const builtInActions = this.getBuiltInActions();
+      if (builtInActions.length > 0) {
+        this.actions = builtInActions;
+        this.requestUpdate();
+        console.log(`[MCPActionBar] Updated built-in actions: ${builtInActions.length}`);
+      }
+      
+      // Then load MCP actions
       this.loadContextualActions();
     }
   }

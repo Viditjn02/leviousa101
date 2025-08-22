@@ -1,6 +1,7 @@
 'use client'
 
 import ClientLayout from '@/components/ClientLayout'
+import ReferralDetector from '@/components/ReferralDetector'
 import { useAuth } from '@/utils/auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -76,8 +77,10 @@ export default function AuthenticatedLayout({
   }
 
   return (
-    <ClientLayout>
-      {children}
-    </ClientLayout>
+    <ReferralDetector>
+      <ClientLayout>
+        {children}
+      </ClientLayout>
+    </ReferralDetector>
   )
 }

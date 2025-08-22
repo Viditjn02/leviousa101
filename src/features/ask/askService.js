@@ -688,6 +688,81 @@ class AskService {
                     const questionType = await this.classifyQuestionType(userPrompt);
                     console.log(`[AskService] MCP: Classified question as '${questionType}' type`);
                     
+                    // Handle email composer requests - ONLY show UI, do not send email
+                    if (questionType === 'email_composer_request') {
+                        console.log(`[AskService] 📧 Processing email composer request - showing UI only, no direct sending`);
+                        try {
+                            // Extract email context from user prompt
+                            const emailMatch = userPrompt.match(/(?:email|send).*?(?:to|@)\s*([^\s,]+@[^\s,]+)/i);
+                            const recipientEmail = emailMatch ? emailMatch[1] : '';
+                            
+                            // Extract subject if mentioned
+                            const subjectMatch = userPrompt.match(/(?:subject|about|re):\s*([^.!?]+)/i);
+                            const subject = subjectMatch ? subjectMatch[1].trim() : '';
+                            
+                            // Generate email body from context
+                            let emailBody = '';
+                            if (userPrompt.includes('test email')) {
+                                emailBody = 'This is a test email sent through Leviousa.';
+                            } else if (userPrompt.includes('reminder')) {
+                                emailBody = 'This is a reminder as requested.';
+                            } else {
+                                emailBody = `Hi,\n\nI wanted to reach out to you.\n\nBest regards`;
+                            }
+                            
+                            // Prepare email UI data
+                            const emailUIData = {
+                                actionId: 'email-send',
+                                serverId: 'paragon',
+                                tool: 'gmail.send',
+                                context: {
+                                    recipients: recipientEmail,
+                                    subject: subject || 'Message from Leviousa',
+                                    body: emailBody,
+                                    cc: '',
+                                    bcc: ''
+                                },
+                                resource: {
+                                    type: 'email-composer',
+                                    uri: 'email://compose'
+                                },
+                                type: 'inline'
+                            };
+                            
+                            console.log('[AskService] 📧 Emitting email UI resource for composer:', JSON.stringify(emailUIData, null, 2));
+                            
+                            // Emit the UI resource event to trigger email composer
+                            if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
+                                global.invisibilityService.mcpUIIntegration.emit('ui-resource-ready', emailUIData);
+                                console.log('[AskService] ✅ Email composer UI triggered successfully');
+                                
+                                // Return professional message indicating composer is opening
+                                responseText = recipientEmail ? 
+                                    `Email composer opened. You can now compose and send your email to ${recipientEmail}.` :
+                                    "Email composer opened. You can now compose and send your email.";
+                                
+                                // Save response and return early - do not continue with any other processing
+                                await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
+                                console.log(`[AskService] DB: Saved email composer response to session ${sessionId}`);
+                                await this._streamMCPAnswer(responseText, sessionId);
+                                return;
+                            } else {
+                                console.log('[AskService] ⚠️ MCP UI Integration not available for email composer');
+                                responseText = "Email composer is not available right now. Please try again.";
+                                await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
+                                await this._streamMCPAnswer(responseText, sessionId);
+                                return;
+                            }
+                            
+                        } catch (emailError) {
+                            console.error('[AskService] Email composer trigger failed:', emailError);
+                            responseText = "Sorry, I couldn't open the email composer. Please try again.";
+                            await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
+                            await this._streamMCPAnswer(responseText, sessionId);
+                            return;
+                        }
+                    }
+                    
                     // Handle dynamic tool requests
                     if (questionType === 'dynamic_tool_request') {
                         console.log(`[AskService] 🔧 Processing dynamic tool request...`);
@@ -792,8 +867,11 @@ class AskService {
                         const mcpAnswer = mcpResponse.answer;
                         console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
                         
-                        // Process UI result from parallel operation
+                        // Email requests are now handled at classification level and return early
+                        // This section is for other UI opportunities
                         let didUIOverride = false;
+                        
+                        // Process UI result from parallel operation
                         try {
                             if (uiResult) {
                                 console.log('[AskService] 🔍 DEBUG parallel uiResult:', JSON.stringify(uiResult, null, 2));
@@ -1227,6 +1305,13 @@ Provide one actionable insight (max 15 words):`;
         if (isNotionRelated) {
             console.log(`[AskService] ⚠️ NOTION QUESTION NOT CLASSIFIED AS notion_data_access, continuing with other checks...`);
         }
+        
+        // EMAIL COMPOSER REQUESTS - Must be caught BEFORE dynamic tools to prevent direct sending
+        if (lowerPrompt.match(/\b(send email|email.*to|compose email|write.*email|email someone|need.*email|want.*send.*email|send.*test.*email)\b/)) {
+            console.log(`[AskService] ✅ CLASSIFIED AS EMAIL_COMPOSER_REQUEST: "${userPrompt}"`);
+            return 'email_composer_request';
+        }
+
         
         // DYNAMIC TOOL SELECTION - Replace hardcoded patterns
         // Check if this is an actionable request that might need tools
