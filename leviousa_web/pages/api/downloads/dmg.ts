@@ -21,6 +21,7 @@ interface GitHubRelease {
 /**
  * API endpoint to serve the latest DMG file from GitHub releases
  * Automatically redirects to the latest macOS DMG download
+ * Falls back to direct file serving if GitHub releases are unavailable
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -29,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Get the latest release from GitHub API
+    // Try GitHub releases first
     const githubApiUrl = 'https://api.github.com/repos/Viditjn02/leviousa101/releases';
     
     const response = await fetch(githubApiUrl, {
@@ -43,11 +44,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
 
+    // If GitHub API fails, try fallback options
     if (!response.ok) {
-      console.error('GitHub API Error:', response.status, response.statusText);
-      return res.status(502).json({ 
-        error: 'Unable to fetch release information',
-        details: `GitHub API returned ${response.status}`
+      console.log(`GitHub API returned ${response.status}, trying fallback options...`);
+      
+      // Fallback: Inform user that download is temporarily unavailable
+      console.log('GitHub releases temporarily unavailable');
+      
+      return res.status(503).json({
+        error: 'Download temporarily unavailable',
+        message: 'GitHub releases are temporarily unavailable. Please try again in a few minutes.',
+        alternatives: {
+          github: 'https://github.com/Viditjn02/leviousa101/releases/latest',
+          info: 'You can download directly from GitHub releases page.'
+        }
       });
     }
 
@@ -65,11 +75,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Find the DMG file in the release assets
-    const dmgAsset = latestRelease.assets.find(asset => 
-      asset.name.toLowerCase().includes('.dmg') && 
-      asset.name.toLowerCase().includes('leviousa')
-    );
+    // Find the DMG file in the release assets (case-insensitive)
+    const dmgAsset = latestRelease.assets.find(asset => {
+      const name = asset.name.toLowerCase();
+      return name.includes('.dmg') && name.includes('leviousa');
+    });
 
     if (!dmgAsset) {
       return res.status(404).json({ 

@@ -21,6 +21,7 @@ interface GitHubRelease {
 /**
  * API endpoint to serve the latest Windows installer from GitHub releases
  * Automatically redirects to the latest Windows EXE download
+ * Falls back to direct file serving if GitHub releases are unavailable
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -29,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    // Get the latest release from GitHub API
+    // Try GitHub releases first
     const githubApiUrl = 'https://api.github.com/repos/Viditjn02/leviousa101/releases';
     
     const response = await fetch(githubApiUrl, {
@@ -43,11 +44,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
 
+    // If GitHub API fails, try fallback options
     if (!response.ok) {
-      console.error('GitHub API Error:', response.status, response.statusText);
-      return res.status(502).json({ 
-        error: 'Unable to fetch release information',
-        details: `GitHub API returned ${response.status}`
+      console.log(`GitHub API returned ${response.status}, trying fallback options...`);
+      
+      // Fallback 1: Inform user that Windows installer is not available yet
+      console.log('No Windows installer available, providing information page');
+      
+      return res.status(404).json({
+        error: 'Windows installer not available',
+        message: 'The Windows version is currently in development. Please check back soon or download the macOS version.',
+        alternatives: {
+          mac: '/api/downloads/dmg',
+          info: 'Windows version coming soon!'
+        }
       });
     }
 

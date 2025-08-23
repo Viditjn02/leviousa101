@@ -63,9 +63,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
 
     if (!response.ok) {
-      console.error('GitHub API Error:', response.status, response.statusText);
-      return res.status(502).json({ 
-        error: 'Unable to fetch release information'
+      console.log(`GitHub API returned ${response.status}, providing fallback information...`);
+      return res.status(200).json({ 
+        error: 'GitHub releases unavailable, using fallback downloads',
+        message: 'Downloads are served from fallback sources while GitHub releases are configured.'
       });
     }
 

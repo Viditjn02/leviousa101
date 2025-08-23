@@ -209,7 +209,7 @@ function testCICDConfig() {
     const electronBuilderPath = path.join(__dirname, 'electron-builder.yml');
     const electronBuilder = fs.readFileSync(electronBuilderPath, 'utf8');
     
-    if (electronBuilder.includes('Viditjn02/leviousa101')) {
+    if (electronBuilder.includes('owner: Viditjn02') && electronBuilder.includes('repo: leviousa101')) {
       console.log('   ✅ Electron builder repo configuration updated');
     } else {
       console.log('   ❌ Electron builder repo configuration incorrect');
