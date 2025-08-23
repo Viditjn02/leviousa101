@@ -4,6 +4,11 @@ on:
   push:
     branches: [ "Domain" ]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'production'
 
 jobs:
   deploy-vercel:
