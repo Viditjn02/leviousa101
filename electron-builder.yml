@@ -71,10 +71,19 @@ mac:
     # Minimum macOS version (supports both Intel and Apple Silicon)
     minimumSystemVersion: '11.0'
     hardenedRuntime: true
+    gatekeeperAssess: false
     entitlements: entitlements.plist
     entitlementsInherit: entitlements.plist
+    # Code signing - will use CSC_NAME from environment
+    signIgnore:
+      - "node_modules"
+      - "*.framework"
     target:
       - target: dmg
-        arch: arm64
+        arch: [arm64, x64]  # Both Apple Silicon and Intel
       - target: zip
-        arch: arm64
+        arch: [arm64, x64]
+
+# DMG specific configuration
+dmg:
+    sign: true  # Sign the DMG installer
