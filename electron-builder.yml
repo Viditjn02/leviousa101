@@ -75,13 +75,15 @@ mac:
     entitlements: entitlements.plist
     entitlementsInherit: entitlements.plist
     # Code signing with Developer ID - Apple's official process
-    # type: "distribution"  # Uncomment when you have certificates
-    # identity: "Developer ID Application: Your Name (TEAM_ID)"  # Replace with your identity
+    type: "distribution"  # Distribution for signed releases
+    # identity will be auto-detected from keychain when CSC_NAME is set
     signIgnore:
       - "node_modules"
       - "*.framework"
     # Notarization settings (Apple requirement for no warnings)
-    # notarize: false  # Set to true when you have certificates and Apple Developer account
+    notarize: {
+      teamId: "8M7TSC3U67"  # Your Apple Developer Team ID
+    }
     target:
       - target: dmg
         arch: [arm64, x64]  # Both Apple Silicon and Intel

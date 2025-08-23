@@ -74,4 +74,4 @@ export const { firestore: firestoreInstance, adminApp: adminAppExport } = (() =>
   }
 })()
 
-export { firestoreInstance as firestore, adminAppExport as adminApp, firestoreInstance as db }
+export { firestoreInstance as firestore, adminAppExport as adminApp }

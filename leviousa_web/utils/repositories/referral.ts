@@ -1,7 +1,4 @@
-import { getFirebaseAdmin } from '../firebase-admin'
-
-// Get Firestore instance
-const { firestore: db } = getFirebaseAdmin()
+import { db } from '../firebase-admin'
 
 export interface ReferralData {
   uid: string
