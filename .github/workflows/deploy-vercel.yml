@@ -35,5 +35,5 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: ./leviousa_web
           scope: ${{ secrets.VERCEL_ORG_ID }}
-        # Only run if secrets are available
-        if: ${{ secrets.VERCEL_TOKEN != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
