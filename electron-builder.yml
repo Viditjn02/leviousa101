@@ -74,10 +74,14 @@ mac:
     gatekeeperAssess: false
     entitlements: entitlements.plist
     entitlementsInherit: entitlements.plist
-    # Code signing - will use CSC_NAME from environment
+    # Code signing with Developer ID - Apple's official process
+    # type: "distribution"  # Uncomment when you have certificates
+    # identity: "Developer ID Application: Your Name (TEAM_ID)"  # Replace with your identity
     signIgnore:
       - "node_modules"
       - "*.framework"
+    # Notarization settings (Apple requirement for no warnings)
+    # notarize: false  # Set to true when you have certificates and Apple Developer account
     target:
       - target: dmg
         arch: [arm64, x64]  # Both Apple Silicon and Intel
