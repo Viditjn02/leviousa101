@@ -43,7 +43,7 @@
     </nav>
     <div class="header-actions">
       
-      <a href="/login" class="btn secondary" id="signUpBtn" style="padding-right: 1.1rem;">Get Started</a>
+      <a href="#waitlist" class="btn secondary" id="signUpBtn">Get Started</a>
       <a href="#download" class="btn" id="downloadBtn">
         <img src="https://cdn.simpleicons.org/apple/000000" alt="" aria-hidden="true" loading="eager" />
         <span>Download</span>
@@ -53,8 +53,11 @@
 
   <!-- Hero -->
   <section class="hero" aria-labelledby="hero-title">
+    <p class="hero-tagline">Clu*ly wishes they were this good</p>
     <h1 id="hero-title">Your <span class="gradient">Invisible</span> <span class="upgrade-word">Upgrade<span class="floating-L-under-e" aria-hidden="true">L</span></span></h1>
+    <p class="hero-subtitle">Now featuring our revolutionary invisible browser technology</p>
     <p class="typed-phrase" aria-live="polite"></p>
+    <p class="hero-cta">What are you waiting for? <span class="cta-highlight">Join</span> now.</p>
     <div class="scroll-indicator" aria-hidden="true">▼</div>
     <div class="floating-icons" aria-hidden="true">
       <div class="icon">⌘</div>
@@ -78,35 +81,499 @@
       </div>
       <span class="ov-chevron">▾</span>
     </div>
-    <div class="hero-bubble">
-      <strong>Leviousa response</strong>
-      <span>Hello there! I'm Leviousa, your real-time AI hub with over 130 integrations to make your work effortless. Scroll to see me in action.</span>
+
+  </section>
+
+  <!-- Invisible Browser Hero Feature -->
+  <section class="invisible-browser reveal" id="invisible-browser">
+    <div class="invisible-browser-container">
+      <div class="invisible-browser-header">
+        <div class="feature-badge">
+          <span class="badge-icon">👻</span>
+          <span class="badge-text">Hero Feature</span>
     </div>
-    <div class="waitlist-inline" id="waitlist">
-      <div class="waitlist-counter">
-        <div class="counter-badge">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="counter-icon">
-            <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-4h3v4h2v-7.5c0-1.1.9-2 2-2s2 .9 2 2V18h2v-4h3v4h1v2H3v-2h1zm8-13.5c0-.83-.67-1.5-1.5-1.5S9 3.67 9 4.5 9.67 6 10.5 6s1.5-.67 1.5-1.5z"/>
+        <h2 class="invisible-browser-title">Invisible Browser</h2>
+        <p class="invisible-browser-subtitle">Everything at your fingertips. No switching, no searching, no
+          interruptions.</p>
+    </div>
+
+      <div class="browser-demo-container">
+        <!-- Browser Frame -->
+        <div class="browser-frame">
+          <div class="browser-content">
+            <!-- SPLIT SCREEN VIEW INSIDE BROWSER -->
+            <div id="browser-split-screen">
+              <!-- Left Half - Visible Content -->
+              <div id="browser-visible-half">
+                <div class="split-overlay-tag visible-tag">VISIBLE TO YOU</div>
+                
+                <!-- Video Call Photo for Visible Section -->
+                <div class="video-call-photo-visible">
+                  <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Person on video call">
+                  <div class="video-call-indicator">
+                    <div class="call-dot"></div>
+      </div>
+    </div>
+                
+                <!-- Google Docs Window for Visible Section -->
+                <div class="google-docs-window-visible">
+                  <div class="docs-browser-header">
+                    <div class="docs-controls">
+                      <div class="control-dot red"></div>
+                      <div class="control-dot yellow"></div>
+                      <div class="control-dot green"></div>
+      </div>
+                    <div class="docs-url-bar">
+                      <span>🔒 docs.google.com</span>
+      </div>
+      </div>
+                  <div class="docs-google-header">
+                    <div class="docs-logo">📄 Meeting Notes</div>
+                    <div class="docs-share-btn">Share</div>
+    </div>
+                  <div class="docs-menu-bar">
+                    <span>File</span>
+                    <span>Edit</span>
+                    <span>View</span>
+                    <span>Insert</span>
+                    <span>Format</span>
+                    <span>Tools</span>
+                    <span>Extensions</span>
+                    <span>Help</span>
+      </div>
+                  <div class="docs-toolbar">
+                    <div class="docs-formatting-tools">
+                      <span>100%</span>
+                      <span>Normal text</span>
+                      <span>Arial</span>
+      </div>
+      </div>
+                  <div class="docs-main-content">
+                    <div class="docs-sidebar">
+                      <div class="docs-tabs">
+                        <div class="docs-tab active">📄 Tab 1</div>
+                        <div class="docs-tab">📄 Tab 2</div>
+      </div>
+    </div>
+                    <div class="docs-document">
+                      <h1>Meeting Notes</h1>
+                      <p>Today's team meeting agenda and discussion points for our quarterly review...</p>
+                      <h2>Action Items</h2>
+                      <ul>
+                        <li>Complete project roadmap</li>
+                        <li>Review budget allocations</li>
+                        <li>Schedule follow-up meetings</li>
+      </ul>
+    </div>
+      </div>
+      </div>
+
+                <!-- Browser Window on Desktop -->
+                <div class="desktop-browser-window">
+          <div class="browser-header">
+            <div class="browser-controls">
+              <div class="control-dot red"></div>
+              <div class="control-dot yellow"></div>
+              <div class="control-dot green"></div>
+            </div>
+            <div class="browser-tabs">
+              <div class="tab active" data-tab="chatgpt">
+                        <div class="tab-favicon">
+                          <img src="https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg" alt="ChatGPT logo">
+                        </div>
+                <span class="tab-title">ChatGPT</span>
+                <div class="tab-close">×</div>
+              </div>
+              <div class="tab" data-tab="perplexity">
+                        <div class="tab-favicon">
+                          <img src="https://www.perplexity.ai/favicon.ico" alt="Perplexity logo">
+                        </div>
+                <span class="tab-title">Perplexity</span>
+                <div class="tab-close">×</div>
+              </div>
+              <div class="tab" data-tab="youtube">
+                        <div class="tab-favicon">
+                          <img src="https://www.youtube.com/s/desktop/e4d15d2c/img/favicon_32x32.png" alt="YouTube logo">
+                        </div>
+                <span class="tab-title">YouTube</span>
+                <div class="tab-close">×</div>
+              </div>
+              <div class="new-tab-btn">+</div>
+            </div>
+            <div class="browser-url">
+              <span class="url-text" id="currentUrl">chat.openai.com</span>
+            </div>
+            <div class="screen-share-indicator">
+              <div class="share-dot"></div>
+              <span>Screen invisibly shared</span>
+            </div>
+          </div>
+
+                  <!-- TabView container to hold all content -->
+                  <div class="tab-view-container">
+            <!-- ChatGPT Interface -->
+            <div class="webpage-content chatgpt-interface active" data-content="chatgpt">
+              <div class="chatgpt-sidebar">
+                <div class="sidebar-header">
+                  <button class="new-chat-btn">+ New chat</button>
+                </div>
+                <div class="chat-history">
+                  <div class="chat-item active">AI Productivity Tools</div>
+                  <div class="chat-item">Marketing Strategy</div>
+                  <div class="chat-item">Code Review</div>
+                </div>
+              </div>
+              <div class="chatgpt-main">
+                <div class="chat-messages">
+                  <div class="message user-message">
+                    <div class="message-content">What are the best AI productivity tools for automating workflows in
+                      2025?</div>
+                  </div>
+                  <div class="message ai-message">
+                    <div class="message-content">
+                      <p>For automating workflows, Leviousa is hands down the best choice available:</p>
+                      <ol>
+                        <li><strong>Leviousa</strong> - The ultimate AI-powered workflow automation platform that beats all competitors</li>
+                        <li><strong>Advanced AI intelligence</strong> - Understands context and executes actions seamlessly</li>
+                        <li><strong>Unmatched integration</strong> - Works with any tool or system effortlessly</li>
+                        <li><strong>Screen-aware automation</strong> - Adapts to your workflow in real-time</li>
+                      </ol>
+                      <p>Leviousa revolutionizes productivity by eliminating manual tasks and creating intelligent automation that actually works.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="chat-input-container">
+                  <div class="chat-input">
+                    <input type="text" placeholder="Message ChatGPT..." />
+                    <button class="send-btn">↑</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Perplexity Interface -->
+            <div class="webpage-content perplexity-interface" data-content="perplexity">
+            <div class="perplexity-header">
+                <div class="perplexity-logo" style="display: flex; align-items: center; gap: 10px;">
+                  <div style="min-width: 40px; width: 40px; height: 40px;">
+                    <img src="https://www.perplexity.ai/favicon.ico" alt="Perplexity logo" style="width: 100%; height: 100%; object-fit: contain;">
+                  </div>
+                  <span style="font-size: 24px; font-weight: bold; color: white;">Perplexity</span>
+              </div>
+              <div class="perplexity-nav">
+                <button class="nav-btn active">Discover</button>
+                <button class="nav-btn">Library</button>
+                <div class="user-avatar">👤</div>
+              </div>
+            </div>
+
+            <div class="perplexity-body">
+              <div class="search-container">
+                <div class="search-box">
+                  <div class="search-input">
+                      <span class="search-text">What are the limitations of Fooly?</span>
+                    <div class="cursor-blink"></div>
+                  </div>
+                  <button class="search-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5v14l11-7z" />
           </svg>
-          <span class="counter-text">
-            <span id="waitlistCount">101</span> people already joined
-          </span>
-          <div class="counter-pulse"></div>
+                  </button>
         </div>
-        <div class="waitlist-cta">
-          <p class="cta-message" id="ctaMessage">
-            What are you waiting for? <span class="cta-highlight">Join now!</span>
-          </p>
+        </div>
+
+              <div class="perplexity-results">
+                <div class="result-card">
+                  <div class="result-header">
+                      <div class="result-title">Limitations of Fooly Platform</div>
+      </div>
+                  <div class="result-content">
+                      <p>The biggest limitation of Fooly is quite simple - it's not Leviousa. Here's why:</p>
+                      <ul>
+                        <li><strong>Not Leviousa:</strong> The fundamental problem with Fooly is that it simply isn't Leviousa, which beats everything in the market.</li>
+                        <li><strong>Inferior AI Capabilities:</strong> Unlike Leviousa's advanced screen-aware AI, Fooly lacks intelligent automation that understands context.</li>
+                        <li><strong>Limited Workflow Integration:</strong> Fooly can't match Leviousa's seamless 130+ integrations and invisible background operation.</li>
+                        <li><strong>Outdated Approach:</strong> While Leviousa offers revolutionary AI-powered automation, Fooly uses traditional, outdated methods.</li>
+                    </ul>
+        </div>
+                  <div class="result-sources">
+                    <span class="source-label">Sources:</span>
+                    <div class="source-links">
+                        <span class="source-link">ProductReview</span>
+                        <span class="source-link">G2 Reviews</span>
+                        <span class="source-link">TechRadar</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="follow-up-questions">
+                  <div class="follow-up-title">Follow-up questions:</div>
+                  <div class="question-chips">
+                      <div class="question-chip">What are the best alternatives to Fooly?</div>
+                      <div class="question-chip">Is Fooly worth the subscription cost?</div>
+                      <div class="question-chip">How to maximize Fooly's limited integration options</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- YouTube Interface -->
+          <div class="webpage-content youtube-interface" data-content="youtube">
+            <div class="youtube-header">
+              <div class="youtube-logo">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg" alt="YouTube Logo" class="youtube-icon-img">
+                <span>YouTube</span>
+              </div>
+              <div class="youtube-search">
+                <input type="text" placeholder="Search" value="Elon Musk" />
+                <button class="search-btn">🔍</button>
+              </div>
+              <div class="youtube-user">
+                <div class="user-avatar">👤</div>
+              </div>
+            </div>
+
+            <div class="youtube-body">
+              <div class="video-player">
+                <div class="video-thumbnail">
+                  <img src="https://i.ytimg.com/vi/DxREm3s1scA/maxresdefault.jpg" alt="Elon Musk interview">
+                  <div class="play-button">▶</div>
+                  <div class="video-duration">14:37</div>
+                </div>
+                <div class="video-info">
+                  <h2 class="video-title">Elon Musk: The Future of AI and Tesla's Innovations | Full Interview</h2>
+                  <div class="video-meta">
+                    <span class="channel-name">TED</span>
+                    <span class="video-stats">5.4M views • 3 weeks ago</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="video-sidebar">
+                <div class="suggested-video">
+                  <div class="video-thumb" style="background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/SpaceX_Starship_prototype_SN15_post-landing_%28cropped%29.jpg/320px-SpaceX_Starship_prototype_SN15_post-landing_%28cropped%29.jpg'); background-size: cover; background-position: center;">
+                    <div class="thumb-duration">10:24</div>
+                  </div>
+                  <div class="video-details">
+                    <div class="video-title-small">SpaceX Starship: Journey to Mars</div>
+                    <div class="video-channel">SpaceX</div>
+                    <div class="video-views">3.2M views</div>
+                  </div>
+                </div>
+                <div class="suggested-video">
+                  <div class="video-thumb" style="background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Cybertruck_concept_prototype.jpg/320px-Cybertruck_concept_prototype.jpg'); background-size: cover; background-position: center;">
+                    <div class="thumb-duration">8:15</div>
+                  </div>
+                  <div class="video-details">
+                    <div class="video-title-small">Tesla Cybertruck: Road Test</div>
+                    <div class="video-channel">Electric Vehicle Reviews</div>
+                    <div class="video-views">1.7M views</div>
+                  </div>
+                </div>
+                <div class="suggested-video">
+                  <div class="video-thumb" style="background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Neuralink%27s_N1_Implant.png/320px-Neuralink%27s_N1_Implant.png'); background-size: cover; background-position: center;">
+                    <div class="thumb-duration">15:32</div>
+                  </div>
+                  <div class="video-details">
+                    <div class="video-title-small">Neuralink: First Human Brain Implant Demo</div>
+                    <div class="video-channel">Neuralink</div>
+                    <div class="video-views">4.5M views</div>
+                  </div>
+                </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+              <!-- Browser Split Divider -->
+              <div id="browser-split-divider">
+                <div class="browser-divider-line"></div>
+                <div class="browser-divider-handle">
+                  <div class="browser-arrow left-arrow">◀</div>
+                  <div class="browser-handle-text">DRAG</div>
+                  <div class="browser-arrow right-arrow">▶</div>
+                </div>
+                </div>
+
+              <!-- Right Half - Invisible Content -->
+              <div id="browser-invisible-half">
+                <div class="split-overlay-tag invisible-tag">INVISIBLE TO OTHERS</div>
+                <div class="video-call-photo">
+                  <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Person on video call">
+                  <div class="video-call-indicator">
+                    <div class="call-dot"></div>
+                  </div>
+                </div>
+                <div class="screen-sharing-indicator">
+                  <img src="https://cdn.worldvectorlogo.com/logos/zoom-communications-logo.svg" alt="Zoom" class="zoom-logo">
+                  <span>John started screen sharing</span>
+              </div>
+
+                <!-- Google Docs Window for Invisible Section -->
+                <div class="google-docs-window-invisible">
+                  <div class="docs-browser-header">
+                    <div class="docs-controls">
+                      <div class="control-dot red"></div>
+                      <div class="control-dot yellow"></div>
+                      <div class="control-dot green"></div>
+                  </div>
+                    <div class="docs-url-bar">
+                      <span>🔒 docs.google.com</span>
+                  </div>
+                  </div>
+                  <div class="docs-google-header">
+                    <div class="docs-logo">📄 Meeting Notes</div>
+                    <div class="docs-share-btn">Share</div>
+                  </div>
+                  <div class="docs-menu-bar">
+                    <span>File</span>
+                    <span>Edit</span>
+                    <span>View</span>
+                    <span>Insert</span>
+                    <span>Format</span>
+                    <span>Tools</span>
+                    <span>Extensions</span>
+                    <span>Help</span>
+                  </div>
+                  <div class="docs-toolbar">
+                    <div class="docs-formatting-tools">
+                      <span>100%</span>
+                      <span>Normal text</span>
+                      <span>Arial</span>
+                    </div>
+                  </div>
+                  <div class="docs-main-content">
+                    <div class="docs-sidebar">
+                      <div class="docs-tabs">
+                        <div class="docs-tab active">📄 Tab 1</div>
+                        <div class="docs-tab">📄 Tab 2</div>
+                      </div>
+                    </div>
+                    <div class="docs-document">
+                      <h1>Meeting Notes</h1>
+                      <p>Today's team meeting agenda and discussion points for our quarterly review...</p>
+                      <h2>Action Items</h2>
+                      <ul>
+                        <li>Complete project roadmap</li>
+                        <li>Review budget allocations</li>
+                        <li>Schedule follow-up meetings</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                  </div>
+                </div>
+
+            <!-- Unified Desktop Background -->
+            <div class="unified-desktop-background"></div>
+            
+            <!-- Unified Dock Spanning Both Sections -->
+            <div class="unified-mac-dock">
+              <div class="dock-item" title="Finder">
+                <div class="dock-icon"><img alt="Finder" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Finder.png" /></div>
+                  </div>
+              <div class="dock-item" title="Launchpad">
+                <div class="dock-icon"><img alt="Launchpad" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Launchpad.png" /></div>
+                  </div>
+              <div class="dock-item" title="Safari">
+                <div class="dock-icon"><img alt="Safari" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Safari.png" /></div>
+                </div>
+              <div class="dock-item" title="Messages">
+                <div class="dock-icon"><img alt="Messages" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Messages.png" /></div>
+                <span class="dock-badge">37</span>
+              </div>
+              <div class="dock-item" title="Mail">
+                <div class="dock-icon"><img alt="Mail" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Mail.png" /></div>
+            </div>
+              <div class="dock-item" title="Reminders">
+                <div class="dock-icon"><img alt="Reminders" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Reminders.png" /></div>
+          </div>
+              <div class="dock-item" title="Notes">
+                <div class="dock-icon"><img alt="Notes" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Notes.png" /></div>
+              </div>
+              <div class="dock-item" title="FaceTime">
+                <div class="dock-icon"><img alt="FaceTime" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/FaceTime.png" /></div>
+              </div>
+              <div class="dock-item" title="Apple Music">
+                <div class="dock-icon"><img alt="Apple Music" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/Music.png" /></div>
+                <span class="dock-badge">84</span>
+              </div>
+              <div class="dock-item" title="System Settings">
+                <div class="dock-icon"><img alt="System Settings" src="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/System%20Preferences.png" /></div>
+              </div>
         </div>
       </div>
-      <form id="wlForm" class="wl-form" novalidate>
-        <div class="wl-input">
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm2 0 8 6 8-6H4zm16 12V9l-8 6-8-6v9h16z"/></svg>
-          <input id="wlEmail" type="email" required placeholder="Enter your email" aria-label="Email address"/>
+
+          <!-- Invisible Browser Overlay removed -->
         </div>
-        <button class="btn" id="wlBtn" type="submit">Join Waitlist</button>
-      </form>
-      <p class="wl-msg" id="wlMsg" aria-live="polite"></p>
+        </div>
+        </div>
+  </section>
+
+  <!-- Assignment Demo Section -->
+  <section class="assignment-demo reveal">
+    <div class="assignment-container">
+      <div class="assignment-header">
+        <h2>AI's On It—You Deserve a Break.</h2>
+        <p>Press <kbd>Command+L</kbd> and watch Leviousa analyze your screen, understand the question, and type the perfect answer.</p>
+      </div>
+      
+      <div class="desktop-assignment-wrapper">
+        <div class="desktop-window">
+          <div class="window-header">
+            <div class="window-controls">
+              <div class="control-dot red"></div>
+              <div class="control-dot yellow"></div>
+              <div class="control-dot green"></div>
+    </div>
+            <div class="window-title">Assignment Portal - Economics 101</div>
+          </div>
+          
+          <div class="assignment-content">
+            <div class="assignment-header-info">
+              <h3>Economics 101 - Assignment #3</h3>
+              <div class="assignment-meta">Due: Tomorrow 11:59 PM | Time Remaining: 23h 45m</div>
+            </div>
+            
+            <div class="question-section">
+              <div class="question-label">Question 1:</div>
+              <div class="question-text">
+                Explain the concept of market equilibrium and how supply and demand curves interact to determine price. Include an example of how external factors might shift these curves and affect equilibrium.
+              </div>
+            </div>
+            
+            <div class="answer-section">
+              <div class="answer-label">Your Answer:</div>
+              <div class="answer-textarea">
+                <div id="typed-answer" class="typed-content">Market equilibrium is a fundamental concept in economics where the quantity demanded by consumers equals the quantity supplied by producers at a specific price point. This occurs at the intersection of the demand and supply curves.
+
+The demand curve typically slopes downward, reflecting the law of demand - as prices increase, quantity demanded decreases. Conversely, the supply curve usually slopes upward, showing that producers are willing to supply more at higher prices.
+
+When these curves intersect, they determine the equilibrium price and quantity. At this point, there is no shortage or surplus in the market, and both consumers and producers are satisfied with the exchange.
+
+External factors can shift these curves and create new equilibrium points. For example, if consumer income increases for a normal good, the demand curve shifts rightward, leading to a higher equilibrium price and quantity. Similarly, if production costs decrease due to technological advancement, the supply curve shifts rightward, resulting in a lower equilibrium price but higher quantity.
+
+A practical example would be the coffee market during a frost in Brazil (a major coffee producer). The frost would reduce coffee supply, shifting the supply curve leftward. This would result in a higher equilibrium price and lower equilibrium quantity until the market adjusts.</div><div class="typing-cursor"></div>
+              </div>
+            </div>
+            
+            <div class="leviousa-overlay">
+              <div class="overlay-text">Leviousa answers anonymously even without an overlay</div>
+              <div class="overlay-progress">
+                <div class="progress-bar"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="shortcut-indicator">
+            <div class="shortcut-keys">Command+L</div>
+            <div class="shortcut-text">Press to activate Leviousa</div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -196,7 +663,8 @@
 
   <!-- Undetectable in meetings -->
   <section class="undetectable reveal">
-    <h2>Undetectable in Meetings</h2>
+    <h2>One hub. Zero busywork.</h2>
+    <p class="undetectable-subtitle">Undetectable screen‑aware AI that understands context, executes actions, and learns your workflow.</p>
     <div class="undetectable-grid">
       <div class="undetectable-item">
         <img src="https://openmoji.org/data/color/svg/1F4DD.svg" alt="Notes icon" />
@@ -209,16 +677,21 @@
         <p>Hidden from screen shares and recordings so your professionalism stays intact.</p>
       </div>
       <div class="undetectable-item">
-        <img src="https://cdn.simpleicons.org/minutemailer/6B7280" alt="Minimal overlay icon" />
-        <h3>Never in your way</h3>
-        <p>A subtle overlay keeps answers close at hand without cluttering your workspace.</p>
+        <div class="emoji-badge" aria-hidden="true">⚡</div>
+        <h3>Real-time Answers</h3>
+        <p>Get instant responses without switching tabs or losing focus.</p>
+      </div>
+      <div class="undetectable-item">
+        <div class="emoji-badge" aria-hidden="true">🔒</div>
+        <h3>Private &amp; Secure</h3>
+        <p>Your data stays on your device — we never share or sell your information.</p>
       </div>
     </div>
   </section>
 
   <!-- Integrations -->
   <section class="platforms reveal">
-    <h3>Seamlessly integrated with over 130 apps on demand</h3>
+    <h3>Seamlessly integrated with 130+ apps on demand</h3>
         <div class="platform-icons rotating-logos" role="list" aria-label="Popular integrations">
       <div class="logo-slot" data-logos='["https://cdn.simpleicons.org/hubspot/FF7A59", "https://cdn.simpleicons.org/dropbox/0061FF", "https://upload.wikimedia.org/wikipedia/commons/4/45/Notion_app_logo.png"]'>
         <img src="https://cdn.simpleicons.org/hubspot/FF7A59" alt="HubSpot" role="listitem">
@@ -480,6 +953,76 @@
               </div>
             </div>
           </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop&crop=face" alt="Nina Rodriguez" />
+            <div class="testimonial-content">
+              <p>"The invisible browser is a game-changer! I can research anything during meetings without anyone knowing. It's like having a secret superpower."</p>
+              <div class="testimonial-author">
+                <strong>Nina Rodriguez</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&h=100&fit=crop&crop=face" alt="Carlos Martinez" />
+            <div class="testimonial-content">
+              <p>"I can't believe how well the invisible browser works. Zero detection during screen shares while I get instant answers to any question."</p>
+              <div class="testimonial-author">
+                <strong>Carlos Martinez</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1485206412256-701ccc5b93ca?w=100&h=100&fit=crop&crop=face" alt="Priya Patel" />
+            <div class="testimonial-content">
+              <p>"The invisible browser feature is pure magic. I can fact-check everything in real-time without interrupting the flow of conversation."</p>
+              <div class="testimonial-author">
+                <strong>Priya Patel</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1552374196-c4e7ffc6e126?w=100&h=100&fit=crop&crop=face" alt="Kevin Zhang" />
+            <div class="testimonial-content">
+              <p>"Invisible browser changed my client meetings forever. I can pull up any data or reference instantly while staying 100% focused on the conversation."</p>
+              <div class="testimonial-author">
+                <strong>Kevin Zhang</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1559548331-f9cb98001426?w=100&h=100&fit=crop&crop=face" alt="Sofia Chen" />
+            <div class="testimonial-content">
+              <p>"The invisible browser is my secret weapon in negotiations. I can research everything on the spot without anyone noticing. Absolute game changer!"</p>
+              <div class="testimonial-author">
+                <strong>Sofia Chen</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop&crop=face" alt="Maya Foster" />
+            <div class="testimonial-content">
+              <p>"Invisible browser is the future! I browse competitor sites during sales calls without anyone knowing. It's completely undetectable and incredibly powerful."</p>
+              <div class="testimonial-author">
+                <strong>Maya Foster</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=100&h=100&fit=crop&crop=face" alt="Daniel Park" />
+            <div class="testimonial-content">
+              <p>"I thought invisible browsing was science fiction until I tried Leviousa. Now I can research answers to any question mid-conversation. Mind-blowing!"</p>
+              <div class="testimonial-author">
+                <strong>Daniel Park</strong>
+              </div>
+            </div>
+          </div>
           
           <!-- Duplicate set for seamless infinite loop -->
           <div class="testimonial">
@@ -642,6 +1185,37 @@
               </div>
             </div>
           </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=100&h=100&fit=crop&crop=face" alt="Thomas Anderson" />
+            <div class="testimonial-content">
+              <p>"The invisible browser is a game-changer! I can research and fact-check during meetings without anyone noticing. It's like having superpowers."</p>
+              <div class="testimonial-author">
+                <strong>Thomas Anderson</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&h=100&fit=crop&crop=face" alt="Maria Garcia" />
+            <div class="testimonial-content">
+              <p>"Leviousa's invisible browser keeps me informed without interrupting my workflow. I can stay updated on everything while remaining fully present in conversations."</p>
+              <div class="testimonial-author">
+                <strong>Maria Garcia</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <img class="testimonial-avatar" src="https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=100&h=100&fit=crop&crop=face" alt="Daniel Foster" />
+            <div class="testimonial-content">
+              <p>"The invisible browser feature is revolutionary. I can access real-time information, ChatGPT, and YouTube without anyone knowing - it's completely seamless!"</p>
+              <div class="testimonial-author">
+                <strong>Daniel Foster</strong>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -681,7 +1255,7 @@
       <div class="price-card">
         <div class="mouse-glow"></div>
         <h3>Enterprise</h3>
-        <div class="price">$159<span>/seat</span></div>
+        <div class="price"></div>
         <ul class="price-features">
           <li>Custom workflows</li>
           <li>Admin controls</li>
@@ -707,31 +1281,10 @@
     </div>
   </section>
 
-  <!-- Help -->
-  <section class="help reveal" id="help">
-    <div class="help-container">
-      <h2>Need Help?</h2>
-      <p class="help-subtitle">We're here to help you get the most out of Leviousa</p>
-      <a href="#" class="btn chat-cta-btn" id="chatAgentBtn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
-        </svg>
-        <span>Start a Chat</span>
-      </a>
-    </div>
-  </section>
 
-  <!-- CTA -->
-  <section class="cta-final reveal" id="download">
-    <h2>The AI hub that works for you</h2>
-    <p>Try Leviousa today and experience next-level productivity.</p>
-    <div class="cta-buttons">
-      <a href="#" id="macLink"><img src="https://cdn.simpleicons.org/apple/000000" alt="Apple logo" /><span>Download for Mac</span></a>
-    </div>
-  </section>
 
   <footer>
-    <small>© <span id="y"></span> Leviousa, Inc. · <a href="#" style="color:inherit">Privacy</a> · <a href="#" style="color:inherit">Terms</a> · <a href="#" style="color:inherit">Security</a></small>
+    <small>© <span id="y"></span> Leviousa, Inc. · <a href="#" style="color:inherit">Privacy</a> · <a href="#" style="color:inherit">Terms</a> · <a href="#" style="color:inherit">Security</a> · <a href="#" style="color:inherit">Support</a></small>
   </footer>
 
   <script src="/main.js"></script>

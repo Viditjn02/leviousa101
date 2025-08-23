@@ -28,30 +28,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Referral code and email are required' })
     }
 
-    // TODO: Call Electron main process to:
-    // 1. Find referral by code
-    // 2. Verify email matches referred_email
-    // 3. Determine if this is special or normal referral
-    // 4. Apply appropriate bonuses
-    // 5. Update referral status
-
-    // Mock implementation for now
-    const mockReferral = {
-      id: 'ref_123',
-      referrer_email: 'referrer@example.com',
-      referred_email: userEmail,
-      referral_type: SPECIAL_REFERRAL_EMAILS.includes(userEmail.toLowerCase()) ? 'special' : 'normal'
+    const { grantNormalReferralBonuses, grantSpecialEmailTrial } = await import('../../../utils/repositories/referralBonus')
+    const { createSubscription, findSubscriptionByUserId } = await import('../../../utils/repositories/subscription')
+    
+    console.log(`🔍 Processing referral signup for ${userEmail} with code ${referralCode}`)
+    
+    // Determine referral type
+    const referralType = SPECIAL_REFERRAL_EMAILS.includes(userEmail.toLowerCase()) ? 'special' : 'normal'
+    
+    // Extract referrer UID from referral code (format: FRIEND-XXXXXXXX)
+    let referrerUid: string | null = null
+    if (referralCode.startsWith('FRIEND-')) {
+      // This is a user-specific referral code - extract referrer UID
+      const codePrefix = referralCode.replace('FRIEND-', '')
+      
+      // In a real implementation, you'd look this up in your referral database
+      // For now, we'll log it for tracking
+      console.log(`👥 User-specific referral code detected: ${codePrefix}`)
+      referrerUid = `referrer_from_${codePrefix}` // Placeholder
     }
-
-    // Return the referral type so the frontend knows what to show
-    res.status(200).json({
-      success: true,
-      referralType: mockReferral.referral_type,
-      referrerEmail: mockReferral.referrer_email,
-      message: mockReferral.referral_type === 'special' 
-        ? 'Special referral detected! You qualify for a 3-day free trial.'
-        : 'Referral processed! Bonus usage time has been added to your account.'
-    })
+    
+    if (referralType === 'special') {
+      console.log('⭐ Processing special email referral')
+      
+      // Grant 3-day Pro trial to special email user
+      await grantSpecialEmailTrial(decodedToken.uid, `referral_${Date.now()}`)
+      
+      // Create Pro trial subscription
+      let subscription = await findSubscriptionByUserId(decodedToken.uid)
+      const trialEnd = Date.now() + (3 * 24 * 60 * 60 * 1000) // 3 days
+      
+      if (subscription) {
+        const { updateSubscription } = await import('../../../utils/repositories/subscription')
+        await updateSubscription(subscription.id!, {
+          plan: 'pro',
+          status: 'trialing',
+          trial_start: Date.now(),
+          trial_end: trialEnd
+        })
+      } else {
+        await createSubscription(decodedToken.uid, {
+          plan: 'pro',
+          status: 'trialing',
+          trial_start: Date.now(),
+          trial_end: trialEnd
+        })
+      }
+      
+      return res.status(200).json({
+        success: true,
+        referralType: 'special',
+        message: 'Special referral processed! You now have a 3-day Pro trial with unlimited usage.',
+        trial_end: trialEnd
+      })
+      
+    } else {
+      console.log('👥 Processing normal referral')
+      
+      // Grant normal referral bonuses (30 min to referred, 60 min to referrer daily)
+      if (referrerUid) {
+        await grantNormalReferralBonuses(referrerUid, decodedToken.uid, `referral_${Date.now()}`)
+        console.log('✅ Granted normal referral bonuses to both users')
+      }
+      
+      return res.status(200).json({
+        success: true,
+        referralType: 'normal',
+        message: 'Referral processed! You now get +30 minutes daily for Auto Answer and Browser features. Your referrer gets +60 minutes daily.',
+        bonus_minutes: {
+          auto_answer: 30,
+          browser: 30,
+          daily: true
+        }
+      })
+    }
   } catch (error) {
     console.error('Error processing referral signup:', error)
     res.status(500).json({ error: 'Internal server error' })

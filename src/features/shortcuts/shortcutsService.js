@@ -63,7 +63,7 @@ class ShortcutsService {
             moveDown: isMac ? 'Cmd+Down' : 'Ctrl+Down',
             moveLeft: isMac ? 'Cmd+Left' : 'Ctrl+Left',
             moveRight: isMac ? 'Cmd+Right' : 'Ctrl+Right',
-            toggleVisibility: isMac ? 'Cmd+\\' : 'Ctrl+\\',
+            toggleVisibility: isMac ? 'Cmd+I' : 'Ctrl+I',
             toggleClickThrough: isMac ? 'Cmd+M' : 'Ctrl+M',
             nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
             manualScreenshot: isMac ? 'Cmd+Shift+S' : 'Ctrl+Shift+S',
@@ -74,6 +74,8 @@ class ShortcutsService {
             invisibilityAnswer: isMac ? 'Cmd+L' : 'Ctrl+L', // Complete invisibility auto-answer
             toggleInvisibility: isMac ? 'Cmd+I' : 'Ctrl+I', // Toggle complete invisibility mode
             showOverlayTemporary: isMac ? 'Cmd+Shift+I' : 'Ctrl+Shift+I', // Temporarily show overlay for access
+            openBrowser: isMac ? 'Cmd+B' : 'Ctrl+B', // Open internal browser window
+            showTutorial: isMac ? 'Cmd+T' : 'Ctrl+T', // Show tutorial and help
         };
     }
 
@@ -315,6 +317,44 @@ class ShortcutsService {
                             }
                         } catch (error) {
                             console.error('[Shortcuts] Error showing overlay temporarily:', error);
+                        }
+                    };
+                    break;
+                case 'openBrowser':
+                    callback = async () => {
+                        try {
+                            console.log('[Shortcuts] 🌐 CMD+B pressed - opening internal browser window!');
+                            
+                            // Get window manager to toggle internal browser window (globe icon)
+                            const windowManager = require('../../window/windowManager');
+                            const result = await windowManager.toggleBrowserWindow();
+                            
+                            if (result.success !== false) {
+                                console.log('[Shortcuts] ✅ Internal browser window toggled successfully');
+                            } else {
+                                console.error('[Shortcuts] ❌ Failed to toggle browser window:', result.error);
+                            }
+                        } catch (error) {
+                            console.error('[Shortcuts] Error opening internal browser window:', error);
+                        }
+                    };
+                    break;
+                case 'showTutorial':
+                    callback = () => {
+                        try {
+                            console.log('[Shortcuts] 🎓 CMD+T pressed - showing tutorial window (no auto-play)!');
+                            
+                            // Use window manager to show tutorial window
+                            const windowManager = require('../../window/windowManager');
+                            const result = windowManager.showTutorialWindow(false); // No auto-play for manual trigger
+                            
+                            if (result.success) {
+                                console.log('[Shortcuts] ✅ Tutorial window shown successfully');
+                            } else {
+                                console.error('[Shortcuts] ❌ Failed to show tutorial window:', result.error);
+                            }
+                        } catch (error) {
+                            console.error('[Shortcuts] Error showing tutorial:', error);
                         }
                     };
                     break;

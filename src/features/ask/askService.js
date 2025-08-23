@@ -651,6 +651,33 @@ class AskService {
         try {
             console.log(`[AskService] 🤖 Processing message: ${userPrompt.substring(0, 50)}...`);
 
+            // 🔒 Check subscription and usage limits for Auto Answer feature
+            const subscriptionService = require('../../common/services/subscriptionService');
+            const usageTrackingRepository = require('../../common/repositories/usageTracking');
+            
+            console.log('[AskService] 🔍 Checking Auto Answer usage limits...');
+            const usageCheck = await subscriptionService.checkUsageAllowed('cmd_l');
+            
+            if (!usageCheck.allowed) {
+                const errorMessage = usageCheck.unlimited ? 
+                    'Auto Answer feature is not available.' :
+                    `Auto Answer daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
+                    
+                console.log('[AskService] 🚫 Usage limit exceeded:', errorMessage);
+                
+                // Update UI to show limit exceeded
+                this.state = {
+                    ...this.state,
+                    isLoading: false,
+                    currentResponse: errorMessage,
+                    showTextInput: true,
+                };
+                this._broadcastState();
+                return;
+            }
+            
+            console.log('[AskService] ✅ Usage check passed. Remaining:', usageCheck.remaining || 'unlimited');
+
             sessionId = await sessionRepository.getOrCreateActive('ask');
             await this.initializeConversationSession(sessionId);
             
@@ -1121,6 +1148,14 @@ class AskService {
                     if (line.startsWith('data: ')) {
                         const data = line.substring(6);
                         if (data === '[DONE]') {
+                            // 📊 Track Auto Answer usage completion
+                            try {
+                                const subscriptionService = require('../../common/services/subscriptionService');
+                                await subscriptionService.trackUsageToWebAPI('cmd_l', 1); // Track 1 minute per use
+                                console.log('[AskService] ✅ Auto Answer usage tracked: +1 minute');
+                            } catch (trackingError) {
+                                console.error('[AskService] ❌ Failed to track usage:', trackingError);
+                            }
                             return; 
                         }
                         try {

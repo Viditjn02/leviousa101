@@ -659,7 +659,236 @@ function initExperienceLeviousa() {
 document.addEventListener('DOMContentLoaded', () => {
   initExperienceLeviousa();
   initPricingCards();
+  initInvisibleBrowser();
+  initMacSplitScreen();
 });
+
+// Browser Split Screen Functionality
+function initMacSplitScreen() {
+  console.log("Initializing Browser Split Screen");
+  
+  const divider = document.getElementById('browser-split-divider');
+  const container = document.getElementById('browser-split-screen');
+  const leftHalf = document.getElementById('browser-visible-half');
+  const rightHalf = document.getElementById('browser-invisible-half');
+  
+  if (!divider || !container || !leftHalf || !rightHalf) {
+    console.error("Browser Split screen elements not found:", { divider, container, leftHalf, rightHalf });
+    return;
+  }
+  
+  console.log("Browser Split screen elements found, setting up events");
+  let isDragging = false;
+  
+  // Draw attention to divider on page load
+  setTimeout(() => {
+    const handle = document.querySelector('.browser-divider-handle');
+    if (handle) {
+      handle.style.transform = 'translate(-50%, -50%) scale(1.2)';
+      handle.style.boxShadow = '0 0 20px #ff0, 0 0 40px #ff0';
+      
+      // Add flashing text
+      const flashText = document.createElement('div');
+      flashText.textContent = 'DRAG';
+      flashText.style.position = 'absolute';
+      flashText.style.top = '50%';
+      flashText.style.left = '50%';
+      flashText.style.transform = 'translate(-50%, -50%)';
+      flashText.style.background = '#ff0';
+      flashText.style.color = '#000';
+      flashText.style.padding = '5px 10px';
+      flashText.style.borderRadius = '20px';
+      flashText.style.fontWeight = 'bold';
+      flashText.style.fontSize = '14px';
+      flashText.style.zIndex = '9999';
+      flashText.style.animation = 'flash 0.5s infinite alternate';
+      divider.appendChild(flashText);
+      
+      // Add style for flash animation
+      const style = document.createElement('style');
+      style.textContent = '@keyframes flash { from { opacity: 1; } to { opacity: 0.5; } }';
+      document.head.appendChild(style);
+      
+      // Remove after 2 seconds
+      setTimeout(() => {
+        handle.style.transform = 'translate(-50%, -50%)';
+        handle.style.boxShadow = '';
+        flashText.remove();
+      }, 2000);
+    }
+  }, 500);
+  
+  // Mouse events for desktop
+  divider.addEventListener('mousedown', (e) => {
+    console.log("Divider mousedown");
+    isDragging = true;
+    e.preventDefault();
+    document.body.style.cursor = 'col-resize';
+    divider.classList.add('active-divider');
+  });
+  
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    
+    const containerRect = container.getBoundingClientRect();
+    const leftWidth = e.clientX - containerRect.left;
+    
+    // Calculate percentage with constraints (20-80%)
+    const percentage = Math.min(Math.max(leftWidth / containerRect.width * 100, 20), 80);
+    
+    // Set the widths
+    leftHalf.style.width = `${percentage}%`;
+    rightHalf.style.width = `${100 - percentage}%`;
+    
+    // Update divider position
+    divider.style.left = `${percentage}%`;
+  });
+  
+  document.addEventListener('mouseup', () => {
+    if (isDragging) {
+      console.log("Divider mouseup");
+      isDragging = false;
+      document.body.style.cursor = '';
+      divider.classList.remove('active-divider');
+    }
+  });
+  
+  // Touch events for mobile
+  divider.addEventListener('touchstart', (e) => {
+    console.log("Divider touchstart");
+    isDragging = true;
+    e.preventDefault();
+    divider.classList.add('active-divider');
+  });
+  
+  document.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    
+    const containerRect = container.getBoundingClientRect();
+    const touch = e.touches[0];
+    const leftWidth = touch.clientX - containerRect.left;
+    
+    // Calculate percentage with constraints (20-80%)
+    const percentage = Math.min(Math.max(leftWidth / containerRect.width * 100, 20), 80);
+    
+    // Set the widths
+    leftHalf.style.width = `${percentage}%`;
+    rightHalf.style.width = `${100 - percentage}%`;
+    
+    // Update divider position
+    divider.style.left = `${percentage}%`;
+  });
+  
+  document.addEventListener('touchend', () => {
+    if (isDragging) {
+      console.log("Divider touchend");
+      isDragging = false;
+      divider.classList.remove('active-divider');
+    }
+  });
+  
+  // Add CSS for active divider state
+  const style = document.createElement('style');
+  style.textContent = `
+    .active-divider .browser-divider-handle {
+      transform: translate(-50%, -50%) scale(1.2) !important;
+      box-shadow: 0 0 20px #ff0, 0 0 40px #ff0 !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  console.log("Browser Split screen initialized");
+}
+
+// Invisible Browser Demo Interactions
+function initInvisibleBrowser() {
+  // Initialize tab switching only
+  
+  // Browser frame interaction (without overlay)
+  const browserFrame = document.querySelector('.browser-frame');
+  if (browserFrame) {
+    browserFrame.addEventListener('mouseenter', () => {
+      // No overlay interaction needed
+    });
+    
+    browserFrame.addEventListener('mouseleave', () => {
+      // No overlay interaction needed
+    });
+  }
+  
+  // Tab switching functionality
+  initTabSwitching();
+}
+
+// Tab Switching System
+function initTabSwitching() {
+  const tabs = document.querySelectorAll('.tab');
+  const contents = document.querySelectorAll('.webpage-content');
+  const urlDisplay = document.getElementById('currentUrl');
+  
+  const urls = {
+    'chatgpt': 'chat.openai.com',
+    'perplexity': 'perplexity.ai',
+    'youtube': 'youtube.com'
+  };
+  
+  let currentTabIndex = 0;
+  const tabOrder = ['chatgpt', 'perplexity', 'youtube'];
+  
+  function switchToTab(tabName) {
+    // Update tabs with a slight delay for visual effect
+    tabs.forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    
+    // Fade out all content first
+    contents.forEach(content => {
+      if (content.classList.contains('active') && content.dataset.content !== tabName) {
+        content.style.opacity = '0';
+      }
+    });
+    
+    // After a short delay, update the active state and fade in the new content
+    setTimeout(() => {
+      contents.forEach(content => {
+        const isActive = content.dataset.content === tabName;
+        content.classList.toggle('active', isActive);
+        if (isActive) {
+          content.style.opacity = '1';
+        }
+      });
+    }, 150);
+    
+    // Update URL
+    if (urlDisplay) {
+      urlDisplay.textContent = urls[tabName];
+    }
+  }
+  
+  // Auto-cycle through tabs
+  function cycleTabs() {
+    const tabName = tabOrder[currentTabIndex];
+    switchToTab(tabName);
+    currentTabIndex = (currentTabIndex + 1) % tabOrder.length;
+  }
+  
+  // Start with ChatGPT
+  switchToTab('chatgpt');
+  
+  // Auto-cycle every 4 seconds with fade transition
+  setInterval(cycleTabs, 4000);
+  
+  // Manual tab clicking
+  tabs.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabName = tab.dataset.tab;
+      switchToTab(tabName);
+      // Update current index to sync with auto-cycle
+      currentTabIndex = tabOrder.indexOf(tabName);
+    });
+  });
+}
 
 // Enhanced pricing card interactions with modern animations
 function initPricingCards() {
@@ -734,4 +963,75 @@ function initPricingCards() {
     sectionObserver.observe(pricingSection);
   }
 }
+
+// Assignment Demo Typing Animation
+function initAssignmentTyping() {
+  const typedElement = document.getElementById('typed-answer');
+  const cursor = document.querySelector('.typing-cursor');
+  
+  if (!typedElement) return;
+  
+  const fullText = typedElement.textContent;
+  typedElement.textContent = ''; // Clear the content initially
+  
+  let charIndex = 0;
+  const typingSpeed = 30; // Milliseconds per character
+  const pauseAfterParagraph = 800; // Pause after each paragraph
+  const pauseAfterCompletion = 3000; // Pause before restarting
+  const fadeOutDuration = 1000; // Time to fade out text
+  
+  function typeCharacter() {
+    if (charIndex < fullText.length) {
+      const char = fullText[charIndex];
+      typedElement.textContent += char;
+      
+      // Show cursor while typing
+      if (cursor) {
+        cursor.style.display = 'inline-block';
+      }
+      
+      charIndex++;
+      
+      // Pause longer after periods and double newlines (paragraphs)
+      let nextDelay = typingSpeed;
+      if (char === '.' && fullText[charIndex] === '\n' && fullText[charIndex + 1] === '\n') {
+        nextDelay = pauseAfterParagraph;
+      } else if (char === '.' || char === ',' || char === ';') {
+        nextDelay = typingSpeed * 3;
+      }
+      
+      setTimeout(typeCharacter, nextDelay);
+    } else {
+      // When typing is complete, pause then fade out and restart
+      setTimeout(() => {
+        // Fade out the text
+        typedElement.style.transition = `opacity ${fadeOutDuration}ms ease-out`;
+        typedElement.style.opacity = '0';
+        
+        // Hide cursor during fade
+        if (cursor) {
+          cursor.style.display = 'none';
+        }
+        
+        // After fade out, reset and start again
+        setTimeout(() => {
+          typedElement.textContent = '';
+          typedElement.style.opacity = '1';
+          charIndex = 0;
+          typeCharacter();
+        }, fadeOutDuration);
+      }, pauseAfterCompletion);
+    }
+  }
+  
+  // Start typing after a delay (when overlay animation starts)
+  setTimeout(() => {
+    typeCharacter();
+  }, 2500); // Start after overlay appears and progress bar starts
+}
+
+// Initialize assignment typing when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  initAssignmentTyping();
+});
 

@@ -80,37 +80,57 @@ export class InvisibilitySettings extends LitElement {
             line-height: 1.3;
         }
 
-        .toggle {
-            width: 40px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
+        /* Toggle Switch Styles - Same as Integrations */
+        .toggle-switch {
             position: relative;
-            cursor: pointer;
-            transition: background 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            width: 44px;
+            height: 24px;
         }
 
-        .toggle.active {
-            background: rgba(34, 197, 94, 0.3);
-            border-color: rgba(34, 197, 94, 0.5);
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
         }
 
-        .toggle::after {
-            content: '';
-            width: 16px;
-            height: 16px;
-            background: white;
-            border-radius: 50%;
+        .toggle-slider {
             position: absolute;
-            top: 1px;
-            left: 1px;
-            transition: transform 0.3s ease;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: 0.3s;
+            border-radius: 24px;
+            border: 1px solid #555;
         }
 
-        .toggle.active::after {
-            transform: translateX(20px);
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #aaa;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(18px);
+            background-color: white;
+        }
+
+        .toggle-switch input:disabled + .toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .button {
@@ -337,10 +357,14 @@ export class InvisibilitySettings extends LitElement {
                             Automatically hide Leviousa when screen sharing and enable instant help
                         </div>
                     </div>
-                    <div 
-                        class="toggle ${this.status.isInvisibilityModeActive ? 'active' : ''}"
-                        @click=${this.toggleInvisibilityMode}
-                    ></div>
+                    <label class="toggle-switch">
+                        <input 
+                            type="checkbox" 
+                            .checked=${this.status.isInvisibilityModeActive}
+                            @change=${this.toggleInvisibilityMode}
+                        />
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
 
                 <div class="info">
@@ -366,10 +390,14 @@ export class InvisibilitySettings extends LitElement {
                         <div class="control-label">Smart Recognition</div>
                         <div class="control-description">Automatically spot questions and problems on your screen</div>
                     </div>
-                    <div 
-                        class="toggle ${this.status.config?.questionDetectionEnabled ? 'active' : ''}"
-                        @click=${() => this.updateConfig('questionDetectionEnabled', !this.status.config?.questionDetectionEnabled)}
-                    ></div>
+                    <label class="toggle-switch">
+                        <input 
+                            type="checkbox" 
+                            .checked=${this.status.config?.questionDetectionEnabled}
+                            @change=${() => this.updateConfig('questionDetectionEnabled', !this.status.config?.questionDetectionEnabled)}
+                        />
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
 
                 <div class="control-group">
@@ -377,45 +405,22 @@ export class InvisibilitySettings extends LitElement {
                         <div class="control-label">Auto-Type Answers</div>
                         <div class="control-description">Instantly type solutions when problems are found</div>
                     </div>
-                    <div 
-                        class="toggle ${this.status.config?.autoAnsweringEnabled ? 'active' : ''}"
-                        @click=${() => this.updateConfig('autoAnsweringEnabled', !this.status.config?.autoAnsweringEnabled)}
-                    ></div>
+                    <label class="toggle-switch">
+                        <input 
+                            type="checkbox" 
+                            .checked=${this.status.config?.autoAnsweringEnabled}
+                            @change=${() => this.updateConfig('autoAnsweringEnabled', !this.status.config?.autoAnsweringEnabled)}
+                        />
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
 
-                <div class="control-group">
-                    <div>
-                        <div class="control-label">Typing Style</div>
-                        <div class="control-description">Choose between natural or lightning-fast typing</div>
-                    </div>
-                    <div 
-                        class="toggle ${this.status.config?.typingSpeedMode === 'human' ? 'active' : ''}"
-                        @click=${() => this.updateConfig('typingSpeedMode', this.status.config?.typingSpeedMode === 'human' ? 'bolt' : 'human')}
-                    ></div>
-                </div>
-                <div class="info" style="font-size: 10px; margin-top: 4px;">
-                    ${this.status.config?.typingSpeedMode === 'human' ? '🧑 Natural typing style' : '⚡ Lightning-fast typing'}
-                </div>
 
-                <button class="button primary" @click=${this.triggerManualAnswer}>
-                    🧠 Get Help Now (⌘+L)
-                </button>
             </div>
 
 
 
-            <div class="section">
-                <div class="section-title">ℹ️ How to Use</div>
-                <div class="info">
-                    <strong>Setup:</strong><br>
-                    • Allow access in System Preferences → Privacy & Security → Accessibility<br>
-                    • Works with browsers, coding environments, and most apps<br><br>
-                    <strong>Perfect for:</strong><br>
-                    • Learning new skills and practicing<br>
-                    • Getting instant help during coding sessions<br>
-                    • Staying focused without interruptions
-                </div>
-            </div>
+
         `;
     }
 }

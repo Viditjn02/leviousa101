@@ -1790,7 +1790,7 @@ export class AskView extends LitElement {
             "Ask about your screen or audio";
 
         return html`
-            <div class="ask-container">
+            <div class="ask-container" data-tutorial="ask-button">
                 <!-- Conversation History -->
                 ${hasConversationHistory ? html`
                     <div class="conversation-history">

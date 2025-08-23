@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="content-security-policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval'" />
+        <title>Leviousa Welcome Video</title>
+        <style>
+            :root {
+                /* Leviousa Brand Colors from website */
+                --brand-start: #905151;
+                --brand-end: #f2e9e9; 
+                --bg: #000;
+                --bg-soft: #050505;
+                --bg-softer: #070707;
+                --bg-card: #1a1a1a;
+                --bg-card-2: #1e1e1e;
+                --text: #fff;
+                --muted: #bbb;
+                --muted-2: #999;
+                --border: #333;
+                --shadow: rgba(0,0,0,0.6);
+            }
+
+            html, body {
+                margin: 0;
+                padding: 0;
+                min-height: 100%;
+                overflow: hidden;
+                background: transparent;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            .video-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                height: 100vh;
+                background: var(--shadow);
+                backdrop-filter: blur(15px);
+                position: relative;
+                border-radius: 12px;
+                overflow: hidden;
+            }
+
+            .video-header {
+                padding: 20px;
+                text-align: center;
+                background: rgba(0, 0, 0, 0.8);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .video-title {
+                font-size: clamp(18px, 3vw, 24px);
+                font-weight: 800;
+                background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+                margin: 0 0 8px 0;
+                letter-spacing: 0.05em;
+            }
+
+            .video-subtitle {
+                font-size: clamp(12px, 2vw, 14px);
+                color: var(--muted);
+                margin: 0;
+            }
+
+            .video-content {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                padding: 20px;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .video-player {
+                width: 100%;
+                max-width: 800px;
+                height: 60vh;
+                max-height: 450px;
+                background: #000;
+                border-radius: 8px;
+                border: 1px solid var(--border);
+                margin-bottom: 20px;
+            }
+
+            .video-controls {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-bottom: 20px;
+            }
+
+            .control-button {
+                padding: 8px 16px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--bg-card-2);
+                color: var(--text);
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .control-button:hover {
+                background: var(--bg-softer);
+                border-color: var(--muted-2);
+                transform: translateY(-1px);
+            }
+
+            .control-button.primary {
+                background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+                border-color: var(--brand-start);
+                color: #000;
+                font-weight: 700;
+            }
+
+            .control-button.primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px var(--shadow);
+            }
+
+            .speed-display {
+                font-size: 11px;
+                color: var(--muted);
+                margin-left: 4px;
+            }
+
+            .video-progress {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .progress-bar {
+                flex: 1;
+                height: 4px;
+                background: var(--bg-card-2);
+                border-radius: 2px;
+                position: relative;
+                cursor: pointer;
+            }
+
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+                border-radius: 2px;
+                width: 0%;
+                transition: width 0.1s ease;
+            }
+
+            .video-actions {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                margin-top: 20px;
+            }
+
+            .close-button {
+                position: absolute;
+                top: 15px;
+                right: 15px;
+                width: 28px;
+                height: 28px;
+                border: 1px solid var(--border);
+                background: var(--bg-card-2);
+                border-radius: 50%;
+                color: var(--muted);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+                transition: all 0.2s ease;
+                z-index: 10;
+            }
+
+            .close-button:hover {
+                background: var(--bg-softer);
+                color: var(--text);
+                border-color: var(--muted-2);
+                transform: scale(1.1);
+            }
+
+            .video-error {
+                display: none;
+                text-align: center;
+                color: var(--muted);
+                padding: 40px;
+                font-size: 14px;
+            }
+
+            .video-error.show {
+                display: block;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="video-container">
+            <button class="close-button" onclick="closeTutorial()" title="Close (Esc)">✕</button>
+            
+            <div class="video-header">
+                <h1 class="video-title">Welcome to Leviousa!</h1>
+                <p class="video-subtitle">Watch this quick introduction to get started</p>
+            </div>
+            
+            <div class="video-content">
+                <video 
+                    id="welcomeVideo" 
+                    class="video-player" 
+                    controls
+                    preload="auto"
+                    onloadstart="onVideoLoadStart()"
+                    onloadeddata="onVideoLoaded()"
+                    onerror="onVideoError()"
+                    ontimeupdate="onTimeUpdate()"
+                    onended="onVideoEnded()"
+                >
+                    <source src="file:///Users/viditjain/Downloads/Welcome 3.mp4" type="video/mp4">
+                    <p>Your browser doesn't support video playback. Please ensure the video file exists at the specified location.</p>
+                </video>
+                
+                <div class="video-error" id="videoError">
+                    <p>⚠️ Video file not found</p>
+                    <p>Please make sure "Welcome 3.mp4" exists in /Users/viditjain/Downloads/</p>
+                </div>
+                
+                <div class="video-controls">
+                    <button class="control-button" onclick="togglePlayPause()" id="playPauseBtn">
+                        ⏸️ Pause
+                    </button>
+                    <button class="control-button" onclick="skipForward()">
+                        ⏭️ Skip +10s
+                    </button>
+                    <button class="control-button" onclick="skipBackward()">
+                        ⏮️ Back -10s
+                    </button>
+                    <button class="control-button" onclick="changeSpeed(-0.25)" id="speedDownBtn">
+                        🐌 Slower
+                    </button>
+                    <button class="control-button" onclick="changeSpeed(0.25)" id="speedUpBtn">
+                        🚀 Faster
+                    </button>
+                    <span class="speed-display" id="speedDisplay">1.0x</span>
+                </div>
+                
+                <div class="video-progress">
+                    <span id="currentTime">0:00</span>
+                    <div class="progress-bar" onclick="seekTo(event)">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span id="duration">0:00</span>
+                </div>
+                
+                <div class="video-actions">
+                    <button class="control-button" onclick="skipTutorial()">Skip Video</button>
+                    <button class="control-button primary" onclick="closeTutorial()">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            console.log('[VideoTutorial] 🎥 Video tutorial window loaded');
+
+            let video = null;
+            let currentSpeed = 1.0;
+            
+            // Initialize autoPlay setting (default to false for regular users)
+            window.tutorialAutoPlay = false;
+            
+            // Function to set autoPlay from main process
+            window.setAutoPlay = function(shouldAutoPlay) {
+                console.log(`[VideoTutorial] 🎛️ Setting autoPlay to: ${shouldAutoPlay}`);
+                window.tutorialAutoPlay = shouldAutoPlay;
+                
+                // If video is already loaded and we're now setting autoPlay to true, start it
+                if (shouldAutoPlay && video && video.readyState >= 3) {
+                    console.log('[VideoTutorial] 🎬 Video already loaded, starting auto-play now');
+                    video.play().catch(e => {
+                        console.warn('[VideoTutorial] ⚠️ Auto-play prevented:', e);
+                    });
+                }
+            };
+
+            function onVideoLoadStart() {
+                console.log('[VideoTutorial] 📥 Video loading started');
+                video = document.getElementById('welcomeVideo');
+            }
+
+            function onVideoLoaded() {
+                console.log('[VideoTutorial] ✅ Video loaded successfully');
+                video = document.getElementById('welcomeVideo');
+                document.getElementById('videoError').classList.remove('show');
+                
+                // Only auto-play if explicitly enabled (for first-time users)
+                if (window.tutorialAutoPlay === true) {
+                    console.log('[VideoTutorial] 🎬 Auto-playing video for first-time user');
+                    video.play().catch(e => {
+                        console.warn('[VideoTutorial] ⚠️ Auto-play prevented:', e);
+                    });
+                } else {
+                    console.log('[VideoTutorial] ⏸️ Video ready, waiting for user to play (regular user)');
+                }
+            }
+
+            function onVideoError() {
+                console.error('[VideoTutorial] ❌ Video failed to load');
+                document.getElementById('videoError').classList.add('show');
+            }
+
+            function onTimeUpdate() {
+                if (!video) return;
+                
+                const progress = (video.currentTime / video.duration) * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+                
+                document.getElementById('currentTime').textContent = formatTime(video.currentTime);
+                document.getElementById('duration').textContent = formatTime(video.duration);
+            }
+
+            function onVideoEnded() {
+                console.log('[VideoTutorial] 🏁 Video completed');
+                document.getElementById('playPauseBtn').innerHTML = '▶️ Play';
+            }
+
+            function togglePlayPause() {
+                if (!video) return;
+                
+                if (video.paused) {
+                    video.play();
+                    document.getElementById('playPauseBtn').innerHTML = '⏸️ Pause';
+                } else {
+                    video.pause();
+                    document.getElementById('playPauseBtn').innerHTML = '▶️ Play';
+                }
+            }
+
+            function skipForward() {
+                if (!video) return;
+                video.currentTime = Math.min(video.currentTime + 10, video.duration);
+            }
+
+            function skipBackward() {
+                if (!video) return;
+                video.currentTime = Math.max(video.currentTime - 10, 0);
+            }
+
+            function changeSpeed(delta) {
+                if (!video) return;
+                
+                currentSpeed = Math.max(0.25, Math.min(2.0, currentSpeed + delta));
+                video.playbackRate = currentSpeed;
+                
+                document.getElementById('speedDisplay').textContent = currentSpeed.toFixed(2) + 'x';
+                
+                // Update button states
+                document.getElementById('speedDownBtn').disabled = currentSpeed <= 0.25;
+                document.getElementById('speedUpBtn').disabled = currentSpeed >= 2.0;
+            }
+
+            function seekTo(event) {
+                if (!video) return;
+                
+                const progressBar = event.currentTarget;
+                const rect = progressBar.getBoundingClientRect();
+                const clickX = event.clientX - rect.left;
+                const percentage = clickX / rect.width;
+                
+                video.currentTime = percentage * video.duration;
+            }
+
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return '0:00';
+                
+                const minutes = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return minutes + ':' + (secs < 10 ? '0' : '') + secs;
+            }
+
+            function closeTutorial() {
+                console.log('[VideoTutorial] 📛 Closing video tutorial');
+                if (window.electronAPI?.closeTutorialWindow) {
+                    window.electronAPI.closeTutorialWindow();
+                } else {
+                    window.close();
+                }
+            }
+
+            function skipTutorial() {
+                console.log('[VideoTutorial] ⏭️ Skipping video tutorial');
+                closeTutorial();
+            }
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                switch(e.key) {
+                    case 'Escape':
+                        e.preventDefault();
+                        closeTutorial();
+                        break;
+                    case ' ':
+                        e.preventDefault();
+                        togglePlayPause();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        skipForward();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        skipBackward();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        changeSpeed(0.25);
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        changeSpeed(-0.25);
+                        break;
+                }
+            });
+
+            // Initialize on load
+            window.addEventListener('DOMContentLoaded', () => {
+                console.log('[VideoTutorial] 🎬 Initializing video tutorial');
+                
+                // Focus the video for keyboard controls
+                const videoElement = document.getElementById('welcomeVideo');
+                if (videoElement) {
+                    videoElement.focus();
+                }
+            });
+        </script>
+    </body>
+</html>

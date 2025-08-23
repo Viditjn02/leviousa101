@@ -606,7 +606,8 @@ export class VoiceAgentSettings extends LitElement {
                 <!-- Voice Training Section -->
                 <voice-enrollment-component></voice-enrollment-component>
 
-                <!-- Configuration Section -->
+                <!-- Configuration Section - HIDDEN IN OVERLAY -->
+                <!-- 
                 <div class="collapsible-section">
                     <div class="section-toggle" @click=${() => this.toggleSection('showAdvanced')}>
                         <span class="toggle-icon">${this.showAdvanced ? '▼' : '▶'}</span>
@@ -657,8 +658,10 @@ export class VoiceAgentSettings extends LitElement {
                         </div>
                     ` : ''}
                 </div>
+                -->
 
-                <!-- Testing Section -->
+                <!-- Testing Section - HIDDEN IN OVERLAY -->
+                <!-- 
                 <div class="collapsible-section">
                     <div class="section-toggle" @click=${() => this.toggleSection('showTesting')}>
                         <span class="toggle-icon">${this.showTesting ? '▼' : '▶'}</span>
@@ -709,6 +712,7 @@ export class VoiceAgentSettings extends LitElement {
                         </div>
                     ` : ''}
                 </div>
+                -->
 
                 <!-- Conversation History -->
                 ${this.conversationHistory.length > 0 ? html`
@@ -750,7 +754,7 @@ export class VoiceAgentSettings extends LitElement {
                     </div>
                     <div class="status-row">
                         <span>Wake Word:</span>
-                        <span class="status-value">${this.status.config.wakeWord || 'hey leviousa'}</span>
+                        <span class="status-value">${this.status.config.wakeWord || 'Hey Leviousa'}</span>
                     </div>
                 </div>
             </div>

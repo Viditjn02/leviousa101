@@ -51,7 +51,7 @@ function SettingsPageContent() {
   const isFirebaseMode = mode === 'firebase'
 
   const tabs = [
-    { id: 'profile' as Tab, name: 'Personal Profile', href: '/settings' },
+    { id: 'profile' as Tab, name: 'Profile', href: '/settings' },
     { id: 'privacy' as Tab, name: 'Data & Privacy', href: '/settings/privacy' },
     { id: 'billing' as Tab, name: 'Billing', href: '/settings/billing' },
     { id: 'referrals' as Tab, name: 'Referrals', href: '/settings/referrals' },

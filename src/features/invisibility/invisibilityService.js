@@ -154,8 +154,75 @@ class InvisibilityService extends EventEmitter {
         try {
             console.log('[InvisibilityService] 👁️ Ensuring overlay is visible by default...');
             await this.showOverlay('Default visibility after initialization', true); // Force show
+            
+            // THIS IS THE PERFECT PLACE FOR FIRST-TIME USER TUTORIAL
+            setTimeout(() => {
+                console.log('[InvisibilityService] 🎯 Checking for first-time user tutorial...');
+                this.checkFirstTimeUserTutorial();
+            }, 2000); // Small delay to ensure overlay is fully shown
+            
         } catch (error) {
             console.error('[InvisibilityService] Error ensuring overlay visibility:', error);
+        }
+    }
+
+    // Check and trigger tutorial for first-time users
+    checkFirstTimeUserTutorial() {
+        try {
+            console.log('[InvisibilityService] 🎉 Checking for first-time user tutorial...');
+            
+            // Use window manager to show tutorial window for first-time users
+            const windowManager = require('../../window/windowManager');
+            
+            // Check if tutorial window is available
+            const tutorialWin = windowManager.windowPool.get('tutorial');
+            if (tutorialWin && !tutorialWin.isDestroyed()) {
+                console.log('[InvisibilityService] 🎓 Tutorial window available, checking if user needs tutorial');
+                
+                // Check localStorage in any content window to see if user needs tutorial
+                windowManager.windowPool.forEach((window, name) => {
+                    if (!window.isDestroyed() && name !== 'header' && name !== 'tutorial') {
+                        const script = 
+                            'try {' +
+                            '  var videoProgress = localStorage.getItem("leviousa-video-tutorial-progress");' +
+                            '  var hasSeenVideo = false;' +
+                            '  if (videoProgress) {' +
+                            '    var parsed = JSON.parse(videoProgress);' +
+                            '    hasSeenVideo = (parsed.completedVideos && parsed.completedVideos.length > 0) || (parsed.skippedVideos && parsed.skippedVideos.length > 0);' +
+                            '  }' +
+                            '  console.log("[' + name + '] Video tutorial progress check:", hasSeenVideo);' +
+                            '  hasSeenVideo;' +
+                            '} catch (error) {' +
+                            '  console.error("[' + name + '] Error checking video tutorial progress:", error);' +
+                            '  false;' +
+                            '}';
+                        
+                        window.webContents.executeJavaScript(script).then(hasSeenVideo => {
+                            if (!hasSeenVideo) {
+                                console.log('[InvisibilityService] 🎉 First-time user detected! Showing video tutorial window with auto-play...');
+                                const result = windowManager.showTutorialWindow(true); // Auto-play for first-time users
+                                if (result.success) {
+                                    console.log('[InvisibilityService] ✅ Tutorial window shown for first-time user');
+                                } else {
+                                    console.error('[InvisibilityService] ❌ Failed to show tutorial window:', result.error);
+                                }
+                            } else {
+                                console.log('[InvisibilityService] 👋 Returning user - no tutorial needed');
+                            }
+                        }).catch(error => {
+                            console.error('[InvisibilityService] Error checking tutorial progress:', error);
+                        });
+                        
+                        // Only check once, break after first window
+                        return;
+                    }
+                });
+            } else {
+                console.warn('[InvisibilityService] ⚠️ Tutorial window not available yet');
+            }
+            
+        } catch (error) {
+            console.error('[InvisibilityService] Error checking tutorial:', error);
         }
     }
 

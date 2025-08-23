@@ -20,7 +20,22 @@ module.exports = {
     ipcMain.handle('settings:set-auto-update', async (event, isEnabled) => await settingsService.setAutoUpdateSetting(isEnabled));  
     ipcMain.handle('settings:get-model-settings', async () => await settingsService.getModelSettings());
     ipcMain.handle('settings:clear-api-key', async (e, { provider }) => await settingsService.clearApiKey(provider));
-    ipcMain.handle('settings:set-selected-model', async (e, { type, modelId }) => await settingsService.setSelectedModel(type, modelId));    
+    ipcMain.handle('settings:set-selected-model', async (e, { type, modelId }) => await settingsService.setSelectedModel(type, modelId));
+    ipcMain.handle('settings:get-firebase-token', async () => {
+      try {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser && currentUser.getIdToken) {
+          const token = await currentUser.getIdToken();
+          console.log('[FeatureBridge] Got Firebase ID token for settings');
+          return token;
+        }
+        console.warn('[FeatureBridge] No Firebase user available for token');
+        return null;
+      } catch (error) {
+        console.error('[FeatureBridge] Error getting Firebase token:', error);
+        return null;
+      }
+    });    
 
     ipcMain.handle('settings:get-ollama-status', async () => await settingsService.getOllamaStatus());
     // Ollama settings handlers removed - local models disabled

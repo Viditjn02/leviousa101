@@ -41,11 +41,36 @@ class SubscriptionService {
 
     async getCurrentUserSubscription() {
         try {
-            const subscription = await subscriptionRepository.getCurrentUserSubscription();
+            const authService = require('./authService');
+            const currentUser = authService.getCurrentUser();
+            
+            // Check if this is a special email that should get automatic Pro access
+            const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
+            const isSpecialEmail = currentUser && specialEmails.includes(currentUser.email);
+            
+            let subscription = await subscriptionRepository.getCurrentUserSubscription();
+            
+            // Auto-upgrade special emails to Pro
+            if (isSpecialEmail && subscription.plan !== 'pro') {
+                console.log('[SubscriptionService] 👑 Auto-upgrading special email to Pro subscription');
+                
+                // Update the subscription to Pro in the local database
+                if (subscription.id) {
+                    subscription = await subscriptionRepository.update(subscription.id, {
+                        plan: 'pro',
+                        status: 'active'
+                    });
+                } else {
+                    subscription = await subscriptionRepository.create({
+                        plan: 'pro',
+                        status: 'active'
+                    });
+                }
+            }
             
             // Apply usage limits based on subscription plan
-            if (subscription.plan === 'pro') {
-                // Pro users have unlimited usage
+            if (subscription.plan === 'pro' || isSpecialEmail) {
+                // Pro users and special emails have unlimited usage
                 await usageTrackingRepository.updateUserLimits(-1, -1);
             } else {
                 // Free users have daily limits
@@ -57,7 +82,8 @@ class SubscriptionService {
             
             return {
                 ...subscription,
-                plan_details: this.plans[subscription.plan] || this.plans.free
+                plan_details: this.plans[subscription.plan] || this.plans.free,
+                is_special_email: isSpecialEmail
             };
         } catch (error) {
             console.error('[SubscriptionService] Error getting user subscription:', error);
@@ -359,6 +385,69 @@ class SubscriptionService {
 
     async checkUsageAllowed(usageType) {
         try {
+            // First check if user is authenticated and get their web API status
+            const authService = require('./authService');
+            const currentUser = authService.getCurrentUser();
+            
+            if (currentUser && currentUser.mode === 'firebase') {
+                console.log('[SubscriptionService] 🌐 Checking usage via web API...');
+                
+                try {
+                    // Call web API to get real usage status with referral bonuses
+                    const fetch = require('node-fetch');
+                    const idToken = await currentUser.getIdToken();
+                    
+                    const response = await fetch(`${process.env.LEVIOUSA_WEB_URL || 'https://www.leviousa.com'}/api/usage/status`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${idToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        const usage = data.usage;
+                        
+                        // Map usage types
+                        const usageMap = {
+                            'cmd_l': {
+                                used: usage.auto_answer_used,
+                                limit: usage.auto_answer_limit,
+                                remaining: usage.auto_answer_remaining
+                            },
+                            'browser': {
+                                used: usage.browser_used,
+                                limit: usage.browser_limit, 
+                                remaining: usage.browser_remaining
+                            }
+                        };
+                        
+                        const typeData = usageMap[usageType];
+                        if (!typeData) {
+                            throw new Error(`Invalid usage type: ${usageType}`);
+                        }
+                        
+                        console.log(`[SubscriptionService] ✅ Web API usage check - ${usageType}: ${typeData.used}/${typeData.limit} (${typeData.remaining} remaining)`);
+                        
+                        return {
+                            allowed: typeData.limit === -1 || typeData.used < typeData.limit,
+                            unlimited: typeData.limit === -1,
+                            usage: typeData.used,
+                            limit: typeData.limit,
+                            remaining: typeData.remaining,
+                            subscription_plan: usage.subscription_plan,
+                            referral_bonus: usage.referral_bonus
+                        };
+                    } else {
+                        console.log('[SubscriptionService] ⚠️ Web API unavailable, falling back to local check');
+                    }
+                } catch (webApiError) {
+                    console.log('[SubscriptionService] ⚠️ Web API error, falling back to local check:', webApiError.message);
+                }
+            }
+            
+            // Fallback to local subscription check
             const subscription = await this.getCurrentUserSubscription();
             
             // Pro users have unlimited access
@@ -366,7 +455,7 @@ class SubscriptionService {
                 return { allowed: true, unlimited: true };
             }
 
-            // Check usage limits for free users
+            // Check usage limits for free users using local data
             const usageStatus = await usageTrackingRepository.checkUsageLimit(usageType);
             
             return {
@@ -379,6 +468,62 @@ class SubscriptionService {
         } catch (error) {
             console.error('[SubscriptionService] Error checking usage allowance:', error);
             return { allowed: false, error: error.message };
+        }
+    }
+
+    async trackUsageToWebAPI(usageType, minutesUsed) {
+        try {
+            const authService = require('./authService');
+            const currentUser = authService.getCurrentUser();
+            
+            if (currentUser && currentUser.mode === 'firebase') {
+                console.log(`[SubscriptionService] 📊 Tracking ${usageType} usage to web API: ${minutesUsed} minutes`);
+                
+                try {
+                    const fetch = require('node-fetch');
+                    const idToken = await currentUser.getIdToken();
+                    
+                    // Map usage types to web API format
+                    const usageTypeMap = {
+                        'cmd_l': 'auto_answer',
+                        'browser': 'browser'
+                    };
+                    
+                    const webUsageType = usageTypeMap[usageType];
+                    if (!webUsageType) {
+                        throw new Error(`Invalid usage type: ${usageType}`);
+                    }
+                    
+                    const response = await fetch(`${process.env.LEVIOUSA_WEB_URL || 'https://www.leviousa.com'}/api/usage/track`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${idToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            usage_type: webUsageType,
+                            minutes_used: minutesUsed
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('[SubscriptionService] ✅ Usage tracked to web API successfully');
+                        return data;
+                    } else {
+                        console.log('[SubscriptionService] ⚠️ Web API tracking failed, using local tracking');
+                    }
+                } catch (webApiError) {
+                    console.log('[SubscriptionService] ⚠️ Web API tracking error:', webApiError.message);
+                }
+            }
+            
+            // Fallback to local usage tracking
+            await usageTrackingRepository.trackUsage(usageType, minutesUsed);
+            console.log('[SubscriptionService] ✅ Usage tracked locally');
+            
+        } catch (error) {
+            console.error('[SubscriptionService] Error tracking usage:', error);
         }
     }
 }

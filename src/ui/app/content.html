@@ -98,6 +98,28 @@
                 contain: layout style paint;
                 transition: transform 0.25s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.25s ease-out;
             }
+
+            /* Interactive Tutorial Highlighting */
+            .tutorial-highlight {
+                position: relative;
+                z-index: 9999;
+                animation: tutorialPulse 2s infinite;
+                border-radius: 8px;
+                box-shadow: 0 0 0 3px rgba(144, 81, 81, 0.6), 
+                           0 0 20px rgba(144, 81, 81, 0.4);
+                background: rgba(144, 81, 81, 0.1) !important;
+            }
+
+            @keyframes tutorialPulse {
+                0%, 100% { 
+                    box-shadow: 0 0 0 3px rgba(144, 81, 81, 0.6), 
+                               0 0 20px rgba(144, 81, 81, 0.4);
+                }
+                50% { 
+                    box-shadow: 0 0 0 6px rgba(144, 81, 81, 0.8), 
+                               0 0 30px rgba(144, 81, 81, 0.6);
+                }
+            }
         </style>
     </head>
     <body>
@@ -111,9 +133,78 @@
         <leviousa-app id="leviousa-app"></leviousa-app>
         
         <script>
+            // Global tutorial trigger function that can be called by shortcuts
+            window.triggerTutorial = function(tutorialName = 'welcome') {
+                console.log('[Content] 🎓 Global tutorial trigger called for:', tutorialName);
+                
+                if (window.tutorialService) {
+                    console.log('[Content] ✅ Tutorial service available, starting tutorial');
+                    const success = window.tutorialService.startTutorial(tutorialName);
+                    console.log('[Content] 🎯 Tutorial start result:', success);
+                    return success;
+                } else {
+                    console.log('[Content] ⚠️ Tutorial service not ready, waiting...');
+                    
+                    // Wait for tutorial service to become available
+                    let attempts = 0;
+                    const waitForService = () => {
+                        attempts++;
+                        if (window.tutorialService) {
+                            console.log(`[Content] ✅ Tutorial service ready after ${attempts} attempts`);
+                            const success = window.tutorialService.startTutorial(tutorialName);
+                            console.log('[Content] 🎯 Delayed tutorial start result:', success);
+                            return success;
+                        } else if (attempts < 10) {
+                            console.log(`[Content] ⏳ Waiting for tutorial service... (attempt ${attempts}/10)`);
+                            setTimeout(waitForService, 500);
+                        } else {
+                            console.error('[Content] ❌ Tutorial service never became available');
+                            return false;
+                        }
+                    };
+                    
+                    setTimeout(waitForService, 100);
+                    return false;
+                }
+            };
+            
+            // Manual test function for debugging
+            window.testTutorial = function() {
+                console.log('[Content] 🧪 Manual tutorial test started');
+                return window.triggerTutorial('welcome');
+            };
+            
             window.addEventListener('DOMContentLoaded', () => {
                 const app = document.getElementById('leviousa-app');
-
+                
+                // Add debugging for tutorial system availability
+                console.log('[Content] 🎯 DOMContentLoaded - checking tutorial system...');
+                
+                // Check periodically if tutorial service becomes available
+                let checkCount = 0;
+                const checkTutorialService = () => {
+                    checkCount++;
+                    console.log(`[Content] 🔍 Tutorial service check #${checkCount}:`, {
+                        tutorialService: !!window.tutorialService,
+                        customElements: {
+                            'tutorial-overlay': !!customElements.get('tutorial-overlay'),
+                            'tutorial-manager': !!customElements.get('tutorial-manager')
+                        }
+                    });
+                    
+                    if (window.tutorialService) {
+                        console.log('[Content] ✅ Tutorial service is available!');
+                        console.log('[Content] 📚 Available flows:', window.tutorialService.getAvailableFlows().length);
+                        return true;
+                    } else if (checkCount < 10) {
+                        setTimeout(checkTutorialService, 1000);
+                    } else {
+                        console.error('[Content] ❌ Tutorial service never became available after 10 seconds');
+                    }
+                    return false;
+                };
+                
+                setTimeout(checkTutorialService, 500);
             });
         </script>
         <script>

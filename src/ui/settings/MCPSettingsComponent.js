@@ -1484,21 +1484,15 @@ export class MCPSettingsComponent extends LitElement {
                 
                 <div class="header" @click="${this.toggleExpanded}">
                     <div class="title">
-                        <span>🔗</span>
+                        <span style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;">
+                            <svg role="img" viewBox="0 0 24 24" width="16" height="16" fill="white" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13.85 0a4.16 4.16 0 0 0-2.95 1.217L1.456 10.66a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l9.442-9.442a2.49 2.49 0 0 1 3.541 0 2.49 2.49 0 0 1 0 3.541L8.59 12.97l-.1.1a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l.1-.098 7.03-7.034a2.49 2.49 0 0 1 3.542 0l.049.05a2.49 2.49 0 0 1 0 3.54l-8.54 8.54a1.96 1.96 0 0 0 0 2.755l1.753 1.753a.835.835 0 0 0 1.18 0 .835.835 0 0 0 0-1.18l-1.753-1.753a.266.266 0 0 1 0-.394l8.54-8.54a4.185 4.185 0 0 0 0-5.9l-.05-.05a4.16 4.16 0 0 0-2.95-1.218c-.2 0-.401.02-.6.048a4.17 4.17 0 0 0-1.17-3.552A4.16 4.16 0 0 0 13.85 0m0 3.333a.84.84 0 0 0-.59.245L6.275 10.56a4.186 4.186 0 0 0 0 5.902 4.186 4.186 0 0 0 5.902 0L19.16 9.48a.835.835 0 0 0 0-1.18.835.835 0 0 0-1.18 0l-6.985 6.984a2.49 2.49 0 0 1-3.54 0 2.49 2.49 0 0 1 0-3.54l6.983-6.985a.835.835 0 0 0 0-1.18.84.84 0 0 0-.59-.245"/>
+                            </svg>
+                        </span>
                         <span>Integrations</span>
                     </div>
                     <div>
-                        <span class="refresh-btn" @click="${this.handleRefreshClick}">🔄</span>
                         <span class="expand-icon ${this.isExpanded ? 'expanded' : ''}">▶</span>
-                    </div>
-                </div>
-
-                <div class="stats-summary">
-                    <div class="stat-item">
-                        <span class="stat-value">${runningCount}</span> connected
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-value">${totalTools}</span> features
                     </div>
                 </div>
 
@@ -1536,21 +1530,12 @@ export class MCPSettingsComponent extends LitElement {
         // Bypass server connection check to always render service toggles
         return html`
             <div class="more-services" style="margin-bottom: 20px;">
-                <summary>🔗 Available Integrations</summary>
-                <p style="color: var(--text-secondary, #a0a0a0); font-size: 0.9em; margin: 12px 0;">
-                    Connect your accounts to access their features and capabilities.
-                </p>
+                <summary>Available Integrations</summary>
                 
                 <div class="services-grid">
                     ${Object.entries(availableServices).map(([serviceKey, service]) => 
                         this.renderServiceCard(serviceKey, service)
                     )}
-                </div>
-                
-                <div style="margin-top: 16px; padding: 12px; background: var(--background-secondary, #2a2a2a); border-radius: 6px; border: 1px solid var(--border-color, #333);">
-                    <p style="margin: 0; font-size: 0.85em; color: var(--text-secondary, #a0a0a0);">
-                        💡 <strong>Available Services:</strong> These are the services you can connect to enhance your experience.
-                    </p>
                 </div>
             </div>
         `;

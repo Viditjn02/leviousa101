@@ -646,6 +646,69 @@ function createFeatureWindows(header, namesToCreate) {
                 break;
             }
 
+            // tutorial
+            case 'tutorial': {
+                // Dynamic sizing based on screen size
+                const { screen } = require('electron');
+                const primaryDisplay = screen.getPrimaryDisplay();
+                const screenWidth = primaryDisplay.workAreaSize.width;
+                const screenHeight = primaryDisplay.workAreaSize.height;
+                
+                // Responsive sizing: 60% of screen width, max 700px, min 400px
+                const tutorialWidth = Math.min(Math.max(screenWidth * 0.6, 400), 700);
+                // Responsive height: 50% of screen height, max 500px, min 300px  
+                const tutorialHeight = Math.min(Math.max(screenHeight * 0.5, 300), 500);
+                
+                const tutorial = new BrowserWindow({ 
+                    ...commonChildOptions, 
+                    width: Math.round(tutorialWidth), 
+                    height: Math.round(tutorialHeight),
+                    parent: undefined,
+                    alwaysOnTop: true,
+                    center: true,
+                    focusable: true,
+                    modal: false,
+                    show: false // Start hidden, will be shown when triggered
+                });
+                tutorial.setContentProtection(isContentProtectionOn);
+                tutorial.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+                if (process.platform === 'darwin') {
+                    tutorial.setWindowButtonVisibility(false);
+                }
+                
+                // Load interactive tutorial HTML file
+                const tutorialLoadOptions = {};
+                if (!shouldUseLiquidGlass) {
+                    tutorial.loadFile(path.join(__dirname, '../ui/tutorial/tutorial.html'), tutorialLoadOptions)
+                        .catch(console.error);
+                }
+                else {
+                    tutorialLoadOptions.query = { glass: 'true' };
+                    tutorial.loadFile(path.join(__dirname, '../ui/tutorial/tutorial.html'), tutorialLoadOptions)
+                        .catch(console.error);
+                    tutorial.webContents.once('did-finish-load', () => {
+                        const viewId = liquidGlass.addView(tutorial.getNativeWindowHandle());
+                        if (viewId !== -1) {
+                            liquidGlass.unstable_setVariant(viewId, liquidGlass.GlassMaterialVariant.bubbles);
+                        }
+                    });
+                }
+
+                windowPool.set('tutorial', tutorial);
+                
+                tutorial.on('closed', () => {
+                    console.log('[TutorialWindow] Tutorial window closed.');
+                });
+                
+                tutorial.on('mouse-enter', () => {
+                    console.log('[Auto-Focus] 🎯 Mouse entered tutorial - bringing to front');
+                    tutorial.moveTop();
+                });
+
+                console.log('[TutorialWindow] ✅ Tutorial window created and ready');
+                break;
+            }
+
             case 'shortcut-settings': {
                 const shortcutEditor = new BrowserWindow({
                     ...commonChildOptions,
@@ -839,7 +902,7 @@ function createWindows() {
     setupWindowController(windowPool, layoutManager, movementManager);
 
     if (currentHeaderState === 'main') {
-        createFeatureWindows(header, ['listen', 'ask', 'settings', 'shortcut-settings']);
+        createFeatureWindows(header, ['listen', 'ask', 'settings', 'shortcut-settings', 'tutorial']);
     }
 
     // 🎯 PRIVACY MODE FIX: Don't apply content protection to header to preserve mouse events
@@ -919,7 +982,7 @@ const handleHeaderStateChanged = (state) => {
     currentHeaderState = state;
 
     if (state === 'main') {
-        createFeatureWindows(windowPool.get('header'));
+        createFeatureWindows(windowPool.get('header'), ['listen', 'ask', 'settings', 'shortcut-settings', 'tutorial']);
     } else {         // 'apikey' | 'permission'
         destroyFeatureWindows();
     }
@@ -933,7 +996,7 @@ let activeTabId = null;
 let globalRecentPopups = new Set(); // Global deduplication for popup URLs
 let googleAuthCooldown = false; // Prevent multiple Google auth popups
 
-const toggleBrowserWindow = () => {
+const toggleBrowserWindow = async () => {
     if (globalBrowserWindow && !globalBrowserWindow.isDestroyed()) {
         // Close existing browser window and view
         console.log('[WindowManager] 🌐 Closing browser window');
@@ -955,6 +1018,49 @@ const toggleBrowserWindow = () => {
         globalBrowserWindow = null;
         return { isOpen: false };
     } else {
+        // 🔒 Check subscription and usage limits for browser feature
+        try {
+            const subscriptionService = require('../features/common/services/subscriptionService');
+            const usageTrackingRepository = require('../features/common/repositories/usageTracking');
+            
+            console.log('[WindowManager] 🔍 Checking browser usage limits...');
+            const usageCheck = await subscriptionService.checkUsageAllowed('browser');
+            
+            if (!usageCheck.allowed) {
+                const errorMessage = usageCheck.unlimited ? 
+                    'Browser feature is not available.' :
+                    `Browser daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
+                    
+                console.log('[WindowManager] 🚫 Browser usage limit exceeded:', errorMessage);
+                
+                // Show notification or error dialog
+                const { dialog } = require('electron');
+                dialog.showMessageBox({
+                    type: 'warning',
+                    title: 'Usage Limit Reached',
+                    message: errorMessage,
+                    detail: 'Upgrade to Pro for unlimited browser access.',
+                    buttons: ['OK', 'Upgrade to Pro']
+                }).then((response) => {
+                    if (response.response === 1) {
+                        // Open upgrade page
+                        shell.openExternal('https://www.leviousa.com/settings/billing');
+                    }
+                });
+                return { success: false, error: errorMessage };
+            }
+            
+            console.log('[WindowManager] ✅ Browser usage check passed. Remaining:', usageCheck.remaining || 'unlimited');
+            
+            // Track browser usage start (1 minute per session)
+            await subscriptionService.trackUsageToWebAPI('browser', 1);
+            console.log('[WindowManager] ✅ Browser usage tracked: +1 minute');
+            
+        } catch (error) {
+            console.error('[WindowManager] ❌ Error checking browser subscription:', error);
+            // Allow usage if subscription check fails (fallback)
+        }
+        
         // Create new invisible, moveable, resizable browser window with BrowserView
         console.log('[WindowManager] 🌐 Creating advanced browser window with BrowserView');
         
@@ -2280,6 +2386,57 @@ const createNewTabWithUrl = (url, title = null) => {
     return createNewTab(url, title);
 };
 
+// Tutorial window management functions
+const showTutorialWindow = (autoPlay = false) => {
+    console.log(`[TutorialWindow] 🎓 Showing tutorial window... (autoPlay: ${autoPlay})`);
+    
+    const tutorialWin = windowPool.get('tutorial');
+    if (tutorialWin && !tutorialWin.isDestroyed()) {
+        console.log('[TutorialWindow] ✅ Tutorial window found, making visible');
+        tutorialWin.show();
+        tutorialWin.center();
+        tutorialWin.moveTop();
+        tutorialWin.focus();
+        
+        // Pass autoPlay setting to the tutorial window
+        setTimeout(() => {
+            tutorialWin.webContents.executeJavaScript(`
+                if (typeof window.setAutoPlay === 'function') {
+                    window.setAutoPlay(${autoPlay});
+                } else {
+                    window.tutorialAutoPlay = ${autoPlay};
+                }
+            `).catch(error => {
+                console.warn('[TutorialWindow] Could not set autoPlay:', error);
+            });
+        }, 100); // Small delay to ensure the window content is loaded
+        
+        return { success: true };
+    } else {
+        console.warn('[TutorialWindow] ⚠️ Tutorial window not available');
+        return { success: false, error: 'Tutorial window not available' };
+    }
+};
+
+const hideTutorialWindow = () => {
+    console.log('[TutorialWindow] 🙈 Hiding tutorial window...');
+    
+    const tutorialWin = windowPool.get('tutorial');
+    if (tutorialWin && !tutorialWin.isDestroyed()) {
+        tutorialWin.hide();
+        console.log('[TutorialWindow] ✅ Tutorial window hidden');
+        return { success: true };
+    } else {
+        console.warn('[TutorialWindow] ⚠️ Tutorial window not available to hide');
+        return { success: false, error: 'Tutorial window not available' };
+    }
+};
+
+const isTutorialWindowVisible = () => {
+    const tutorialWin = windowPool.get('tutorial');
+    return tutorialWin && !tutorialWin.isDestroyed() && tutorialWin.isVisible();
+};
+
 module.exports = {
     createWindows,
     windowPool,
@@ -2311,4 +2468,7 @@ module.exports = {
     closeTab,
     closeTabByIndex,
     updateTabUI,
+    showTutorialWindow,
+    hideTutorialWindow,
+    isTutorialWindowVisible
 };

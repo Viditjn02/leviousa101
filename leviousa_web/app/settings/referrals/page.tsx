@@ -25,10 +25,13 @@ interface ReferralStats {
   pendingReferrals: number
   completedReferrals: number
   proUpgrades: number
-  activeBonuses: {
-    cmd_l: number
+  my_referral_code: string
+  referral_link: string
+  bonus_minutes_earned: {
+    auto_answer: number
     browser: number
   }
+  has_referral_link?: boolean
 }
 
 function ReferralsPageContent() {
@@ -38,6 +41,7 @@ function ReferralsPageContent() {
   const [loading, setLoading] = useState(true)
   const [newReferralEmail, setNewReferralEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const tabs = [
     { id: 'profile', name: 'Personal Profile', href: '/settings' },
@@ -55,25 +59,23 @@ function ReferralsPageContent() {
 
   const fetchReferrals = async () => {
     try {
-      // TODO: Replace with actual API call
-      const mockReferrals = [
-        {
-          id: 'ref_1',
-          referred_email: 'friend@example.com',
-          referral_code: 'abc123',
-          referral_type: 'normal',
-          referred_uid: 'user_123',
-          referred_joined_pro: true,
-          discount_code: 'FRIEND50',
-          discount_expires_at: Date.now() + (14 * 24 * 60 * 60 * 1000),
-          discount_claimed: false,
-          created_at: Date.now() - (7 * 24 * 60 * 60 * 1000),
-          referral_link: 'https://www.leviousa.com/login?ref=abc123'
-        }
-      ]
-      setReferrals(mockReferrals)
+      const idToken = await user?.getIdToken()
+      const response = await fetch('/api/referrals/list', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setReferrals(data.referrals || [])
+      } else {
+        console.error('Failed to fetch referrals:', response.status)
+        setReferrals([])
+      }
     } catch (error) {
       console.error('Error fetching referrals:', error)
+      setReferrals([])
     } finally {
       setLoading(false)
     }
@@ -81,20 +83,85 @@ function ReferralsPageContent() {
 
   const fetchStats = async () => {
     try {
-      // TODO: Replace with actual API call
-      const mockStats = {
-        totalReferrals: 3,
-        pendingReferrals: 1,
-        completedReferrals: 2,
-        proUpgrades: 1,
-        activeBonuses: {
-          cmd_l: 60,
-          browser: 30
-        }
+      const idToken = await user?.getIdToken()
+      const response = await fetch('/api/referrals/stats', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data.stats)
+      } else {
+        console.error('Failed to fetch referral stats:', response.status)
+        setStats(null)
       }
-      setStats(mockStats)
     } catch (error) {
       console.error('Error fetching referral stats:', error)
+      setStats(null)
+    }
+  }
+
+  // Generate or retrieve user's unique referral link
+  const generateReferralLink = async () => {
+    if (!user) return
+    
+    try {
+      setIsGenerating(true)
+      
+      const idToken = await user.getIdToken()
+      
+      console.log('🔗 Getting or creating referral link...')
+      const response = await fetch('/api/referrals/generate-unique', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Got referral link:', data.referral_link)
+        
+        // Update stats to show the new referral link
+        await fetchStats()
+        
+        return data.referral_link
+      } else {
+        console.error('Failed to generate referral link:', response.status)
+        return null
+      }
+    } catch (error) {
+      console.error('Error generating referral link:', error)
+      return null
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const copyReferralLink = async () => {
+    if (stats?.referral_link) {
+      try {
+        await navigator.clipboard.writeText(stats.referral_link)
+        alert('Referral link copied to clipboard!')
+      } catch (error) {
+        console.error('Failed to copy:', error)
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = stats.referral_link
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        alert('Referral link copied to clipboard!')
+      }
+    } else {
+      await generateReferralLink()
+      if (stats?.referral_link) {
+        await copyReferralLink()
+      }
     }
   }
 
@@ -104,24 +171,50 @@ function ReferralsPageContent() {
 
     setIsCreating(true)
     try {
-      // TODO: Replace with actual API call
-      const mockReferral = {
-        id: 'ref_' + Math.random().toString(36).substring(2, 15),
-        referred_email: newReferralEmail.trim(),
-        referral_code: Math.random().toString(36).substring(2, 15),
-        referral_type: 'normal',
-        referred_uid: undefined,
-        referred_joined_pro: false,
-        discount_code: undefined,
-        discount_expires_at: undefined,
-        discount_claimed: false,
-        created_at: Date.now(),
-        referral_link: `https://www.leviousa.com/login?ref=${Math.random().toString(36).substring(2, 15)}`
-      }
+      const idToken = await user?.getIdToken()
       
-      setReferrals([mockReferral, ...referrals])
-      setNewReferralEmail('')
-      await fetchStats()
+      // First generate unique referral link
+      const uniqueResponse = await fetch('/api/referrals/generate-unique', {
+        method: 'GET', // ✅ CHANGED: Now GET since we're just retrieving/creating once
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      })
+
+      if (uniqueResponse.ok) {
+        const uniqueData = await uniqueResponse.json()
+        
+        // Create referral with the unique link
+        const response = await fetch('/api/referrals/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            referred_email: newReferralEmail.trim(),
+            unique_code: uniqueData.referral_code
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setReferrals([data.referral, ...referrals])
+          setNewReferralEmail('')
+          await fetchStats()
+          
+          // Show the unique link
+          alert(`Referral created! Share this link: ${uniqueData.referral_link}`)
+        } else {
+          const errorData = await response.text()
+          console.error('Failed to create referral:', response.status, errorData)
+          alert('Failed to create referral')
+        }
+      } else {
+        console.error('Failed to generate unique code:', uniqueResponse.status)
+        alert('Failed to generate unique referral link')
+      }
     } catch (error) {
       console.error('Error creating referral:', error)
       alert('Failed to create referral')
@@ -185,22 +278,55 @@ function ReferralsPageContent() {
           </div>
 
           {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Total Referrals</h3>
-                <p className="text-2xl font-bold brand-gradient">{stats.totalReferrals}</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Pending</h3>
-                <p className="text-2xl font-bold text-yellow-600">{stats.pendingReferrals}</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Completed</h3>
-                <p className="text-2xl font-bold text-green-600">{stats.completedReferrals}</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Pro Upgrades</h3>
-                <p className="text-2xl font-bold text-purple-600">{stats.proUpgrades}</p>
+            <div className="space-y-6">
+              {/* My Referral Code */}
+              {(stats as any).my_referral_code && (
+                <div className="glass-card rounded-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4 brand-gradient">Your Unique Referral Link</h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={(stats as any).referral_link || `https://www.leviousa.com/login?promo=${(stats as any).my_referral_code}`}
+                      readOnly
+                      className="flex-1 px-3 py-2 text-sm border rounded-l-lg"
+                      style={{
+                        backgroundColor: 'var(--card)',
+                        color: 'var(--text)',
+                        borderColor: 'var(--border)'
+                      }}
+                    />
+                    <button
+                      onClick={stats?.referral_link ? copyReferralLink : generateReferralLink}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? 'Generating...' : stats?.referral_link ? 'Copy Link' : 'Generate Link'}
+                    </button>
+                  </div>
+                  <p className="text-xs mt-2" style={{color: 'var(--muted)'}}>
+                    Share this link to give friends 50% off and earn 60 min daily bonus yourself!
+                  </p>
+                </div>
+              )}
+              
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="glass-card rounded-lg p-4">
+                  <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Total Referrals</h3>
+                  <p className="text-2xl font-bold brand-gradient">{stats.totalReferrals}</p>
+                </div>
+                <div className="glass-card rounded-lg p-4">
+                  <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Pending</h3>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.pendingReferrals}</p>
+                </div>
+                <div className="glass-card rounded-lg p-4">
+                  <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Completed</h3>
+                  <p className="text-2xl font-bold text-green-600">{stats.completedReferrals}</p>
+                </div>
+                <div className="glass-card rounded-lg p-4">
+                  <h3 className="text-sm font-medium" style={{color: 'var(--muted)'}}>Pro Upgrades</h3>
+                  <p className="text-2xl font-bold text-purple-600">{stats.proUpgrades}</p>
+                </div>
               </div>
             </div>
           )}
@@ -210,7 +336,7 @@ function ReferralsPageContent() {
               <h3 className="font-medium mb-2 text-green-800 dark:text-green-200">Active Bonuses</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-sm" style={{color: 'var(--muted)'}}>Cmd+L Bonus:</span>
+                  <span className="text-sm" style={{color: 'var(--muted)'}}>Auto Answer Bonus:</span>
                   <span className="ml-2 font-medium text-green-600">+{stats.activeBonuses.cmd_l} minutes</span>
                 </div>
                 <div>
@@ -230,7 +356,12 @@ function ReferralsPageContent() {
                 value={newReferralEmail}
                 onChange={(e) => setNewReferralEmail(e.target.value)}
                 placeholder="Enter email address to refer"
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{
+                  backgroundColor: 'var(--card)',
+                  color: 'var(--text)',
+                  borderColor: 'var(--border)'
+                }}
                 disabled={isCreating}
                 required
               />
@@ -246,7 +377,7 @@ function ReferralsPageContent() {
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <h4 className="font-medium mb-2 text-blue-800 dark:text-blue-200">Referral Rewards</h4>
               <ul className="text-sm space-y-1" style={{color: 'var(--muted)'}}>
-                <li>• <strong>Normal referrals:</strong> Referred person gets 30 min, you get 60 min (daily, resets in 24h)</li>
+                <li>• <strong>Normal referrals:</strong> Referred person gets 30 min Auto Answer + Browser, you get 60 min (daily, resets in 24h)</li>
                 <li>• <strong>Special emails:</strong> Referred person gets 3 day free trial of Pro with Stripe setup</li>
                 <li>• <strong>Pro upgrade:</strong> When referred person joins Pro, you get 50% off first month (14 days to claim)</li>
               </ul>
@@ -289,11 +420,23 @@ function ReferralsPageContent() {
                           type="text"
                           value={referral.referral_link}
                           readOnly
-                          className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-l-lg bg-gray-50 dark:bg-gray-700"
+                          className="flex-1 px-3 py-2 text-sm border rounded-l-lg"
+                          style={{
+                            backgroundColor: 'var(--card)',
+                            color: 'var(--text)',
+                            borderColor: 'var(--border)'
+                          }}
                         />
                         <button
                           onClick={() => copyToClipboard(referral.referral_link)}
-                          className="px-4 py-2 bg-gray-100 dark:bg-gray-600 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+                          className="px-4 py-2 border border-l-0 rounded-r-lg transition-colors"
+                          style={{
+                            backgroundColor: 'var(--card)',
+                            color: 'var(--text)',
+                            borderColor: 'var(--border)'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--card)'}
                         >
                           Copy
                         </button>

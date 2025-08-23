@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useState, createElement, useEffect, useMemo, useCallback, memo } from 'react';
-import { Search, Activity, HelpCircle, Download, ChevronDown, User, Shield, Database, CreditCard, LogOut, LucideIcon } from 'lucide-react';
+import { Search, Activity, HelpCircle, Download, ChevronDown, User, Shield, Database, CreditCard, LogOut, LucideIcon, Settings } from 'lucide-react';
 import { logout, UserProfile } from '@/utils/api';
 import { useAuth } from '@/utils/auth';
 
@@ -150,6 +150,8 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
     const pathname = usePathname();
     const router = useRouter();
     const [isSettingsExpanded, setIsSettingsExpanded] = useState(pathname ? pathname.startsWith('/settings') : false);
+    const [subscription, setSubscription] = useState<any>(null);
+    const [subscriptionLoading, setSubscriptionLoading] = useState(true);
     const { user: userInfo, isLoading: authLoading } = useAuth();
     const { isAnimating, getTextAnimationStyle, getSubmenuAnimationStyle, sidebarContainerStyle, getTextContainerStyle, getUniformTextStyle } =
         useAnimationStyles(isCollapsed);
@@ -159,6 +161,35 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
             setIsSettingsExpanded(true);
         }
     }, [pathname]);
+
+    // Fetch subscription status
+    useEffect(() => {
+        const fetchSubscription = async () => {
+            if (!userInfo) {
+                setSubscriptionLoading(false);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/subscription/current', {
+                    headers: {
+                        'Authorization': `Bearer mock-token`,
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setSubscription(data.subscription);
+                }
+            } catch (error) {
+                console.error('Failed to fetch subscription:', error);
+            } finally {
+                setSubscriptionLoading(false);
+            }
+        };
+
+        fetchSubscription();
+    }, [userInfo]);
 
     const navigation = useMemo<NavigationItem[]>(
         () => [
@@ -478,6 +509,16 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
     }, [userInfo, authLoading]);
 
     const isFirebaseUser = userInfo && userInfo.uid !== 'default_user';
+    const isProUser = subscription?.plan === 'pro';
+    
+    const handleSubscriptionAction = useCallback(() => {
+        if (isProUser) {
+            router.push('/settings/billing');
+        } else {
+            // Redirect to upgrade flow - we'll implement the actual checkout later
+            router.push('/settings/billing');
+        }
+    }, [isProUser, router]);
 
     return (
         <aside
@@ -512,13 +553,28 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                 ) : (
                     <>
                         <Link href="https://leviousa.com" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                            <Image
-                                src={isCollapsed ? '/symbol.svg' : '/word.svg'}
-                                alt="Leviousa Logo"
-                                width={120}
-                                height={35}
-                                className="mx-3 shrink-0"
-                            />
+                            {isCollapsed ? (
+                                <div className="mx-3 shrink-0">
+                                    <Image
+                                        src="/symbol.svg"
+                                        alt="Leviousa Logo"
+                                        width={20}
+                                        height={20}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="mx-3 shrink-0 flex items-center gap-2">
+                                    <Image
+                                        src="/symbol.svg"
+                                        alt="Leviousa Logo"
+                                        width={20}
+                                        height={20}
+                                    />
+                                    <span className="text-xl font-bold brand-gradient">
+                                        Leviousa{isProUser ? ' Pro' : ''}
+                                    </span>
+                                </div>
+                            )}
                         </Link>
                         <button
                             onClick={toggleSidebar}
@@ -570,7 +626,7 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                 </div>
 
                 <div
-                    className={`mt-[0px] flex items-center ${isCollapsed ? '' : 'gap-x-[10px]'}`}
+                    className={`mt-[0px] flex items-center ${isCollapsed ? 'flex-col gap-y-2' : 'gap-x-[10px]'}`}
                     style={{
                         padding: isCollapsed ? '6px 8px' : '6px 8px',
                         justifyContent: isCollapsed ? 'flex-start' : 'flex-start',
@@ -618,14 +674,60 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                         {getUserInitial()}
                     </div>
 
-                    <div className="ml-[0px] overflow-hidden" style={getTextContainerStyle()}>
-                        <span className="block text-[13px] leading-6" style={{
-                            ...getUniformTextStyle(),
-                            color: 'var(--text)'
-                        }}>
-                            {getUserDisplayName()}
-                        </span>
-                    </div>
+                    {!isCollapsed && (
+                        <>
+                            <div className="ml-[0px] overflow-hidden flex-1" style={getTextContainerStyle()}>
+                                <span className="block text-[13px] leading-6" style={{
+                                    ...getUniformTextStyle(),
+                                    color: 'var(--text)'
+                                }}>
+                                    {getUserDisplayName()}
+                                </span>
+                            </div>
+                            
+                            {isFirebaseUser && (
+                                <button
+                                    onClick={handleSubscriptionAction}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200 ${
+                                        isProUser 
+                                            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                                            : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
+                                    }`}
+                                    style={{ minWidth: isProUser ? '80px' : '70px' }}
+                                    title={isProUser ? 'Manage subscription' : 'Upgrade to Pro'}
+                                >
+                                    {isProUser ? (
+                                        <>
+                                            <Settings className="h-3 w-3" />
+                                            Manage
+                                        </>
+                                    ) : (
+                                        <>
+                                            Upgrade
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </>
+                    )}
+                    
+                    {isCollapsed && isFirebaseUser && (
+                        <button
+                            onClick={handleSubscriptionAction}
+                            className={`w-6 h-6 rounded-md flex items-center justify-center transition-colors duration-200 ${
+                                isProUser 
+                                    ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                                    : 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
+                            }`}
+                            title={isProUser ? 'Manage subscription' : 'Upgrade to Pro'}
+                        >
+                            {isProUser ? (
+                                <Settings className="h-3 w-3" />
+                            ) : (
+                                <CreditCard className="h-3 w-3" />
+                            )}
+                        </button>
+                    )}
                 </div>
             </nav>
         </aside>

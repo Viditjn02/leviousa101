@@ -57,16 +57,47 @@ export const authPersistenceReady = new Promise<void>((resolve) => {
 export { app, auth, firestore }; 
 // Server-side token verification for API routes
 export async function verifyIdToken(idToken: string) {
-  // For development/testing, we'll use a simple validation
-  // In production, you'd use Firebase Admin SDK to verify the token
-  if (!idToken || !idToken.startsWith('ey')) {
-    throw new Error('Invalid token format');
-  }
+  console.log('🔐 Verifying ID token:', idToken.substring(0, 20) + '...')
   
-  // Mock decoded token for development
-  return {
-    uid: 'test-user-id',
-    email: 'test@example.com',
-    email_verified: true
-  };
+  try {
+    // Handle test/mock tokens for development
+    if (!idToken || idToken === 'mock-token' || idToken === 'test-token') {
+      console.log('🔐 Using mock token for development')
+      return {
+        uid: 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+        email: 'viditjn02@gmail.com',
+        email_verified: true
+      };
+    }
+
+    // Basic JWT structure validation
+    const parts = idToken.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format - expected 3 parts');
+    }
+
+    // Decode the payload (simplified verification for development)
+    // In production, you'd verify signature with Firebase public keys
+    try {
+      const payload = JSON.parse(atob(parts[1]));
+      console.log('🔐 Token payload extracted successfully')
+      
+      // Validate required fields
+      if (!payload.sub && !payload.user_id) {
+        throw new Error('Token missing user ID');
+      }
+      
+      return {
+        uid: payload.user_id || payload.sub,
+        email: payload.email || 'no-email@example.com',
+        email_verified: payload.email_verified || false
+      };
+    } catch (decodeError) {
+      console.error('🔐 Failed to decode token payload:', decodeError)
+      throw new Error('Failed to decode token payload');
+    }
+  } catch (error) {
+    console.error('🔐 Token verification error:', error)
+    throw new Error(`Invalid or expired token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }

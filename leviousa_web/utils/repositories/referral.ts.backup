@@ -1,0 +1,131 @@
+// Referral repository adapter for Next.js API routes
+import { getSimpleFirestore } from './simple-firestore'
+import { v4 as uuidv4 } from 'uuid'
+
+interface ReferralData {
+  id?: string
+  referrer_uid: string
+  referred_uid?: string
+  referred_email: string
+  referral_code: string
+  referral_type: 'normal' | 'special'
+  bonus_applied_to_referred: boolean
+  bonus_applied_to_referrer: boolean
+  referred_joined_pro: boolean
+  discount_code?: string
+  discount_expires_at?: number
+  discount_claimed: boolean
+  created_at?: number
+  updated_at?: number
+}
+
+const COLLECTION_NAME = 'referrals'
+
+function generateReferralCode(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
+
+export async function createReferral(referrerUid: string, referredEmail: string, referralType: 'normal' | 'special' = 'normal'): Promise<ReferralData> {
+  const firestore = getSimpleFirestore()
+  const id = uuidv4()
+  const now = Date.now()
+  const referralCode = generateReferralCode()
+  
+  const referral: ReferralData = {
+    id,
+    referrer_uid: referrerUid,
+    referred_uid: undefined,
+    referred_email: referredEmail.toLowerCase().trim(),
+    referral_code: referralCode,
+    referral_type: referralType,
+    bonus_applied_to_referred: false,
+    bonus_applied_to_referrer: false,
+    referred_joined_pro: false,
+    discount_code: undefined,
+    discount_expires_at: undefined,
+    discount_claimed: false,
+    created_at: now,
+    updated_at: now
+  }
+
+  await firestore.collection(COLLECTION_NAME).doc(id).set(referral)
+  
+  return referral
+}
+
+export async function findReferralByCode(referralCode: string): Promise<ReferralData | null> {
+  const firestore = getSimpleFirestore()
+  const snapshot = await firestore
+    .collection(COLLECTION_NAME)
+    .where('referral_code', '==', referralCode)
+    .limit(1)
+    .get()
+    
+  if (snapshot.empty) {
+    return null
+  }
+  
+  return snapshot.docs[0].data() as ReferralData
+}
+
+export async function findReferralByEmail(email: string): Promise<ReferralData | null> {
+  const firestore = getSimpleFirestore()
+  const snapshot = await firestore
+    .collection(COLLECTION_NAME)
+    .where('referred_email', '==', email.toLowerCase().trim())
+    .orderBy('created_at', 'desc')
+    .limit(1)
+    .get()
+    
+  if (snapshot.empty) {
+    return null
+  }
+  
+  return snapshot.docs[0].data() as ReferralData
+}
+
+export async function findReferralsByReferrer(referrerUid: string): Promise<ReferralData[]> {
+  const firestore = getSimpleFirestore()
+  const snapshot = await firestore
+    .collection(COLLECTION_NAME)
+    .where('referrer_uid', '==', referrerUid)
+    .orderBy('created_at', 'desc')
+    .get()
+    
+  return snapshot.docs.map(doc => doc.data() as ReferralData)
+}
+
+export async function updateReferral(id: string, updates: Partial<ReferralData>): Promise<ReferralData | null> {
+  const firestore = getSimpleFirestore()
+  const now = Date.now()
+  const updateData = { ...updates, updated_at: now }
+
+  await firestore.collection(COLLECTION_NAME).doc(id).update(updateData)
+  
+  const doc = await firestore.collection(COLLECTION_NAME).doc(id).get()
+  return doc.exists ? doc.data() as ReferralData : null
+}
+
+export async function markReferredUserJoined(referralId: string, referredUid: string): Promise<ReferralData | null> {
+  return await updateReferral(referralId, {
+    referred_uid: referredUid,
+    bonus_applied_to_referred: true
+  })
+}
+
+export async function markReferredUserJoinedPro(referralId: string, discountCode?: string): Promise<ReferralData | null> {
+  const now = Date.now()
+  const discountExpiresAt = now + (14 * 24 * 60 * 60 * 1000) // 14 days from now
+  
+  return await updateReferral(referralId, {
+    referred_joined_pro: true,
+    discount_code: discountCode,
+    discount_expires_at: discountExpiresAt
+  })
+}
+
+export async function markDiscountClaimed(referralId: string): Promise<ReferralData | null> {
+  return await updateReferral(referralId, {
+    discount_claimed: true
+  })
+}

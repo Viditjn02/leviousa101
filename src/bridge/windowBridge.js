@@ -35,10 +35,125 @@ module.exports = {
         console.log('[WindowBridge] Window closed via close button');
       }
     });
+
+    // Tutorial window specific close handler
+    ipcMain.handle('tutorial:close', () => {
+      const windowManager = require('../window/windowManager');
+      const result = windowManager.hideTutorialWindow();
+      console.log('[WindowBridge] Tutorial window close result:', result);
+      return result;
+    });
+
+    // Interactive tutorial handlers
+    ipcMain.handle('tutorial:highlightElement', (event, elementId) => {
+      console.log('[WindowBridge] Highlighting element:', elementId);
+      
+      // Send highlight command to all content windows
+      const windowManager = require('../window/windowManager');
+      const { windowPool } = windowManager;
+      
+      windowPool.forEach((window, name) => {
+        if (!window.isDestroyed() && name !== 'header' && name !== 'tutorial') {
+          const script = 
+            'console.log("[' + name + '] Highlighting element: ' + elementId + '");' +
+            'try {' +
+            '  const element = document.querySelector("[data-tutorial=\\"' + elementId + '\\"]") || ' +
+            '  document.querySelector("#' + elementId + '") || ' +
+            '  document.querySelector(".' + elementId + '");' +
+            '  if (element) {' +
+            '    element.style.boxShadow = "0 0 0 3px rgba(144, 81, 81, 0.8), 0 0 20px rgba(144, 81, 81, 0.6)";' +
+            '    element.style.borderRadius = "8px";' +
+            '    element.style.position = "relative";' +
+            '    element.style.zIndex = "9999";' +
+            '    element.style.background = "rgba(144, 81, 81, 0.1)";' +
+            '    element.scrollIntoView({ behavior: "smooth", block: "center" });' +
+            '    element.setAttribute("data-tutorial-highlighted", "true");' +
+            '    console.log("[' + name + '] ✅ Element highlighted:", element.tagName);' +
+            '  } else {' +
+            '    console.log("[' + name + '] ⚠️ Element not found for highlighting: ' + elementId + '");' +
+            '  }' +
+            '} catch (error) {' +
+            '  console.error("[' + name + '] Error in highlighting script:", error);' +
+            '}';
+          
+          window.webContents.executeJavaScript(script).catch(error => {
+            console.error(`[WindowBridge] Error highlighting in ${name}:`, error);
+          });
+        }
+      });
+      
+      return { success: true };
+    });
+
+    ipcMain.handle('tutorial:clearHighlights', () => {
+      console.log('[WindowBridge] Clearing all highlights');
+      
+      const windowManager = require('../window/windowManager');
+      const { windowPool } = windowManager;
+      
+      windowPool.forEach((window, name) => {
+        if (!window.isDestroyed() && name !== 'header' && name !== 'tutorial') {
+          const script = 
+            'console.log("[' + name + '] Clearing tutorial highlights");' +
+            'try {' +
+            '  document.querySelectorAll("[data-tutorial-highlighted=\\"true\\"]").forEach(el => {' +
+            '    el.style.boxShadow = "";' +
+            '    el.style.background = "";' +
+            '    el.style.borderRadius = "";' +
+            '    el.style.position = "";' +
+            '    el.style.zIndex = "";' +
+            '    el.removeAttribute("data-tutorial-highlighted");' +
+            '  });' +
+            '} catch (error) {' +
+            '  console.error("[' + name + '] Error clearing highlights:", error);' +
+            '}';
+          
+          window.webContents.executeJavaScript(script).catch(error => {
+            console.error(`[WindowBridge] Error clearing highlights in ${name}:`, error);
+          });
+        }
+      });
+      
+      return { success: true };
+    });
+
+    ipcMain.handle('tutorial:complete', () => {
+      console.log('[WindowBridge] Tutorial completed by user');
+      
+      // Mark tutorial as completed in localStorage
+      const windowManager = require('../window/windowManager');
+      const { windowPool } = windowManager;
+      
+      windowPool.forEach((window, name) => {
+        if (!window.isDestroyed() && name !== 'header' && name !== 'tutorial') {
+          const script = 
+            'console.log("[' + name + '] Marking tutorial as completed");' +
+            'try {' +
+            '  var progress = JSON.parse(localStorage.getItem("leviousa-tutorial-progress") || "{\\"completedFlows\\": []}");' +
+            '  if (!progress.completedFlows.includes("welcome")) {' +
+            '    progress.completedFlows.push("welcome");' +
+            '    localStorage.setItem("leviousa-tutorial-progress", JSON.stringify(progress));' +
+            '    console.log("[' + name + '] Tutorial marked as completed");' +
+            '  }' +
+            '} catch (error) {' +
+            '  console.error("[' + name + '] Error marking tutorial complete:", error);' +
+            '}';
+          
+          window.webContents.executeJavaScript(script).catch(error => {
+            console.error(`[WindowBridge] Error marking complete in ${name}:`, error);
+          });
+          
+          // Only do this once
+          return;
+        }
+      });
+      
+      return { success: true };
+    });
     
     // Browser window toggle handler
-    ipcMain.handle('main-header:browser-toggle', () => {
-      return windowManager.toggleBrowserWindow();
+    ipcMain.handle('main-header:browser-toggle', async () => {
+      return await windowManager.toggleBrowserWindow();
     });
     
     // Browser window navigation handler

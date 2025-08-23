@@ -22,7 +22,7 @@ export default function ReferralDetector({ children }: ReferralDetectorProps) {
 
   useEffect(() => {
     // Check for referral code in URL
-    const referralCode = searchParams.get('ref')
+    const referralCode = searchParams?.get('ref')
     
     if (referralCode && user) {
       handleReferralSignup(referralCode)

@@ -14,6 +14,7 @@ const displayNameMap = {
     invisibilityAnswer: 'Trigger Auto-Answer (Invisibility)',
     toggleInvisibility: 'Toggle Complete Invisibility Mode',
     showOverlayTemporary: 'Show Overlay Temporarily',
+    openBrowser: 'Open Internal Browser Window',
   };
 
 export class ShortcutSettingsView extends LitElement {
@@ -23,7 +24,7 @@ export class ShortcutSettingsView extends LitElement {
 
         :host { display:flex; width:100%; height:100%; color:white; }
 
-        .container { display:flex; flex-direction:column; height:100%;
+        .container { display:flex; flex-direction:column; height:100%; max-height:400px;
             background:rgba(20,20,20,.9); border-radius:12px;
             outline:.5px rgba(255,255,255,.2) solid; outline-offset:-1px;
             position:relative; overflow:hidden; padding:12px; }
@@ -35,9 +36,38 @@ export class ShortcutSettingsView extends LitElement {
         .close-button:hover{background:rgba(255,255,255,.2);color:rgba(255,255,255,.9);}
 
         .title{font-size:14px;font-weight:500;margin:0 0 8px;padding-bottom:8px;
-            border-bottom:1px solid rgba(255,255,255,.1);text-align:center;}
+            border-bottom:1px solid rgba(255,255,255,.1);text-align:center;
+            flex-shrink:0;}
+        
+        .title::after {
+            content: "↕ Scroll to see all shortcuts";
+            display: block;
+            font-size: 10px;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 4px;
+        }
 
-        .scroll-area{flex:1 1 auto;overflow-y:auto;margin:0 -4px;padding:4px;}
+        .scroll-area{flex:1 1 auto;overflow-y:auto;margin:0 -4px;padding:4px;
+            min-height:200px;max-height:280px;}
+
+        .scroll-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scroll-area::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .scroll-area::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .scroll-area::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
 
         .shortcut-entry{display:flex;align-items:center;width:100%;gap:8px;
             margin-bottom:8px;font-size:12px;padding:4px;}
@@ -60,16 +90,17 @@ export class ShortcutSettingsView extends LitElement {
         .feedback.error{color:#ef4444;}
         .feedback.success{color:#22c55e;}
 
-        .actions{display:flex;gap:4px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);}
+        .actions{display:flex;gap:4px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);
+            flex-shrink:0;}
         .settings-button{flex:1;background:rgba(255,255,255,.1);
             border:1px solid rgba(255,255,255,.2);border-radius:4px;
             color:white;padding:5px 10px;font-size:11px;cursor:pointer;transition:.15s;}
         .settings-button:hover{background:rgba(255,255,255,.15);}
         .settings-button.primary{background:rgba(0,122,255,.25);border-color:rgba(0,122,255,.6);}
         .settings-button.primary:hover{background:rgba(0,122,255,.35);}
-        .settings-button.danger{background:rgba(255,59,48,.1);border-color:rgba(255,59,48,.3);
-            color:rgba(255,59,48,.9);}
-        .settings-button.danger:hover{background:rgba(255,59,48,.15);
+        .settings-button.danger{background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.4);
+            color:rgba(255,165,0,.9);font-weight:500;}
+        .settings-button.danger:hover{background:rgba(255,165,0,.25);
         }
 
         /* ────────────────[ GLASS BYPASS ]─────────────── */

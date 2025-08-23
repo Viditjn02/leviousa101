@@ -7,7 +7,7 @@ import AuthenticatedLayout from '@/components/AuthenticatedLayout'
 function PrivacySettingsPageContent() {
 
   const tabs = [
-    { id: 'profile', name: 'Personal profile', href: '/settings' },
+    { id: 'profile', name: 'Profile', href: '/settings' },
     { id: 'privacy', name: 'Data & privacy', href: '/settings/privacy' },
     { id: 'billing', name: 'Billing', href: '/settings/billing' },
   ]

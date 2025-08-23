@@ -345,6 +345,7 @@ leviousaApp: {
     openPersonalizePage: () => ipcRenderer.invoke('open-personalize-page'),
     firebaseLogout: () => ipcRenderer.invoke('firebase-logout'),
     startFirebaseAuth: () => ipcRenderer.invoke('start-firebase-auth'),
+    getFirebaseToken: () => ipcRenderer.invoke('settings:get-firebase-token'),
 
     // Model & Provider Management
     getModelSettings: () => ipcRenderer.invoke('settings:get-model-settings'), // Facade call
@@ -634,6 +635,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getParagonCredentials: (userId) => ipcRenderer.invoke('paragon:getCredentials', userId),
   callMCPTool: (tool, args) => ipcRenderer.invoke('mcp:callTool', tool, args),
   closeWindow: () => ipcRenderer.invoke('window:close'),
+  closeTutorialWindow: () => ipcRenderer.invoke('tutorial:close'),
+  highlightElement: (elementId) => ipcRenderer.invoke('tutorial:highlightElement', elementId),
+  clearHighlights: () => ipcRenderer.invoke('tutorial:clearHighlights'),
+  completeTutorial: () => ipcRenderer.invoke('tutorial:complete'),
   // BrowserView controls for advanced browser functionality
   navigateBrowserView: (url) => ipcRenderer.invoke('main-header:browser-navigate', url),
   browserViewGoBack: () => ipcRenderer.invoke('browser-view:go-back'),

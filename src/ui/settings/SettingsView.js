@@ -89,8 +89,14 @@ export class SettingsView extends LitElement {
 
         .title-line {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            width: 100%;
+        }
+
+        .icons-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .app-title {
@@ -104,6 +110,152 @@ export class SettingsView extends LitElement {
             font-size: 11px;
             color: rgba(255, 255, 255, 0.7);
             margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .subscription-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: white;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .subscription-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .subscription-button:active {
+            transform: translateY(1px);
+        }
+
+        .pro-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            background: linear-gradient(45deg, #fbbf24, #f59e0b);
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        .info-button {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+
+        .info-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .info-tooltip {
+            position: absolute;
+            top: 25px;
+            right: -15px;
+            width: 240px;
+            max-height: 350px;
+            background: rgba(20, 20, 20, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 12px 12px 12px 18px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.15s ease;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        .info-tooltip::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .info-tooltip::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .info-tooltip::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .info-tooltip::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .info-button:hover .info-tooltip,
+        .info-tooltip:hover {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .tooltip-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .tooltip-section {
+            margin-bottom: 5px;
+        }
+
+        .tooltip-section-title {
+            font-size: 9px;
+            font-weight: 600;
+            color: #4a90e2;
+            margin-bottom: 2px;
+        }
+
+        .tooltip-item {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 1px 0;
+            padding-left: 8px;
+            position: relative;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .tooltip-item::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 7px;
         }
 
         .invisibility-icon {
@@ -516,6 +668,8 @@ export class SettingsView extends LitElement {
         showPresets: { type: Boolean, state: true },
         autoUpdateEnabled: { type: Boolean, state: true },
         autoUpdateLoading: { type: Boolean, state: true },
+        subscription: { type: Object, state: true },
+        subscriptionLoading: { type: Boolean, state: true },
 
     };
     //////// after_modelStateService ////////
@@ -541,8 +695,11 @@ export class SettingsView extends LitElement {
         this.showPresets = false;
 
         this.handleUseLeviousasKey = this.handleUseLeviousasKey.bind(this)
+        this.handleSubscriptionAction = this.handleSubscriptionAction.bind(this)
         this.autoUpdateEnabled = true;
         this.autoUpdateLoading = true;
+        this.subscription = null;
+        this.subscriptionLoading = true;
         this.loadInitialData();
         //////// after_modelStateService ////////
     }
@@ -617,11 +774,62 @@ export class SettingsView extends LitElement {
                 if (firstUserPreset) this.selectedPreset = firstUserPreset;
             }
             
+            // Load subscription data if user is logged in
+            if (this.firebaseUser) {
+                await this.loadSubscriptionData();
+            } else {
+                this.subscriptionLoading = false;
+            }
+            
             // Local AI models removed by user request
         } catch (error) {
             console.error('Error loading initial settings data:', error);
         } finally {
             this.isLoading = false;
+        }
+    }
+
+    async loadSubscriptionData() {
+        if (!this.firebaseUser) {
+            this.subscriptionLoading = false;
+            return;
+        }
+
+        try {
+            // Get Firebase ID token for API authentication
+            let token = 'mock-token';
+            try {
+                if (window.api && window.api.settingsView && window.api.settingsView.getFirebaseToken) {
+                    token = await window.api.settingsView.getFirebaseToken();
+                    console.log('[SettingsView] Got Firebase token for API call');
+                }
+            } catch (tokenError) {
+                console.warn('[SettingsView] Failed to get Firebase token, using mock:', tokenError);
+            }
+            
+            // Fetch subscription data from web API
+            const response = await fetch('https://www.leviousa.com/api/subscription/current', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.subscription = data.subscription;
+            }
+        } catch (error) {
+            console.error('Failed to fetch subscription:', error);
+            // Fallback to mock data for testing
+            this.subscription = {
+                plan: 'free', // Change to 'pro' to test Pro user UI
+                status: 'active',
+                current_period_end: Date.now() + (30 * 24 * 60 * 60 * 1000),
+                cancel_at_period_end: false
+            };
+        } finally {
+            this.subscriptionLoading = false;
+            this.requestUpdate();
         }
     }
 
@@ -988,6 +1196,38 @@ export class SettingsView extends LitElement {
         window.api.settingsView.firebaseLogout();
     }
 
+    handleSubscriptionAction() {
+        console.log('Subscription action clicked');
+        const isProUser = this.subscription?.plan === 'pro';
+        const url = 'https://www.leviousa.com/settings/billing';
+        
+        console.log(`Opening ${isProUser ? 'manage' : 'upgrade'} page:`, url);
+        
+        // Use the existing MCP openExternalUrl method from preload.js
+        if (window.api && window.api.mcp && window.api.mcp.openExternalUrl) {
+            window.api.mcp.openExternalUrl(url);
+            console.log('Opened URL using api.mcp.openExternalUrl');
+        } else if (window.electronAPI && window.electronAPI.openExternal) {
+            window.electronAPI.openExternal(url);
+            console.log('Opened URL using electronAPI.openExternal');
+        } else {
+            console.log('No electron API available, using fallback');
+            this.fallbackOpenUrl(url);
+        }
+    }
+
+    fallbackOpenUrl(url) {
+        console.log('Using fallback method to open URL:', url);
+        // Create a temporary link and click it
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     async handleOllamaShutdown() {
         console.log('[SettingsView] Shutting down Ollama service...');
         
@@ -1039,24 +1279,83 @@ export class SettingsView extends LitElement {
         }
 
         return html`
-            <div class="settings-container">
+            <div class="settings-container" data-tutorial="settings-area">
                 <!-- ═══════════════════════════════════════════════════════════ -->
                 <!-- HEADER SECTION -->
                 <!-- ═══════════════════════════════════════════════════════════ -->
                 <div class="header-section">
                     <div>
-                        <h1 class="app-title">Leviousa</h1>
+                        <div class="title-line">
+                            <h1 class="app-title">
+                                Leviousa
+                                ${this.subscription?.plan === 'pro' ? html`
+                                    <span class="pro-badge">
+                                        Pro
+                                    </span>
+                                ` : ''}
+                            </h1>
+                        </div>
                         <div class="account-info">
-                            ${this.firebaseUser
-                                ? html`Account: ${this.firebaseUser.email || 'Logged In'}`
-                                : `Account: Not Logged In`
-                            }
+                            <span>
+                                ${this.firebaseUser
+                                    ? html`Profile: ${this.firebaseUser.email || 'Logged In'}`
+                                    : `Profile: Not Logged In`
+                                }
+                            </span>
+                            ${this.firebaseUser && !this.subscriptionLoading ? html`
+                                <button 
+                                    class="subscription-button"
+                                    @click="${this.handleSubscriptionAction}"
+                                    title="${this.subscription?.plan === 'pro' ? 'Manage subscription' : 'Upgrade to Pro'}"
+                                >
+                                    ${this.subscription?.plan === 'pro' ? 'Manage' : 'Upgrade'}
+                                </button>
+                            ` : ''}
                         </div>
                     </div>
-                    <div class="invisibility-icon ${this.isContentProtectionOn ? 'visible' : ''}" title="Invisibility is On">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9.785 7.41787C8.7 7.41787 7.79 8.19371 7.55667 9.22621C7.0025 8.98704 6.495 9.05121 6.11 9.22037C5.87083 8.18204 4.96083 7.41787 3.88167 7.41787C2.61583 7.41787 1.58333 8.46204 1.58333 9.75121C1.58333 11.0404 2.61583 12.0845 3.88167 12.0845C5.08333 12.0845 6.06333 11.1395 6.15667 9.93787C6.355 9.79787 6.87417 9.53537 7.51 9.94954C7.615 11.1454 8.58333 12.0845 9.785 12.0845C11.0508 12.0845 12.0833 11.0404 12.0833 9.75121C12.0833 8.46204 11.0508 7.41787 9.785 7.41787ZM3.88167 11.4195C2.97167 11.4195 2.2425 10.6729 2.2425 9.75121C2.2425 8.82954 2.9775 8.08287 3.88167 8.08287C4.79167 8.08287 5.52083 8.82954 5.52083 9.75121C5.52083 10.6729 4.79167 11.4195 3.88167 11.4195ZM9.785 11.4195C8.875 11.4195 8.14583 10.6729 8.14583 9.75121C8.14583 8.82954 8.875 8.08287 9.785 8.08287C10.695 8.08287 11.43 8.82954 11.43 9.75121C11.43 10.6729 10.6892 11.4195 9.785 11.4195ZM12.6667 5.95954H1V6.83454H12.6667V5.95954ZM8.8925 1.36871C8.76417 1.08287 8.4375 0.931207 8.12833 1.03037L6.83333 1.46204L5.5325 1.03037L5.50333 1.02454C5.19417 0.93704 4.8675 1.10037 4.75083 1.39787L3.33333 5.08454H10.3333L8.91 1.39787L8.8925 1.36871Z" fill="white"/>
-                        </svg>
+                    <div class="icons-container">
+                        <div class="invisibility-icon ${this.isContentProtectionOn ? 'visible' : ''}" title="Invisibility is On">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M9.785 7.41787C8.7 7.41787 7.79 8.19371 7.55667 9.22621C7.0025 8.98704 6.495 9.05121 6.11 9.22037C5.87083 8.18204 4.96083 7.41787 3.88167 7.41787C2.61583 7.41787 1.58333 8.46204 1.58333 9.75121C1.58333 11.0404 2.61583 12.0845 3.88167 12.0845C5.08333 12.0845 6.06333 11.1395 6.15667 9.93787C6.355 9.79787 6.87417 9.53537 7.51 9.94954C7.615 11.1454 8.58333 12.0845 9.785 12.0845C11.0508 12.0845 12.0833 11.0404 12.0833 9.75121C12.0833 8.46204 11.0508 7.41787 9.785 7.41787ZM3.88167 11.4195C2.97167 11.4195 2.2425 10.6729 2.2425 9.75121C2.2425 8.82954 2.9775 8.08287 3.88167 8.08287C4.79167 8.08287 5.52083 8.82954 5.52083 9.75121C5.52083 10.6729 4.79167 11.4195 3.88167 11.4195ZM9.785 11.4195C8.875 11.4195 8.14583 10.6729 8.14583 9.75121C8.14583 8.82954 8.875 8.08287 9.785 8.08287C10.695 8.08287 11.43 8.82954 11.43 9.75121C11.43 10.6729 10.6892 11.4195 9.785 11.4195ZM12.6667 5.95954H1V6.83454H12.6667V5.95954ZM8.8925 1.36871C8.76417 1.08287 8.4375 0.931207 8.12833 1.03037L6.83333 1.46204L5.5325 1.03037L5.50333 1.02454C5.19417 0.93704 4.8675 1.10037 4.75083 1.39787L3.33333 5.08454H10.3333L8.91 1.39787L8.8925 1.36871Z" fill="white"/>
+                            </svg>
+                        </div>
+                        <div class="info-button">
+                            i
+                            <div class="info-tooltip">
+                                <div class="tooltip-title">
+                                    ℹ️ How to Use Leviousa
+                                </div>
+                                
+                                <div class="tooltip-section">
+                                    <div class="tooltip-section-title">Setup Required:</div>
+                                    <div class="tooltip-item">System Preferences → Privacy & Security → Accessibility</div>
+                                    <div class="tooltip-item">Grant permission to Leviousa app</div>
+                                    <div class="tooltip-item">Restart app after granting access</div>
+                                </div>
+
+                                <div class="tooltip-section">
+                                    <div class="tooltip-section-title">Voice Assistant:</div>
+                                    <div class="tooltip-item">Say "Hey Leviousa" to activate</div>
+                                    <div class="tooltip-item">Voice commands with screen analysis</div>
+                                    <div class="tooltip-item">Automated task execution</div>
+                                </div>
+
+                                <div class="tooltip-section">
+                                    <div class="tooltip-section-title">Key Shortcuts:</div>
+                                    <div class="tooltip-item">⌘+I - Toggle invisibility mode</div>
+                                    <div class="tooltip-item">⌘+L - Auto-answer questions</div>
+                                    <div class="tooltip-item">⌘+B - Open internal browser</div>
+                                    <div class="tooltip-item">⌘+Enter - Ask anything</div>
+                                </div>
+
+                                <div class="tooltip-section">
+                                    <div class="tooltip-section-title">Integrations:</div>
+                                    <div class="tooltip-item">Gmail, Calendar, LinkedIn, Notion</div>
+                                    <div class="tooltip-item">Meeting intelligence & summaries</div>
+                                    <div class="tooltip-item">Pre-configured AI models</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1095,13 +1394,7 @@ export class SettingsView extends LitElement {
                 <div class="settings-section">
                     <div class="section-title">AI Models & Providers</div>
                     <div class="section-content">
-                        <!-- Information about pre-configured API keys -->
-                        <div class="info-box">
-                            <div style="padding: 8px; background: rgba(0,122,255,0.1); border-radius: 4px; font-size: 11px; color: rgba(0,122,255,0.8);">
-                                ✅ Pre-configured with OpenAI, Anthropic, Gemini, and Deepgram
-                                <br>No setup required - ready to use immediately!
-                            </div>
-                        </div>
+
                         
                         <!-- Model Selection -->
                         <div class="model-select-group">

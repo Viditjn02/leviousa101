@@ -684,7 +684,7 @@ export class ListenView extends LitElement {
                             : `Leviousa is Listening ${this.elapsedTime}`;
 
         return html`
-            <div class="assistant-container">
+            <div class="assistant-container" data-tutorial="listen-area">
                 <div class="top-bar">
                     <div class="bar-left-text">
                         <span class="bar-left-text-content ${this.isAnimating ? 'slide-in' : ''}">${displayText}</span>

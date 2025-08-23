@@ -3,6 +3,7 @@ import { SettingsView } from '../settings/SettingsView.js';
 import { ListenView } from '../listen/ListenView.js';
 import { AskView } from '../ask/AskView.js';
 import { ShortcutSettingsView } from '../settings/ShortCutSettingsView.js';
+import { VoiceSessionIndicator } from '../components/VoiceSessionIndicator.js';
 
 import '../listen/audioCore/renderer.js';
 
@@ -87,7 +88,11 @@ export class LeviousaApp extends LitElement {
                 this._isClickThrough = isEnabled;
             });
         }
+
+        // Tutorial system now uses dedicated window - no initialization needed here
     }
+
+
 
     disconnectedCallback() {
         super.disconnectedCallback();
@@ -139,39 +144,54 @@ export class LeviousaApp extends LitElement {
         console.log(`[LeviousaApp] 🔍 Available custom elements:`, {
             'ask-view': !!customElements.get('ask-view'),
             'listen-view': !!customElements.get('listen-view'),
-            'settings-view': !!customElements.get('settings-view')
+            'settings-view': !!customElements.get('settings-view'),
+            'voice-session-indicator': !!customElements.get('voice-session-indicator')
         });
+        
+        let mainView;
         switch (this.currentView) {
             case 'listen':
-                return html`<listen-view
+                mainView = html`<listen-view
                     .currentResponseIndex=${this.currentResponseIndex}
                     .selectedProfile=${this.selectedProfile}
                     .structuredData=${this.structuredData}
                     @response-index-changed=${e => (this.currentResponseIndex = e.detail.index)}
                 ></listen-view>`;
+                break;
             case 'ask':
                 console.log('[LeviousaApp] 📝 Rendering ask-view component');
                 console.log('[LeviousaApp] 🔍 AskView constructor available?', typeof AskView);
                 console.log('[LeviousaApp] 🔍 Custom element ask-view defined?', !!customElements.get('ask-view'));
-                return html`<ask-view></ask-view>`;
+                mainView = html`<ask-view></ask-view>`;
+                break;
             case 'settings':
-                return html`<settings-view
+                mainView = html`<settings-view
                     .selectedProfile=${this.selectedProfile}
                     .selectedLanguage=${this.selectedLanguage}
                     .onProfileChange=${profile => (this.selectedProfile = profile)}
                     .onLanguageChange=${lang => (this.selectedLanguage = lang)}
                 ></settings-view>`;
+                break;
             case 'shortcut-settings':
-                return html`<shortcut-settings-view></shortcut-settings-view>`;
+                mainView = html`<shortcut-settings-view></shortcut-settings-view>`;
+                break;
             case 'history':
-                return html`<history-view></history-view>`;
+                mainView = html`<history-view></history-view>`;
+                break;
             case 'help':
-                return html`<help-view></help-view>`;
+                mainView = html`<help-view></help-view>`;
+                break;
             case 'setup':
-                return html`<setup-view></setup-view>`;
+                mainView = html`<setup-view></setup-view>`;
+                break;
             default:
-                return html`<div>Unknown view: ${this.currentView}</div>`;
+                mainView = html`<div>Unknown view: ${this.currentView}</div>`;
         }
+
+        return html`
+            ${mainView}
+            <voice-session-indicator></voice-session-indicator>
+        `;
     }
 }
 
