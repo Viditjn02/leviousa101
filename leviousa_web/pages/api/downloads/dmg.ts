@@ -48,17 +48,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!response.ok) {
       console.log(`GitHub API returned ${response.status}, trying fallback options...`);
       
-      // Fallback: Inform user that download is temporarily unavailable
-      console.log('GitHub releases temporarily unavailable');
+      // Fallback: Direct redirect to known working release  
+      console.log('GitHub API unavailable, redirecting to direct download');
       
-      return res.status(503).json({
-        error: 'Download temporarily unavailable',
-        message: 'GitHub releases are temporarily unavailable. Please try again in a few minutes.',
-        alternatives: {
-          github: 'https://github.com/Viditjn02/leviousa101/releases/latest',
-          info: 'You can download directly from GitHub releases page.'
-        }
-      });
+      const directDownloadUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/v1.0.0/Leviousa-1.0.0-arm64.dmg';
+      
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment; filename="Leviousa-1.0.0-arm64.dmg"');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('X-Download-Source', 'direct-github');
+      
+      return res.redirect(302, directDownloadUrl);
     }
 
     const releases: GitHubRelease[] = await response.json();
