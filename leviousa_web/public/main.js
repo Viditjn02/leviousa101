@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
   sections.forEach(s=>obs.observe(s));
 })();
 
-// OS-aware download links
+// OS-aware download links - Updated to use API endpoints
 (function(){
   const mac = document.getElementById('macLink');
   const win = document.getElementById('winLink');
@@ -271,10 +271,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const ua = navigator.userAgent;
   const isMac = /Mac|iPhone|iPad/.test(ua);
   const isWin = /Windows/.test(ua);
-  const macUrl = '/downloads/Leviousa.dmg';
-  const winUrl = '/downloads/LeviousaSetup.exe';
+  const macUrl = '/api/downloads/dmg';
+  const winUrl = '/api/downloads/exe';
   if (mac) mac.href = macUrl; if (win) win.href = winUrl;
-  if (dl) { dl.href = isMac ? macUrl : (isWin ? winUrl : '#download'); const img = dl.querySelector('img'); if (img) img.src = isMac ? 'https://cdn.simpleicons.org/apple/000000' : 'https://cdn.simpleicons.org/windows/000000'; }
+  if (dl) { 
+    dl.href = isMac ? macUrl : (isWin ? winUrl : macUrl); // Default to macUrl for unknown OS
+    const img = dl.querySelector('img'); 
+    if (img) img.src = isMac ? 'https://cdn.simpleicons.org/apple/000000' : 'https://cdn.simpleicons.org/windows/000000'; 
+    
+    // Add download tracking and enhanced UX
+    dl.addEventListener('click', function(e) {
+      // Add visual feedback
+      const originalText = dl.querySelector('span').textContent;
+      dl.querySelector('span').textContent = 'Preparing...';
+      dl.style.opacity = '0.7';
+      
+      // Track the download
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'download_start', {
+          'platform': isMac ? 'mac' : (isWin ? 'windows' : 'unknown'),
+          'source': 'landing_page'
+        });
+      }
+      
+      // Reset button after a delay
+      setTimeout(() => {
+        dl.querySelector('span').textContent = originalText;
+        dl.style.opacity = '1';
+      }, 2000);
+    });
+  }
 })();
 
 // Waitlist + Vendor form (basic)

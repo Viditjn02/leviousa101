@@ -9,8 +9,8 @@ productName: Leviousa
 # Publish configuration for GitHub releases
 publish:
     provider: github
-    owner: leviousa
-    repo: leviousa
+    owner: Viditjn02
+    repo: leviousa101
     releaseType: draft
 
 # Protocols configuration for deep linking

@@ -2,11 +2,13 @@ name: Build Commercial Release
 
 on:
   push:
-    branches: [ "main" ] # Runs on every push to main branch
+    branches: [ "main", "Domain" ] # Runs on main and Domain branches
+  pull_request:
+    branches: [ "main", "Domain" ]
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   build:
-    # Currently runs on macOS only, can add windows-latest later
     runs-on: macos-latest
 
     steps:
@@ -16,22 +18,40 @@ jobs:
       - name: ⚙️ Setup Node.js environment
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x' # Node.js version compatible with project
-          cache: 'npm' # npm dependency caching for speed improvement
+          node-version: '20.x'
+          cache: 'npm'
 
       - name: 📦 Install root dependencies
         run: npm install
 
       - name: 🌐 Install and build web (Renderer) part
-        # Move to leviousa_web directory and run commands
-working-directory: ./leviousa_web
+        working-directory: ./leviousa_web
         run: |
           npm install
           npm run build
 
       - name: 🖥️ Build Electron app
-        # Run Electron build script from root directory
         run: npm run build
+
+      - name: 📤 Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Leviousa-DMG-${{ github.sha }}
+          path: dist/*.dmg
+          retention-days: 30
+
+      - name: 📤 Upload Installer Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Leviousa-Installers-${{ github.sha }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+          retention-days: 30
 
       - name: 🚨 Send failure notification to Slack
         if: failure()
@@ -39,7 +59,7 @@ working-directory: ./leviousa_web
         env:
           SLACK_CHANNEL: general
           SLACK_TITLE: "🚨 Build Failed"
-          SLACK_MESSAGE: "😭 Build failed for `${{ github.repository }}` repo on main branch."
+          SLACK_MESSAGE: "😭 Build failed for `${{ github.repository }}` on `${{ github.ref_name }}` branch."
           SLACK_COLOR: 'danger'
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
 

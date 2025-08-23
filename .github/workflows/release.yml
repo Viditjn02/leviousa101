@@ -1,0 +1,115 @@
+name: Release and Deploy
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v1.0.0
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a new release'
+        required: true
+        default: 'false'
+        type: boolean
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: 🚚 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: 📦 Install root dependencies
+        run: npm install
+
+      - name: 🌐 Install and build web part
+        working-directory: ./leviousa_web
+        run: |
+          npm install
+          npm run build
+
+      - name: 🏗️ Build Electron app with publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: npm run publish
+
+      - name: 📄 Generate Release Notes
+        id: release_notes
+        run: |
+          echo "## 🚀 What's New" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### ✨ Features" >> release_notes.md
+          echo "- Complete tutorial system with step-by-step guidance" >> release_notes.md
+          echo "- Full referral system with bonus tracking" >> release_notes.md
+          echo "- Stripe billing integration" >> release_notes.md
+          echo "- Enhanced invisible browser with split-screen functionality" >> release_notes.md
+          echo "- Interactive landing page demos" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 🔧 Technical Improvements" >> release_notes.md
+          echo "- Usage tracking and restriction system" >> release_notes.md
+          echo "- Firestore admin utilities" >> release_notes.md
+          echo "- Production-ready API endpoints" >> release_notes.md
+          echo "- Enhanced UI components and settings panels" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 📥 Download" >> release_notes.md
+          echo "- **macOS**: Download the .dmg file below" >> release_notes.md
+          echo "- **Windows**: Download the .exe installer below" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 🔗 Links" >> release_notes.md
+          echo "- **Website**: [www.leviousa.com](https://www.leviousa.com)" >> release_notes.md
+          echo "- **Landing Page**: [leviousa-101.web.app](https://leviousa-101.web.app)" >> release_notes.md
+
+      - name: 🎉 Create GitHub Release (if manual trigger)
+        if: github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Leviousa v${{ github.run_number }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🚀 Deploy Web to Firebase
+        working-directory: ./leviousa_web
+        run: |
+          npm install -g firebase-tools
+          firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: ✅ Success notification
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: general
+          SLACK_TITLE: "🎉 Release Successful"
+          SLACK_MESSAGE: "✅ Leviousa release completed successfully! New build is available for download."
+          SLACK_COLOR: 'good'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: 🚨 Failure notification
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: general
+          SLACK_TITLE: "🚨 Release Failed"
+          SLACK_MESSAGE: "😭 Leviousa release failed on `${{ github.ref_name }}`."
+          SLACK_COLOR: 'danger'
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
