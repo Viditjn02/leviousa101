@@ -56,18 +56,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Fallback: Direct redirect to known working release  
       console.log('GitHub API unavailable, redirecting to direct download');
       
-      // Modern fallback: Use self-hosted downloads with architecture detection
-      const fallbackUrls = {
-        'arm64': 'https://www.leviousa.com/releases/Leviousa-1.0.0-arm64.dmg',
-        'intel': 'https://www.leviousa.com/releases/Leviousa-1.0.0-intel.dmg'
-      };
+      // Modern fallback: Use Vercel Blob Storage with enterprise security
+      const { getSecureDownloadUrl } = await import('../../../config/secure-downloads');
+      const secureConfig = getSecureDownloadUrl('macos', requestedArch);
       
-      const directDownloadUrl = fallbackUrls[requestedArch];
+      if (!secureConfig) {
+        return res.status(503).json({
+          error: 'Download temporarily unavailable',
+          message: 'Secure download URL not configured for this architecture',
+          supportedArchitectures: ['arm64', 'intel']
+        });
+      }
+      
+      const directDownloadUrl = secureConfig.url;
       
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('Content-Disposition', `attachment; filename="Leviousa-1.0.0-${requestedArch}.dmg"`);
       res.setHeader('Cache-Control', 'public, max-age=300');
-      res.setHeader('X-Download-Source', 'self-hosted-fallback');
+      res.setHeader('X-Download-Source', 'vercel-blob-secure');
       res.setHeader('X-Architecture', requestedArch);
       
       return res.redirect(302, directDownloadUrl);

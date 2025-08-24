@@ -16,6 +16,7 @@
     "@headlessui/react": "^1.7.17",
     "@types/uuid": "^10.0.0",
     "@useparagon/connect": "^2.0.8",
+    "@vercel/blob": "^1.1.1",
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.0",
     "firebase": "^11.10.0",
