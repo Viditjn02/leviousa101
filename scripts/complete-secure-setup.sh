@@ -77,10 +77,9 @@ if [ ! -f ".vercel/project.json" ]; then
     vercel link --yes
 fi
 
-# Get project info
-PROJECT_INFO=$(vercel project ls --format json 2>/dev/null | head -1)
-if [ -z "$PROJECT_INFO" ]; then
-    print_error "Could not get project information. Make sure project exists on Vercel."
+# Verify project is linked
+if [ ! -f ".vercel/project.json" ]; then
+    print_error "Project not properly linked. Please run the script again."
     exit 1
 fi
 
