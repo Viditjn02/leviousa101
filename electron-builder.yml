@@ -76,7 +76,7 @@ mac:
     entitlementsInherit: entitlements.plist
     # Code signing with Developer ID - Apple's official process
     type: "distribution"  # Distribution for signed releases
-    # identity will be auto-detected from keychain when CSC_NAME is set
+    identity: "Developer ID Application: Vidit Jain (8LNUMP84V8)"  # Your actual certificate
     signIgnore:
       - "node_modules"
       - "*.framework"
