@@ -29,6 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
+    
+    // Modern approach: Handle architecture detection
+    const { arch } = req.query;
+    const requestedArch = arch === 'intel' ? 'intel' : 'arm64'; // Default to Apple Silicon
+    console.log(`🎯 Architecture requested: ${requestedArch}`);
 
     // Try GitHub releases first
     const githubApiUrl = 'https://api.github.com/repos/Viditjn02/leviousa101/releases';
@@ -51,12 +56,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Fallback: Direct redirect to known working release  
       console.log('GitHub API unavailable, redirecting to direct download');
       
-      const directDownloadUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/v1.0.0/Leviousa-1.0.0-arm64.dmg';
+      // Modern fallback: Use self-hosted downloads with architecture detection
+      const fallbackUrls = {
+        'arm64': 'https://www.leviousa.com/releases/Leviousa-1.0.0-arm64.dmg',
+        'intel': 'https://www.leviousa.com/releases/Leviousa-1.0.0-intel.dmg'
+      };
+      
+      const directDownloadUrl = fallbackUrls[requestedArch];
       
       res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Content-Disposition', 'attachment; filename="Leviousa-1.0.0-arm64.dmg"');
+      res.setHeader('Content-Disposition', `attachment; filename="Leviousa-1.0.0-${requestedArch}.dmg"`);
       res.setHeader('Cache-Control', 'public, max-age=300');
-      res.setHeader('X-Download-Source', 'direct-github');
+      res.setHeader('X-Download-Source', 'self-hosted-fallback');
+      res.setHeader('X-Architecture', requestedArch);
       
       return res.redirect(302, directDownloadUrl);
     }
@@ -75,11 +87,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Find the DMG file in the release assets (case-insensitive)
-    const dmgAsset = latestRelease.assets.find(asset => {
+    // Modern approach: Find DMG file based on architecture
+    const architecturePatterns = {
+      'arm64': ['arm64', 'apple-silicon', 'aarch64'],
+      'intel': ['intel', 'x64', 'x86_64', 'universal']
+    };
+    
+    const patterns = architecturePatterns[requestedArch];
+    
+    let dmgAsset = latestRelease.assets.find(asset => {
       const name = asset.name.toLowerCase();
-      return name.includes('.dmg') && name.includes('leviousa');
+      return name.includes('.dmg') && 
+             name.includes('leviousa') &&
+             patterns.some(pattern => name.includes(pattern.toLowerCase()));
     });
+    
+    // Fallback: Find any DMG if specific architecture not found
+    if (!dmgAsset) {
+      dmgAsset = latestRelease.assets.find(asset => {
+        const name = asset.name.toLowerCase();
+        return name.includes('.dmg') && name.includes('leviousa');
+      });
+    }
 
     if (!dmgAsset) {
       return res.status(404).json({ 
@@ -90,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Log the download for analytics
-    console.log(`DMG Download: ${dmgAsset.name} (${dmgAsset.size} bytes) from release ${latestRelease.tag_name}`);
+    console.log(`✅ DMG Download: ${dmgAsset.name} (${dmgAsset.size} bytes) from release ${latestRelease.tag_name} for ${requestedArch}`);
 
     // Set proper headers for file download
     res.setHeader('Content-Type', 'application/octet-stream');
@@ -100,6 +129,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('X-Release-Version', latestRelease.tag_name);
     res.setHeader('X-File-Size', dmgAsset.size.toString());
     res.setHeader('X-Release-Date', latestRelease.created_at);
+    res.setHeader('X-Architecture', requestedArch);
+    res.setHeader('X-Asset-Name', dmgAsset.name);
 
     // Redirect to the GitHub download URL
     res.redirect(302, dmgAsset.browser_download_url);
