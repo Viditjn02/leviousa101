@@ -1,10 +1,10 @@
 const { v4: uuidv4 } = require('uuid');
-const { getFirebaseFirestore } = require('../../services/firebaseClient');
+const { getFirestoreInstance } = require('../../services/firebaseClient');
 
 const collectionName = 'referral_bonuses';
 
 async function create(uid, bonusType, bonusData) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const id = uuidv4();
     const now = Date.now();
     
@@ -27,7 +27,7 @@ async function create(uid, bonusType, bonusData) {
 }
 
 async function findByUserId(uid) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('uid', '==', uid)
         .orderBy('created_at', 'desc');
@@ -37,7 +37,7 @@ async function findByUserId(uid) {
 }
 
 async function findActiveByUserId(uid) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     
     // Get all bonuses for user (Firebase doesn't support complex OR queries easily)
@@ -55,7 +55,7 @@ async function findActiveByUserId(uid) {
 }
 
 async function findByReferralId(referralId) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('referral_id', '==', referralId)
         .orderBy('created_at', 'desc');
@@ -65,7 +65,7 @@ async function findByReferralId(referralId) {
 }
 
 async function findById(id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id);
     const snapshot = await docRef.get();
     
@@ -85,7 +85,7 @@ async function getTotalActiveBonusMinutes(uid) {
 }
 
 async function deleteExpired() {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     
     const query = firestore.collection(collectionName)

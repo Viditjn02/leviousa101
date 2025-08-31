@@ -3,8 +3,10 @@ function identifyUser(req, res, next) {
 
     if (userId) {
         req.uid = userId;
+        req.user = { uid: userId }; // Add user object for compatibility
+        console.log(`[AuthMiddleware] ✅ User identified: ${userId}`);
     } else {
-        // No user ID provided - Firebase authentication required
+        console.log('[AuthMiddleware] ❌ No X-User-ID header provided');
         return res.status(401).json({ 
             error: 'Authentication required', 
             message: 'X-User-ID header is required for API access' 

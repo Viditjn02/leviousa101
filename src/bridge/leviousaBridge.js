@@ -76,6 +76,38 @@ function initializeLeviousaHandlers() {
         }
     });
 
+    // 🧪 Test subscription service directly in app context
+    ipcMain.handle('test:subscription-access', async (event, testUserId) => {
+        try {
+            console.log(`[TestSubscription] Testing subscription access for user: ${testUserId}`);
+            
+            const subscriptionService = require('../features/common/services/subscriptionService');
+            const authService = require('../features/common/services/authService');
+            
+            console.log('[TestSubscription] Current user from authService:', authService.getCurrentUser());
+            console.log('[TestSubscription] Current user ID from authService:', authService.getCurrentUserId());
+            
+            // Test integration access directly
+            const integrationAccess = await subscriptionService.checkIntegrationsAccess();
+            
+            console.log('[TestSubscription] ✅ Integration access result:', integrationAccess);
+            
+            return {
+                success: true,
+                integrationAccess,
+                currentUser: authService.getCurrentUser(),
+                currentUserId: authService.getCurrentUserId()
+            };
+        } catch (error) {
+            console.error('[TestSubscription] ❌ Error:', error);
+            return {
+                success: false,
+                error: error.message,
+                stack: error.stack
+            };
+        }
+    });
+
     // Handle Paragon credentials for SDK integration
     ipcMain.handle('paragon:getCredentials', async (event, userId) => {
         console.log(`[LeviousaBridge] Getting Paragon credentials for user: ${userId}`);

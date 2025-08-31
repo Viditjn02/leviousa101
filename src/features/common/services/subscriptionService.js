@@ -5,8 +5,18 @@ const authService = require('./authService');
 
 class SubscriptionService {
     constructor() {
-        // Initialize Stripe with secret key from environment
-        this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+        // Initialize Stripe with secret key from environment (conditional)
+        this.stripe = null;
+        if (process.env.STRIPE_SECRET_KEY) {
+            try {
+                this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+                console.log('[SubscriptionService] ✅ Stripe initialized for payment processing');
+            } catch (error) {
+                console.warn('[SubscriptionService] ⚠️ Stripe initialization failed:', error.message);
+            }
+        } else {
+            console.log('[SubscriptionService] ℹ️ Stripe not configured - payment processing disabled, plan checking enabled');
+        }
         
         // Subscription plans configuration
         this.plans = {
@@ -17,7 +27,7 @@ class SubscriptionService {
                 browser_daily_minutes: 10,
                 features: {
                     default_model_only: true,
-                    integrations_unlimited: true,
+                    integrations_unlimited: false, // ❌ NO INTEGRATIONS FOR FREE USERS
                     summaries_unlimited: true,
                     transcripts_unlimited: true
                 }
@@ -68,16 +78,21 @@ class SubscriptionService {
                 }
             }
             
-            // Apply usage limits based on subscription plan
-            if (subscription.plan === 'pro' || isSpecialEmail) {
-                // Pro users and special emails have unlimited usage
-                await usageTrackingRepository.updateUserLimits(-1, -1);
-            } else {
-                // Free users have daily limits
-                await usageTrackingRepository.updateUserLimits(
-                    this.plans.free.cmd_l_daily_minutes,
-                    this.plans.free.browser_daily_minutes
-                );
+            // Apply usage limits based on subscription plan (skip if no auth context)
+            try {
+                if (subscription.plan === 'pro' || isSpecialEmail) {
+                    // Pro users and special emails have unlimited usage
+                    await usageTrackingRepository.updateUserLimits(-1, -1);
+                } else {
+                    // Free users have daily limits
+                    await usageTrackingRepository.updateUserLimits(
+                        this.plans.free.cmd_l_daily_minutes,
+                        this.plans.free.browser_daily_minutes
+                    );
+                }
+            } catch (limitError) {
+                console.warn('[SubscriptionService] ⚠️ Could not update usage limits (API context):', limitError.message);
+                // Continue without updating limits - this is OK for subscription checking
             }
             
             return {
@@ -525,6 +540,69 @@ class SubscriptionService {
         } catch (error) {
             console.error('[SubscriptionService] Error tracking usage:', error);
         }
+    }
+
+    /**
+     * Check if user has access to integrations based on subscription
+     * @returns {Object} Access status and upgrade info
+     */
+    async checkIntegrationsAccess() {
+        try {
+            console.log('[SubscriptionService] 🔍 Starting integration access check...');
+            
+            const subscription = await this.getCurrentUserSubscription();
+            console.log('[SubscriptionService] 📊 Got subscription:', subscription);
+            
+            const plan = this.plans[subscription.plan] || this.plans.free;
+            console.log('[SubscriptionService] 📋 Using plan config:', plan.name, plan.features);
+            
+            const hasAccess = plan.features.integrations_unlimited === true;
+            
+            console.log(`[SubscriptionService] Integration access check: ${hasAccess ? 'ALLOWED' : 'BLOCKED'} for ${subscription.plan} plan`);
+            
+            return {
+                allowed: hasAccess,
+                plan: subscription.plan,
+                message: hasAccess ? 
+                    'Integrations access granted' : 
+                    'Integrations are only available with Leviousa Pro subscription',
+                requiresUpgrade: !hasAccess
+            };
+        } catch (error) {
+            console.error('[SubscriptionService] ❌ Error checking integrations access:', error);
+            console.error('[SubscriptionService] ❌ Error stack:', error.stack);
+            return {
+                allowed: false,
+                plan: 'unknown',
+                message: 'Unable to verify subscription status',
+                requiresUpgrade: true,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Check if user can use a specific integration service
+     * @param {string} serviceName - Name of the integration service (gmail, notion, etc.)
+     * @returns {Object} Access status
+     */
+    async checkServiceAccess(serviceName) {
+        const integrationAccess = await this.checkIntegrationsAccess();
+        
+        if (!integrationAccess.allowed) {
+            return {
+                ...integrationAccess,
+                service: serviceName,
+                message: `${serviceName} integration requires Leviousa Pro subscription`
+            };
+        }
+        
+        return {
+            allowed: true,
+            service: serviceName,
+            plan: integrationAccess.plan,
+            message: `${serviceName} integration access granted`
+        };
     }
 }
 

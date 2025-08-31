@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
-const { getFirebaseFirestore, createEncryptedConverter } = require('../../services/firebaseClient');
+const { getFirestoreInstance } = require('../../services/firebaseClient');
+const { createEncryptedConverter } = require('../firestoreConverter');
 
 const collectionName = 'subscriptions';
 
@@ -7,7 +8,7 @@ const collectionName = 'subscriptions';
 const subscriptionConverter = createEncryptedConverter(['stripe_customer_id', 'stripe_subscription_id']);
 
 async function create(uid, subscriptionData) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const id = uuidv4();
     const now = Date.now();
     
@@ -34,7 +35,7 @@ async function create(uid, subscriptionData) {
 }
 
 async function findByUserId(uid) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(subscriptionConverter)
         .where('uid', '==', uid)
@@ -46,7 +47,7 @@ async function findByUserId(uid) {
 }
 
 async function findByStripeCustomerId(stripe_customer_id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(subscriptionConverter)
         .where('stripe_customer_id', '==', stripe_customer_id)
@@ -58,7 +59,7 @@ async function findByStripeCustomerId(stripe_customer_id) {
 }
 
 async function findByStripeSubscriptionId(stripe_subscription_id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(subscriptionConverter)
         .where('stripe_subscription_id', '==', stripe_subscription_id)
@@ -70,7 +71,7 @@ async function findByStripeSubscriptionId(stripe_subscription_id) {
 }
 
 async function update(id, updates) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     updates.updated_at = now;
 
@@ -81,7 +82,7 @@ async function update(id, updates) {
 }
 
 async function findById(id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id).withConverter(subscriptionConverter);
     const snapshot = await docRef.get();
     
@@ -89,7 +90,7 @@ async function findById(id) {
 }
 
 async function deleteById(id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id);
     await docRef.delete();
     return true;

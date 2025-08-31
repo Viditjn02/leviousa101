@@ -5,6 +5,7 @@
  */
 
 const winston = require('winston');
+const userTimezoneService = require('./userTimezoneService');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -521,7 +522,8 @@ INTELLIGENT TOOL USAGE - UNDERSTAND USER INTENT:
 - AM hours stay the same (8am = 08:00)
 
 - If no end time specified, default to 1 hour duration  
-- Format: YYYY-MM-DDTHH:MM:SS (DO NOT add Z suffix, let timezone be handled by calendar service)
+- Format: YYYY-MM-DDTHH:MM:SS (DO NOT add Z suffix, timezone will be automatically detected and applied)
+- User timezone will be automatically detected as: ${userTimezoneService.getUserTimezone()}
 
 **READ/CHECK EVENTS:**  
 - User says: "what do I have", "check schedule", "any events", "show calendar"

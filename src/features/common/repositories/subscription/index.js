@@ -18,12 +18,19 @@ function getFirebaseRepository() {
 }
 
 function getRepository() {
+    // Always use SQLite for subscriptions to avoid Firebase context issues in API calls
+    // This is more reliable for subscription checking across different execution contexts
+    console.log('[SubscriptionRepository] Using SQLite repository for reliable API access');
+    return getSqliteRepository();
+    
+    /* Original Firebase/SQLite switching logic - disabled for API reliability
     const currentUser = authService.getCurrentUser();
     if (currentUser && currentUser.mode === 'firebase') {
         return getFirebaseRepository();
     } else {
         return getSqliteRepository();
     }
+    */
 }
 
 async function create(subscriptionData) {

@@ -163,9 +163,92 @@ class ToolRegistry extends EventEmitter {
     }
 
     /**
+     * Check if a tool is an integration tool that requires subscription
+     * @param {string} fullName - Full tool name (e.g., "paragon.gmail_send_email")
+     * @returns {boolean} Whether this is an integration tool
+     */
+    isIntegrationTool(fullName) {
+        // Integration tools are those from Paragon server (130+ SaaS integrations)
+        if (fullName.startsWith('paragon.')) {
+            // Exclude basic auth tools from restriction (needed for connection management)
+            const basicAuthTools = [
+                'get_authenticated_services',
+                'connect_service', 
+                'disconnect_service'
+            ];
+            
+            const toolName = fullName.replace('paragon.', '');
+            return !basicAuthTools.includes(toolName);
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get display name for a service based on tool name
+     * @param {string} fullName - Full tool name
+     * @returns {string} Human-readable service name
+     */
+    getServiceDisplayName(fullName) {
+        const serviceMap = {
+            'gmail': 'Gmail',
+            'google_calendar': 'Google Calendar',
+            'notion': 'Notion',
+            'linkedin': 'LinkedIn',
+            'slack': 'Slack',
+            'calendly': 'Calendly',
+            'microsoft': 'Microsoft 365',
+            'salesforce': 'Salesforce',
+            'hubspot': 'HubSpot'
+        };
+
+        // Extract service name from tool name
+        for (const [key, displayName] of Object.entries(serviceMap)) {
+            if (fullName.toLowerCase().includes(key)) {
+                return displayName;
+            }
+        }
+
+        // Fallback to extracted service name
+        const parts = fullName.split('.');
+        if (parts.length > 1) {
+            const servicePart = parts[1].split('_')[0];
+            return servicePart.charAt(0).toUpperCase() + servicePart.slice(1);
+        }
+
+        return 'Integration Service';
+    }
+
+    /**
      * Invoke a tool
      */
     async invokeTool(fullName, args) {
+        // 🔒 Check subscription access for integration tools
+        if (this.isIntegrationTool(fullName)) {
+            const subscriptionService = require('../../common/services/subscriptionService');
+            const accessCheck = await subscriptionService.checkIntegrationsAccess();
+            
+            if (!accessCheck.allowed) {
+                console.log(`[ToolRegistry] 🚫 Integration tool blocked: ${fullName} (${accessCheck.plan} plan)`);
+                
+                // Show custom upgrade dialog for integration access
+                const customDialogService = require('../../common/services/customDialogService');
+                customDialogService.showUpgradeDialog({
+                    title: 'Premium Integration Required',
+                    message: `${this.getServiceDisplayName(fullName)} integration requires Leviousa Pro`,
+                    detail: 'Upgrade to Pro to access Gmail, Google Calendar, Notion, LinkedIn, Slack and 130+ other integrations.',
+                    featureType: 'integration',
+                    usage: null // No usage limits for integrations, just access restriction
+                }).catch(error => {
+                    console.error('[ToolRegistry] Custom dialog error:', error);
+                });
+                
+                throw new Error(`Integration access denied: ${accessCheck.message}`);
+            }
+            
+            console.log(`[ToolRegistry] ✅ Integration tool access granted: ${fullName} (${accessCheck.plan} plan)`);
+        }
+
         let toolInfo = this.tools.get(fullName);
         
         // If not found with full name, try to find by simple name

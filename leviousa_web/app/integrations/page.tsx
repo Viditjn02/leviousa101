@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import ParagonIntegration from '../../components/ParagonIntegration'
-
+import { useIntegrationsAccess } from '../../hooks/useSubscriptionAccess'
 import { ParagonAuthProvider } from '../../context/ParagonAuthContext'
 
 function IntegrationsContentInner() {
@@ -11,6 +11,7 @@ function IntegrationsContentInner() {
   const serviceToConnect = searchParams?.get('service')
   const action = searchParams?.get('action')
   const userId = searchParams?.get('userId') // Get user ID from URL
+  const integrationsAccess = useIntegrationsAccess()
   // Handle Electron app authentication requests
   const authenticateService = searchParams?.get('authenticate')
   const connectService = searchParams?.get('connect')
@@ -78,6 +79,83 @@ function IntegrationsContentInner() {
       (serviceToConnect === service && action === 'connect') ||
       authenticateService === service ||
       connectService === service
+    )
+  }
+
+  // Check if user has access to integrations
+  if (integrationsAccess.loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking subscription access...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show upgrade prompt for free users
+  if (!integrationsAccess.allowed) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Premium Integrations</h1>
+            <p className="mt-2 text-gray-600">
+              130+ SaaS integrations available with Leviousa Pro
+            </p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+            <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-3xl text-white">🔗</span>
+            </div>
+
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Unlock Premium Integrations
+            </h2>
+            
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              Connect Gmail, Google Calendar, Notion, LinkedIn, Slack, Salesforce, HubSpot and 130+ other services with Leviousa Pro.
+            </p>
+
+            <div className="bg-blue-50 rounded-lg p-6 mb-6">
+              <h3 className="font-semibold text-blue-900 mb-3">🚀 What you get with Pro:</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-blue-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">✓</span>
+                  <span>130+ Premium Integrations</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">✓</span>
+                  <span>Unlimited Auto Answer</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">✓</span>
+                  <span>Unlimited Browser Automation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-600">✓</span>
+                  <span>Priority Support</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={() => window.open('https://www.leviousa.com/settings/billing', '_blank')}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
+              >
+                🚀 Upgrade to Pro - $18/month
+              </button>
+              
+              <p className="text-xs text-gray-500">
+                Current plan: {integrationsAccess.plan} • {integrationsAccess.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     )
   }
 

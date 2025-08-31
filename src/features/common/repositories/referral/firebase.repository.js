@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
-const { getFirebaseFirestore, createEncryptedConverter } = require('../../services/firebaseClient');
+const { getFirestoreInstance } = require('../../services/firebaseClient');
+const { createEncryptedConverter } = require('../firestoreConverter');
 
 const collectionName = 'referrals';
 
@@ -11,7 +12,7 @@ function generateReferralCode() {
 }
 
 async function create(referrerUid, referredEmail, referralType = 'normal') {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const id = uuidv4();
     const now = Date.now();
     const referralCode = generateReferralCode();
@@ -40,7 +41,7 @@ async function create(referrerUid, referredEmail, referralType = 'normal') {
 }
 
 async function findByReferralCode(referralCode) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(referralConverter)
         .where('referral_code', '==', referralCode)
@@ -51,7 +52,7 @@ async function findByReferralCode(referralCode) {
 }
 
 async function findByReferredEmail(email) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(referralConverter)
         .where('referred_email', '==', email.toLowerCase().trim())
@@ -63,7 +64,7 @@ async function findByReferredEmail(email) {
 }
 
 async function findByReferrerUid(referrerUid) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .withConverter(referralConverter)
         .where('referrer_uid', '==', referrerUid)
@@ -74,7 +75,7 @@ async function findByReferrerUid(referrerUid) {
 }
 
 async function update(id, updates) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     updates.updated_at = now;
 
@@ -85,7 +86,7 @@ async function update(id, updates) {
 }
 
 async function findById(id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id).withConverter(referralConverter);
     const snapshot = await docRef.get();
     

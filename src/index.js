@@ -511,6 +511,11 @@ app.whenReady().then(async () => {
         console.log('>>> [index.js] ModelStateService initialized successfully');
         //////// after_modelStateService ////////
 
+        // Initialize user timezone service for calendar operations
+        const userTimezoneService = require('./features/common/services/userTimezoneService');
+        await userTimezoneService.initialize();
+        console.log('>>> [index.js] UserTimezoneService initialized successfully');
+
         // Initialize Leviousa pre-configured API keys
         await leviousaBridge.initializePreConfiguredKeys();
         console.log('>>> [index.js] PreConfigured keys initialized successfully');

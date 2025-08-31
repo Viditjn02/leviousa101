@@ -652,8 +652,8 @@ class AskService {
             console.log(`[AskService] 🤖 Processing message: ${userPrompt.substring(0, 50)}...`);
 
             // 🔒 Check subscription and usage limits for Auto Answer feature
-            const subscriptionService = require('../../common/services/subscriptionService');
-            const usageTrackingRepository = require('../../common/repositories/usageTracking');
+            const subscriptionService = require('../common/services/subscriptionService');
+            const usageTrackingRepository = require('../common/repositories/usageTracking');
             
             console.log('[AskService] 🔍 Checking Auto Answer usage limits...');
             const usageCheck = await subscriptionService.checkUsageAllowed('cmd_l');
@@ -664,6 +664,24 @@ class AskService {
                     `Auto Answer daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
                     
                 console.log('[AskService] 🚫 Usage limit exceeded:', errorMessage);
+                
+                // Show custom branded upgrade dialog
+                const customDialogService = require('../common/services/customDialogService');
+                customDialogService.showUpgradeDialog({
+                    title: 'Auto Answer Usage Limit Reached',
+                    message: errorMessage,
+                    detail: 'Upgrade to Pro for unlimited AI-powered auto answers and advanced features.',
+                    featureType: 'cmd_l',
+                    usage: usageCheck.usage !== undefined ? {
+                        used: usageCheck.usage,
+                        limit: usageCheck.limit,
+                        remaining: usageCheck.remaining
+                    } : null
+                }).then((result) => {
+                    console.log('[AskService] Custom dialog result:', result);
+                }).catch((error) => {
+                    console.error('[AskService] Custom dialog error:', error);
+                });
                 
                 // Update UI to show limit exceeded
                 this.state = {
@@ -1150,7 +1168,7 @@ class AskService {
                         if (data === '[DONE]') {
                             // 📊 Track Auto Answer usage completion
                             try {
-                                const subscriptionService = require('../../common/services/subscriptionService');
+                                const subscriptionService = require('../common/services/subscriptionService');
                                 await subscriptionService.trackUsageToWebAPI('cmd_l', 1); // Track 1 minute per use
                                 console.log('[AskService] ✅ Auto Answer usage tracked: +1 minute');
                             } catch (trackingError) {

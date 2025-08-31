@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
-const { getFirebaseFirestore } = require('../../services/firebaseClient');
+const { getFirestoreInstance } = require('../../services/firebaseClient');
 
 const collectionName = 'usage_tracking';
 
@@ -24,7 +24,7 @@ async function getOrCreateTodayUsage(uid) {
 }
 
 async function create(uid, usageData) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const id = uuidv4();
     const now = Date.now();
     
@@ -47,7 +47,7 @@ async function create(uid, usageData) {
 }
 
 async function findByUserAndDate(uid, date) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('uid', '==', uid)
         .where('date', '==', date)
@@ -58,7 +58,7 @@ async function findByUserAndDate(uid, date) {
 }
 
 async function updateUsage(uid, date, usageType, minutes) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     let fieldToUpdate;
     
@@ -94,7 +94,7 @@ async function updateUsage(uid, date, usageType, minutes) {
 }
 
 async function updateLimits(uid, date, cmd_l_limit = null, browser_limit = null) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const now = Date.now();
     const updates = { updated_at: now };
     
@@ -124,7 +124,7 @@ async function updateLimits(uid, date, cmd_l_limit = null, browser_limit = null)
 }
 
 async function findById(id) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id);
     const snapshot = await docRef.get();
     
@@ -132,7 +132,7 @@ async function findById(id) {
 }
 
 async function getUserUsageHistory(uid, limit = 30) {
-    const firestore = getFirebaseFirestore();
+    const firestore = getFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('uid', '==', uid)
         .orderBy('date', 'desc')

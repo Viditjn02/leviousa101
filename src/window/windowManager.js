@@ -1033,19 +1033,22 @@ const toggleBrowserWindow = async () => {
                     
                 console.log('[WindowManager] 🚫 Browser usage limit exceeded:', errorMessage);
                 
-                // Show notification or error dialog
-                const { dialog } = require('electron');
-                dialog.showMessageBox({
-                    type: 'warning',
-                    title: 'Usage Limit Reached',
+                // Show custom branded upgrade dialog
+                const customDialogService = require('../features/common/services/customDialogService');
+                customDialogService.showUpgradeDialog({
+                    title: 'Browser Usage Limit Reached',
                     message: errorMessage,
-                    detail: 'Upgrade to Pro for unlimited browser access.',
-                    buttons: ['OK', 'Upgrade to Pro']
-                }).then((response) => {
-                    if (response.response === 1) {
-                        // Open upgrade page
-                        shell.openExternal('https://www.leviousa.com/settings/billing');
-                    }
+                    detail: 'Upgrade to Pro for unlimited browser automation and advanced features.',
+                    featureType: 'browser',
+                    usage: usageCheck.usage !== undefined ? {
+                        used: usageCheck.usage,
+                        limit: usageCheck.limit,
+                        remaining: usageCheck.remaining
+                    } : null
+                }).then((result) => {
+                    console.log('[WindowManager] Custom dialog result:', result);
+                }).catch((error) => {
+                    console.error('[WindowManager] Custom dialog error:', error);
                 });
                 return { success: false, error: errorMessage };
             }
