@@ -1,12 +1,36 @@
 const crypto = require('crypto');
-let keytar;
+let keytar = null;
+let keytarLoadAttempted = false;
 
-// Dynamically import keytar, as it's an optional dependency.
-try {
-    keytar = require('keytar');
-} catch (error) {
-    console.warn('[EncryptionService] keytar is not available. Will use in-memory key for this session. Restarting the app might be required for data persistence after login.');
-    keytar = null;
+// Function to safely load keytar only when needed
+function loadKeytar() {
+    if (keytarLoadAttempted) return keytar;
+    
+    keytarLoadAttempted = true;
+    
+    // Detect if we're running from a distribution (DMG, installed app)
+    const appPath = process.execPath || '';
+    const isDistributed = appPath.includes('/Volumes/') || 
+                         appPath.includes('/Applications/') || 
+                         process.env.NODE_ENV === 'production';
+    
+    if (isDistributed) {
+        console.log('[EncryptionService] Distribution mode detected - keytar disabled for stability');
+        console.log('[EncryptionService] Using in-memory storage (data will not persist across restarts)');
+        keytar = null;
+        return null;
+    }
+    
+    try {
+        keytar = require('keytar');
+        console.log('[EncryptionService] keytar loaded successfully (development mode)');
+        return keytar;
+    } catch (error) {
+        console.warn('[EncryptionService] keytar is not available. Will use in-memory key for this session.');
+        console.warn('[EncryptionService] keytar error:', error.message);
+        keytar = null;
+        return null;
+    }
 }
 
 const permissionService = require('./permissionService');
@@ -35,13 +59,14 @@ async function initializeKey(userId) {
 
     let keyRetrieved = false;
 
-    if (keytar) {
+    const keytarInstance = loadKeytar();
+    if (keytarInstance) {
         try {
-            let key = await keytar.getPassword(SERVICE_NAME, userId);
+            let key = await keytarInstance.getPassword(SERVICE_NAME, userId);
             if (!key) {
                 console.log(`[EncryptionService] No key found for ${userId}. Creating a new one.`);
                 key = crypto.randomBytes(32).toString('hex');
-                await keytar.setPassword(SERVICE_NAME, userId, key);
+                await keytarInstance.setPassword(SERVICE_NAME, userId, key);
                 console.log(`[EncryptionService] New key securely stored in keychain for ${userId}.`);
             } else {
                 console.log(`[EncryptionService] Encryption key successfully retrieved from keychain for ${userId}.`);

@@ -1,0 +1,3 @@
+export FIXED_ARM64_URL='https://github.com/Viditjn02/leviousa101/releases/download/v1.0.0-fixed-1756683180/Leviousa-Fixed-Apple-Silicon.dmg'
+export FIXED_INTEL_URL='https://github.com/Viditjn02/leviousa101/releases/download/v1.0.0-fixed-1756683180/Leviousa-Fixed-Intel.dmg'
+export FIXED_RELEASE_TAG='v1.0.0-fixed-1756683180'

@@ -12,7 +12,7 @@ export const welcomeVideoTutorial = {
         onAppStart: true,
         onManual: true, // Can be triggered via Cmd+T
     },
-    videoPath: '/Users/viditjain/Downloads/Welcome 3.mp4',
+    videoPath: './src/ui/assets/welcome-video.mp4', // Bundled with app
     autoPlay: true,
 };
 

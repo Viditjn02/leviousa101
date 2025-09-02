@@ -14,25 +14,13 @@ const CONFIG = {
   // Your Vercel Blob token (set in environment or .env.local)
   BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
   
-  // Files to upload (update these paths to your actual installer files)
+  // Files to upload (updated with actual built files)
   files: [
     {
-      path: 'dist/Leviousa-1.0.0-arm64.dmg',
+      path: 'dist/Leviousa-1.0.0-universal.dmg',
       platform: 'macos',
-      architecture: 'arm64',
-      description: 'macOS installer for Apple Silicon (M1/M2/M3)'
-    },
-    {
-      path: 'dist/Leviousa-1.0.0-intel.dmg', 
-      platform: 'macos',
-      architecture: 'intel',
-      description: 'macOS installer for Intel processors'
-    },
-    {
-      path: 'dist/Leviousa-Setup-1.0.0.exe',
-      platform: 'windows', 
-      architecture: 'x64',
-      description: 'Windows installer (64-bit)'
+      architecture: 'universal',
+      description: 'macOS Universal installer for both Apple Silicon and Intel - FIXED DISTRIBUTION BUILD'
     }
   ]
 };
@@ -55,9 +43,9 @@ async function uploadFile(fileConfig) {
     const fileName = path.basename(filePath);
     const fileExtension = path.extname(fileName);
     
-    // Generate secure blob path
+    // Generate secure blob path with user-friendly name
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const secureName = `leviousa-v1.0.0-${platform}-${architecture}${fileExtension}`;
+    const secureName = `Leviousa v1.0${fileExtension}`;
     const blobPath = `releases/v1.0.0/${secureName}`;
 
     // Upload to Vercel Blob
@@ -151,6 +139,7 @@ async function main() {
   console.log('=================================');
   
   const downloadUrls = {
+    'macos-universal': results.find(r => r.platform === 'macos' && r.architecture === 'universal')?.blobUrl,
     'macos-arm64': results.find(r => r.platform === 'macos' && r.architecture === 'arm64')?.blobUrl,
     'macos-intel': results.find(r => r.platform === 'macos' && r.architecture === 'intel')?.blobUrl,
     'windows-x64': results.find(r => r.platform === 'windows')?.blobUrl

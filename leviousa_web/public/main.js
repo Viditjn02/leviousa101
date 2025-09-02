@@ -263,19 +263,40 @@ document.addEventListener('DOMContentLoaded', () => {
   sections.forEach(s=>obs.observe(s));
 })();
 
-// OS-aware download links - Updated to use API endpoints
+// Enhanced OS and Architecture-aware download links
 (function(){
   const mac = document.getElementById('macLink');
-  const win = document.getElementById('winLink');
+  const win = document.getElementById('winLink'); 
   const dl = document.getElementById('downloadBtn');
   const ua = navigator.userAgent;
+  
+  // Enhanced Mac detection with Apple Silicon vs Intel
   const isMac = /Mac|iPhone|iPad/.test(ua);
   const isWin = /Windows/.test(ua);
-  const macUrl = '/api/downloads/dmg';
+  
+  // Detect Apple Silicon vs Intel Mac
+  const isAppleSilicon = isMac && (
+    /Apple.*Silicon/i.test(ua) || 
+    /ARM64/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+  
+  // Smart URL selection
+  let macUrl;
+  if (isMac) {
+    // PROFESSIONAL NOTARIZED VERSION - Complete solution
+    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg';
+    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon' : 'Intel', '- Using FINAL COMPLETE DMG');
+  } else {
+    macUrl = '/api/downloads/dmg'; // Default to ARM64 for non-Mac users
+  }
+  
   const winUrl = '/api/downloads/exe';
-  if (mac) mac.href = macUrl; if (win) win.href = winUrl;
+  
+  if (mac) mac.href = macUrl; 
+  if (win) win.href = winUrl;
   if (dl) { 
-    dl.href = isMac ? macUrl : (isWin ? winUrl : macUrl); // Default to macUrl for unknown OS
+    dl.href = isMac ? macUrl : (isWin ? winUrl : macUrl);
     const img = dl.querySelector('img'); 
     if (img) img.src = isMac ? 'https://cdn.simpleicons.org/apple/000000' : 'https://cdn.simpleicons.org/windows/000000'; 
     

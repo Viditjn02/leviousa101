@@ -12,6 +12,7 @@ import {
   deleteSession,
 } from '@/utils/api'
 import AuthenticatedLayout from '@/components/AuthenticatedLayout'
+import logger from '@/utils/productionLogger'
 
 function ActivityPageContent() {
   const router = useRouter()
@@ -34,7 +35,7 @@ function ActivityPageContent() {
       try {
         const parsed = JSON.parse(cachedSessions);
         setSessions(parsed);
-        console.log('🚀 [ActivityPage] Loaded', parsed.length, 'sessions from cache');
+        logger.debug('🚀 [ActivityPage] Loaded', parsed.length, 'sessions from cache');
       } catch (error) {
         console.error('Failed to parse cached sessions:', error);
       }
@@ -45,10 +46,10 @@ function ActivityPageContent() {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('🔄 [ActivityPage] User available, fetching first page...');
+      logger.debug('🔄 [ActivityPage] User available, fetching first page...');
       
       const result = await getSessionsPaginated(1, 20);
-      console.log('✅ [ActivityPage] Fetched', result.sessions.length, 'sessions for page 1');
+      logger.debug('✅ [ActivityPage] Fetched', result.sessions.length, 'sessions for page 1');
       
       setSessions(result.sessions);
       setHasMore(result.hasMore);
@@ -74,7 +75,7 @@ function ActivityPageContent() {
       const lastSession = sessions[sessions.length - 1];
       const result = await getSessionsPaginated(currentPage + 1, 20, lastSession.id);
       
-      console.log('✅ [ActivityPage] Loaded', result.sessions.length, 'more sessions');
+      logger.debug('✅ [ActivityPage] Loaded', result.sessions.length, 'more sessions');
       
       setSessions(prev => [...prev, ...result.sessions]);
       setHasMore(result.hasMore);
@@ -98,7 +99,7 @@ function ActivityPageContent() {
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && hasMore && !isLoadingMore) {
-          console.log('🔄 [ActivityPage] Intersection observed, loading more sessions...');
+          logger.debug('🔄 [ActivityPage] Intersection observed, loading more sessions...');
           loadMoreSessions();
         }
       },
@@ -118,12 +119,12 @@ function ActivityPageContent() {
   }, [hasMore, isLoadingMore, loadMoreSessions]);
 
   useEffect(() => {
-    console.log('🔄 [ActivityPage] useEffect triggered - userInfo:', !!userInfo, 'isLoading:', isLoading);
+    logger.debug('🔄 [ActivityPage] useEffect triggered - userInfo:', !!userInfo, 'isLoading:', isLoading);
     if (userInfo) {
-      console.log('🔄 [ActivityPage] User available, fetching first page...');
+      logger.debug('🔄 [ActivityPage] User available, fetching first page...');
       fetchFirstPage();
     } else {
-      console.log('⚠️ [ActivityPage] No user available for fetching sessions');
+      logger.debug('⚠️ [ActivityPage] No user available for fetching sessions');
       setIsLoading(false);
     }
   }, [userInfo, fetchFirstPage]);
@@ -163,7 +164,7 @@ function ActivityPageContent() {
   }
 
   const handleRetry = () => {
-    console.log('🔄 [ActivityPage] Manual retry requested');
+    logger.debug('🔄 [ActivityPage] Manual retry requested');
     fetchFirstPage();
   };
 

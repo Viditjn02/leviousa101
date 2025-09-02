@@ -1,4 +1,4 @@
-import { db } from '../firebase-admin'
+import { getFirebaseAdmin } from '../firebase-admin'
 
 export interface ReferralData {
   uid: string
@@ -18,7 +18,8 @@ export interface ReferralData {
 
 export async function getUserReferralData(uid: string): Promise<ReferralData | null> {
   try {
-    const userDoc = await db.collection('users').doc(uid).get()
+    const { firestore } = getFirebaseAdmin()
+    const userDoc = await firestore.collection('users').doc(uid).get()
     if (userDoc.exists) {
       const data = userDoc.data()
       if (data?.referral_data) {
@@ -50,7 +51,8 @@ export async function createUserReferralData(uid: string, referralData: Partial<
   }
 
   try {
-    await db.collection('users').doc(uid).update({
+    const { firestore } = getFirebaseAdmin()
+    await firestore.collection('users').doc(uid).update({
       referral_data: newReferralData,
       updated_at: Date.now()
     })
@@ -76,7 +78,8 @@ export async function updateUserReferralStats(uid: string, updates: Partial<Refe
     
     updateData.updated_at = Date.now()
     
-    await db.collection('users').doc(uid).update(updateData)
+    const { firestore } = getFirebaseAdmin()
+    await firestore.collection('users').doc(uid).update(updateData)
     console.log('✅ Updated referral stats for user:', uid)
   } catch (error) {
     console.error('Error updating user referral stats:', error)

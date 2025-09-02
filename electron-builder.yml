@@ -29,13 +29,16 @@ files:
 
 # Additional resources to be copied into the app's resources directory
 extraResources:
-    - from: leviousa_web/out
-      to: out
+    - from: leviousa_web/.next
+      to: .next
+      filter: ["**/*"]
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"
     - "**/node_modules/sharp/**/*"
     - "**/node_modules/@img/**/*"
+    - "**/node_modules/better-sqlite3/**/*"
+    - "**/node_modules/keytar/**/*"
 
 # Windows configuration
 win:
@@ -76,20 +79,37 @@ mac:
     entitlementsInherit: entitlements.plist
     # Code signing with Developer ID - Apple's official process
     type: "distribution"  # Distribution for signed releases
-    identity: "Developer ID Application: Vidit Jain (8LNUMP84V8)"  # Your actual certificate
-    signIgnore:
-      - "node_modules"
-      - "*.framework"
-    # Notarization settings (Apple requirement for no warnings)
-    notarize: {
-      teamId: "8M7TSC3U67"  # Your Apple Developer Team ID
-    }
+    identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
+    # signIgnore patterns removed to fix regex errors - will sign everything
+    # Notarization settings (Apple requirement for no warnings)  
+    notarize: false  # We'll notarize separately with our keychain profile
     target:
       - target: dmg
-        arch: [arm64, x64]  # Both Apple Silicon and Intel
+        arch: universal  # Universal binary for both architectures
       - target: zip
-        arch: [arm64, x64]
+        arch: universal
 
 # DMG specific configuration
 dmg:
     sign: true  # Sign the DMG installer
+    title: "Leviousa v1.01"
+    backgroundColor: "#1a1a1a"
+    contents:
+        - x: 130
+          y: 220
+          type: "file"
+        - x: 410  
+          y: 220
+          type: "link"
+          path: "/Applications"
+    window:
+        x: 400
+        y: 100
+        width: 540
+        height: 380
+
+# Additional configuration for native modules
+buildDependenciesFromSource: true
+
+# Ensure proper permissions
+afterSign: scripts/notarize.js

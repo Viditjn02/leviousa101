@@ -1,9 +1,17 @@
 import posthog from 'posthog-js'
+import logger from './productionLogger'
 
 export const initPostHog = () => {
   if (typeof window !== 'undefined' && !posthog.__loaded) {
-    console.log('Initializing PostHog with key:', process.env.NEXT_PUBLIC_POSTHOG_KEY?.substring(0, 10) + '...')
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY || '', {
+    const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
+    
+    if (!posthogKey) {
+      logger.debug('PostHog key not found - skipping analytics initialization')
+      return
+    }
+    
+    logger.debug('Initializing PostHog with key:', posthogKey.substring(0, 10) + '...')
+    posthog.init(posthogKey, {
       api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
       autocapture: true,
       capture_pageview: false, // We handle this manually for better control
@@ -19,7 +27,7 @@ export const initPostHog = () => {
       persistence: 'localStorage+cookie',
       debug: process.env.NODE_ENV === 'development',
       loaded: (posthog) => {
-        console.log('PostHog loaded successfully')
+        logger.debug('PostHog loaded successfully')
         if (process.env.NODE_ENV === 'development') {
           posthog.debug()
         }

@@ -1,27 +1,9 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-
-interface GitHubAsset {
-  name: string;
-  download_url: string;
-  size: number;
-  created_at: string;
-  browser_download_url: string;
-}
-
-interface GitHubRelease {
-  id: number;
-  tag_name: string;
-  name: string;
-  draft: boolean;
-  prerelease: boolean;
-  created_at: string;
-  assets: GitHubAsset[];
-}
+import type { NextApiRequest, NextApiResponse } from 'next'
+import logger from '@/utils/productionLogger';
 
 /**
- * API endpoint to serve the latest DMG file from GitHub releases
- * Automatically redirects to the latest macOS DMG download
- * Falls back to direct file serving if GitHub releases are unavailable
+ * DMG Download API with Enhanced Architecture Detection
+ * Serves notarized DMGs from GitHub releases with auto-detection
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -30,117 +12,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' });
     }
     
-    // Modern approach: Handle architecture detection
+    // Enhanced architecture detection and handling
     const { arch } = req.query;
-    const requestedArch = arch === 'intel' ? 'intel' : 'arm64'; // Default to Apple Silicon
-    console.log(`🎯 Architecture requested: ${requestedArch}`);
-
-    // Try GitHub releases first
-    const githubApiUrl = 'https://api.github.com/repos/Viditjn02/leviousa101/releases';
+    const userAgent = req.headers['user-agent'] || '';
     
-    const response = await fetch(githubApiUrl, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Leviousa-Download-Server',
-        // Add GitHub token if available for higher rate limits
-        ...(process.env.GITHUB_TOKEN && {
-          'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`
-        })
-      }
-    });
-
-    // If GitHub API fails, try fallback options
-    if (!response.ok) {
-      console.log(`GitHub API returned ${response.status}, trying fallback options...`);
-      
-      // Fallback: Direct redirect to known working release  
-      console.log('GitHub API unavailable, redirecting to direct download');
-      
-      // Modern fallback: Use Vercel Blob Storage with enterprise security
-      const { getSecureDownloadUrl } = await import('../../../config/secure-downloads');
-      const secureConfig = getSecureDownloadUrl('macos', requestedArch);
-      
-      if (!secureConfig) {
-        return res.status(503).json({
-          error: 'Download temporarily unavailable',
-          message: 'Secure download URL not configured for this architecture',
-          supportedArchitectures: ['arm64', 'intel']
-        });
-      }
-      
-      const directDownloadUrl = secureConfig.url;
-      
-      res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="Leviousa-1.0.0-${requestedArch}.dmg"`);
-      res.setHeader('Cache-Control', 'public, max-age=300');
-      res.setHeader('X-Download-Source', 'vercel-blob-secure');
-      res.setHeader('X-Architecture', requestedArch);
-      
-      return res.redirect(302, directDownloadUrl);
-    }
-
-    const releases: GitHubRelease[] = await response.json();
+    // Auto-detect architecture if not specified
+    let detectedArch = 'arm64'; // Default to Apple Silicon
     
-    // Find the latest non-draft, non-prerelease release
-    const latestRelease = releases.find(release => 
-      !release.draft && !release.prerelease && release.assets.length > 0
-    );
-
-    if (!latestRelease) {
-      return res.status(404).json({ 
-        error: 'No stable releases found',
-        message: 'Please check back soon for the latest Leviousa release.'
-      });
+    if (arch) {
+      detectedArch = arch === 'intel' || arch === 'x64' ? 'intel' : 'arm64';
+    } else {
+      // Auto-detect from user agent
+      const isIntelMac = /Intel Mac/.test(userAgent) || /x86_64/.test(userAgent);
+      detectedArch = isIntelMac ? 'intel' : 'arm64';
     }
+    
+    logger.debug(`🎯 Architecture: ${detectedArch} (${arch ? 'specified' : 'auto-detected'})`);
 
-    // Modern approach: Find DMG file based on architecture
-    const architecturePatterns = {
-      'arm64': ['arm64', 'apple-silicon', 'aarch64'],
-      'intel': ['intel', 'x64', 'x86_64', 'universal']
+    // GitHub releases URLs - PROFESSIONAL NOTARIZED VERSION
+    const githubUrls = {
+      arm64: 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg',
+      intel: 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg' // Universal DMG works for all architectures
     };
     
-    const patterns = architecturePatterns[requestedArch];
+    const downloadUrl = githubUrls[detectedArch];
+    logger.debug(`🔗 Redirecting to notarized DMG: ${downloadUrl}`);
     
-    let dmgAsset = latestRelease.assets.find(asset => {
-      const name = asset.name.toLowerCase();
-      return name.includes('.dmg') && 
-             name.includes('leviousa') &&
-             patterns.some(pattern => name.includes(pattern.toLowerCase()));
-    });
+    // Set proper headers for download tracking and filename
+    res.setHeader('X-Architecture-Detected', detectedArch);
+    res.setHeader('X-User-Agent', userAgent.substring(0, 100));
+    res.setHeader('X-Download-Source', 'github-releases-production-ready');
+    res.setHeader('X-Apple-Notarized', 'true');
+    res.setHeader('X-Leviousa-Version', 'v1.01');
+    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa v1.01.dmg"');
     
-    // Fallback: Find any DMG if specific architecture not found
-    if (!dmgAsset) {
-      dmgAsset = latestRelease.assets.find(asset => {
-        const name = asset.name.toLowerCase();
-        return name.includes('.dmg') && name.includes('leviousa');
-      });
-    }
-
-    if (!dmgAsset) {
-      return res.status(404).json({ 
-        error: 'DMG file not found',
-        message: `No DMG file found in release ${latestRelease.tag_name}`,
-        availableAssets: latestRelease.assets.map(a => a.name)
-      });
-    }
-
-    // Log the download for analytics
-    console.log(`✅ DMG Download: ${dmgAsset.name} (${dmgAsset.size} bytes) from release ${latestRelease.tag_name} for ${requestedArch}`);
-
-    // Set proper headers for file download
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${dmgAsset.name}"`);
-    res.setHeader('Content-Length', dmgAsset.size.toString());
-    res.setHeader('Cache-Control', 'public, max-age=300'); // Cache for 5 minutes
-    res.setHeader('X-Release-Version', latestRelease.tag_name);
-    res.setHeader('X-File-Size', dmgAsset.size.toString());
-    res.setHeader('X-Release-Date', latestRelease.created_at);
-    res.setHeader('X-Architecture', requestedArch);
-    res.setHeader('X-Asset-Name', dmgAsset.name);
-
-    // Redirect to the GitHub download URL
-    res.redirect(302, dmgAsset.browser_download_url);
-
+    // Direct redirect to GitHub release (notarized DMG)
+    logger.debug('🚀 Redirecting to notarized DMG with proper filename');
+    return res.redirect(302, downloadUrl);
+    
   } catch (error) {
     console.error('Download API Error:', error);
     res.status(500).json({ 

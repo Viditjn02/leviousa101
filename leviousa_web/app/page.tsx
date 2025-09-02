@@ -4,6 +4,19 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/utils/auth'
 
+// Function to check if countdown is still active
+async function checkCountdownStatus(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/countdown-status')
+    const data = await response.json()
+    return data.countdownActive || false
+  } catch (error) {
+    console.error('Error checking countdown status:', error)
+    // Default to showing landing page if there's an error
+    return false
+  }
+}
+
 export default function Home() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
@@ -15,8 +28,14 @@ export default function Home() {
         // User is authenticated, go to activity
         router.push('/activity')
       } else {
-        // No user, show landing page
-        router.push('/landing.html')
+        // Check if countdown is active or completed
+        checkCountdownStatus().then(countdownActive => {
+          if (countdownActive) {
+            router.push('/countdown.html')
+          } else {
+            router.push('/landing.html')
+          }
+        })
       }
     }
   }, [isLoading, user, router])

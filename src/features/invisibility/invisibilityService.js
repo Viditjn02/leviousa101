@@ -155,10 +155,10 @@ class InvisibilityService extends EventEmitter {
             console.log('[InvisibilityService] 👁️ Ensuring overlay is visible by default...');
             await this.showOverlay('Default visibility after initialization', true); // Force show
             
-            // THIS IS THE PERFECT PLACE FOR FIRST-TIME USER TUTORIAL
+            // TRIGGER FIRST-TIME USER TUTORIAL AFTER LOGIN AND OVERLAY IS READY
             setTimeout(() => {
                 console.log('[InvisibilityService] 🎯 Checking for first-time user tutorial...');
-                this.checkFirstTimeUserTutorial();
+                this.checkFirstTimeUserTutorial(); // Use existing method
             }, 2000); // Small delay to ensure overlay is fully shown
             
         } catch (error) {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { UserProfile, setUserInfo, findOrCreateUser } from './api'
 import { auth as firebaseAuth, authPersistenceReady } from './firebase'
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth'
+import logger from './productionLogger'
 
 interface AuthContextType {
   user: UserProfile | null
@@ -20,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mode, setMode] = useState<'firebase' | null>(null)
   
   useEffect(() => {
-    console.log('🔍 AuthProvider: Setting up single auth state listener');
+    logger.debug('🔍 AuthProvider: Setting up single auth state listener');
     let mounted = true; // Track if component is still mounted
     
     // Check if we're on the integrations page with a userId parameter (Electron context)
@@ -29,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userIdFromUrl = urlParams.get('userId');
       
       if (window.location.pathname === '/integrations' && userIdFromUrl) {
-        console.log('🔗 AuthProvider: Integrations page detected with userId, creating temporary auth context');
+        logger.debug('🔗 AuthProvider: Integrations page detected with userId, creating temporary auth context');
         
         // Create a temporary user profile for the integrations page
         const tempProfile: UserProfile = {
@@ -43,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         setMode('firebase'); // Set mode to avoid auth loops
         
-        console.log('✅ AuthProvider: Temporary auth context created for integrations page');
+        logger.debug('✅ AuthProvider: Temporary auth context created for integrations page');
         
         // Return cleanup function but don't set up Firebase auth listener
         return () => {
@@ -70,14 +71,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .then(() => {
         if (!mounted) return; // Component unmounted before persistence ready
         
-        console.log('✅ AuthProvider: Firebase persistence ready, setting up auth listener');
+        logger.debug('✅ AuthProvider: Firebase persistence ready, setting up auth listener');
         
         unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser: FirebaseUser | null) => {
-      console.log('🔔 Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
+      logger.debug('🔔 Auth state changed:', firebaseUser ? `User ${firebaseUser.email}` : 'No user');
       
       try {
         if (firebaseUser) {
-          console.log('🔥 Firebase authentication successful:', firebaseUser.uid);
+          logger.debug('🔥 Firebase authentication successful:', firebaseUser.uid);
           setMode('firebase');
           
           let profile: UserProfile = {
@@ -88,24 +89,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           try {
             // Add timeout protection to findOrCreateUser call
-            console.log('🔍 AuthProvider: Creating/verifying user in Firestore...');
+            logger.debug('🔍 AuthProvider: Creating/verifying user in Firestore...');
             const userPromise = findOrCreateUser(profile);
             const timeoutPromise = new Promise<UserProfile>((_, reject) => 
               setTimeout(() => reject(new Error('findOrCreateUser timeout')), 8000)
             );
             
             profile = await Promise.race([userPromise, timeoutPromise]);
-            console.log('✅ Firestore user created/verified:', profile);
+            logger.debug('✅ Firestore user created/verified:', profile);
           } catch (error) {
             console.error('❌ Firestore user creation/verification failed or timed out:', error);
-            console.log('📋 Continuing with Firebase profile as fallback');
+            logger.debug('📋 Continuing with Firebase profile as fallback');
             // Continue with Firebase profile even if Firestore fails or times out
           }
 
           setUser(profile);
           setUserInfo(profile);
         } else {
-          console.log('🔓 No authenticated user - Firebase authentication required');
+          logger.debug('🔓 No authenticated user - Firebase authentication required');
           setMode(null);
           setUser(null);
           setUserInfo(null);
@@ -119,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
              } finally {
          // ALWAYS set loading to false, regardless of what happens above
          if (mounted) {
-           console.log('✅ AuthProvider: Setting isLoading to false');
+           logger.debug('✅ AuthProvider: Setting isLoading to false');
            setIsLoading(false);
            clearTimeout(authProviderTimeout);
          }
@@ -135,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check current auth state immediately after persistence is ready
         const currentUser = firebaseAuth.currentUser;
-        console.log('🔑 Current auth state on mount:', currentUser ? currentUser.email : 'No user');
+        logger.debug('🔑 Current auth state on mount:', currentUser ? currentUser.email : 'No user');
       })
       .catch((error) => {
         console.error('❌ AuthProvider: Failed to initialize Firebase persistence:', error);
@@ -145,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
     return () => {
-      console.log('🚪 AuthProvider: Cleaning up auth state listener');
+      logger.debug('🚪 AuthProvider: Cleaning up auth state listener');
       mounted = false; // Mark as unmounted
       clearTimeout(authProviderTimeout);
       if (unsubscribe) {
@@ -176,7 +177,7 @@ export const useRedirectIfNotAuth = () => {
   useEffect(() => {
     // Only redirect if we're done loading and there's no authenticated user
     if (!isLoading && !user) {
-      console.log('🚫 No authenticated user, redirecting to login');
+      logger.debug('🚫 No authenticated user, redirecting to login');
       router.push('/login');
     }
   }, [user, isLoading, router])

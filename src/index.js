@@ -56,6 +56,7 @@ if (require('electron-squirrel-startup')) {
 }
 
 const { app, BrowserWindow, shell, ipcMain, dialog, desktopCapturer, session } = require('electron');
+const logger = require('./utils/logger');
 
 // Set app name immediately for proper identification in System Preferences
 app.setName('Leviousa');
@@ -316,7 +317,7 @@ try {
 
 // Set up CSP interception BEFORE app is ready to ensure it applies to all windows
 function setupCSPInterception() {
-    console.log('🔧 [CSP] Setting up CSP interception...');
+    logger.debug('🔧 [CSP] Setting up CSP interception...');
     
     // Debug: Log ALL requests to see what's happening
     session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://*/*', 'http://*/*'] }, (details, callback) => {
@@ -372,22 +373,22 @@ function setupCSPInterception() {
         // Keep content-encoding so gzipped content displays properly
         // delete h['content-encoding']; // Commented out to prevent binary corruption
         
-        // Add relaxed header CSP with blob: support
+        // Add relaxed header CSP with Google auth support
         h['content-security-policy'] = [
             "default-src 'self' https: http: blob: data:; " +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http:; " +
-            "connect-src 'self' https: http: ws: wss: blob:; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: https://*.googleapis.com https://*.gstatic.com https://ssl.gstatic.com https://*.googleusercontent.com https://accounts.google.com; " +
+            "connect-src 'self' https: http: ws: wss: blob: https://*.googleapis.com https://accounts.google.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; " +
             "img-src 'self' data: blob: https: http:; " +
             "style-src 'self' 'unsafe-inline' https: http:; " +
             "font-src 'self' data: https: http:; " +
-            "frame-src 'self' https: http: blob:; " +
+            "frame-src 'self' https: http: blob: https://accounts.google.com; " +
             "worker-src 'self' blob:; " +
             "child-src 'self' https: http: blob:; " +
             "object-src 'self' blob: https: http:;"
         ];
 
-        console.log('[CSPPatch] ✅ Bullet-proof CSP fix applied to:', details.url);
-        console.log('[CSPPatch] 🔒 New CSP applied:', h['content-security-policy']);
+        logger.debug('[CSPPatch] ✅ Bullet-proof CSP fix applied to:', details.url);
+        logger.debug('[CSPPatch] 🔒 New CSP applied:', h['content-security-policy']);
         callback({ responseHeaders: h });
     });
 
@@ -420,8 +421,8 @@ function setupCSPInterception() {
             "object-src 'self' blob: https: http: data:;"
         ];
 
-        console.log('[CSPPatch] ✅ Overrode Next.js CSP for localhost:', details.url);
-        console.log('[CSPPatch] 🔒 New localhost CSP:', h['content-security-policy']);
+        logger.debug('[CSPPatch] ✅ Overrode Next.js CSP for localhost:', details.url);
+        logger.debug('[CSPPatch] 🔒 New localhost CSP:', h['content-security-policy']);
         callback({ responseHeaders: h });
     });
 
@@ -914,7 +915,7 @@ async function handleFirebaseAuthCallback(params) {
         const firebaseUser = {
             uid: decodedToken.uid,
             email: decodedToken.email || 'no-email@example.com',
-            displayName: decodedToken.name || 'User',
+            displayName: params.displayName || decodedToken.name || 'User', // Use URL param first, then token name
             photoURL: decodedToken.picture
         };
 

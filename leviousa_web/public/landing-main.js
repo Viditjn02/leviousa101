@@ -263,18 +263,45 @@ document.addEventListener('DOMContentLoaded', () => {
   sections.forEach(s=>obs.observe(s));
 })();
 
-// OS-aware download links
+// Enhanced OS and Architecture-aware download links
 (function(){
   const mac = document.getElementById('macLink');
   const win = document.getElementById('winLink');
   const dl = document.getElementById('downloadBtn');
   const ua = navigator.userAgent;
+  
+  // Enhanced Mac detection with Apple Silicon vs Intel
   const isMac = /Mac|iPhone|iPad/.test(ua);
   const isWin = /Windows/.test(ua);
-  const macUrl = '/downloads/Leviousa.dmg';
+  
+  // Detect Apple Silicon vs Intel Mac
+  const isAppleSilicon = isMac && (
+    /Apple.*Silicon/i.test(ua) || 
+    /ARM64/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+    window.navigator.userAgentData?.platform === 'macOS'
+  );
+  
+  // Smart URL selection with GitHub releases - CRASH FIXED VERSION
+  let macUrl;
+  if (isMac) {
+    // Using professional notarized version with correct DMG experience
+    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg';
+    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon (ARM64)' : 'Intel (x64)', '- Using FINAL COMPLETE DMG');
+  } else {
+    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FIXED-STABLE-1756749295823/Leviousa-1.0.0-STABLE-FINAL.dmg'; // Default to working DMG
+  }
+  
   const winUrl = '/downloads/LeviousaSetup.exe';
   if (mac) mac.href = macUrl; if (win) win.href = winUrl;
-  if (dl) { dl.href = isMac ? macUrl : (isWin ? winUrl : '#download'); const img = dl.querySelector('img'); if (img) img.src = isMac ? 'https://cdn.simpleicons.org/apple/000000' : 'https://cdn.simpleicons.org/windows/000000'; }
+  if (dl) { 
+    dl.href = isMac ? macUrl : (isWin ? winUrl : macUrl); 
+    const img = dl.querySelector('img'); 
+    if (img) img.src = isMac ? 'https://cdn.simpleicons.org/apple/000000' : 'https://cdn.simpleicons.org/windows/000000'; 
+    
+    // Add download info
+    dl.title = isMac ? (isAppleSilicon ? 'Download for Apple Silicon Mac' : 'Download for Intel Mac') : 'Download Leviousa';
+  }
 })();
 
 // Waitlist + Vendor form (basic)

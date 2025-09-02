@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leviousa - Launch Countdown</title>
+  <meta name="description" content="Ready for the upgrade? The AI revolution starts now. Join the first 100 for exclusive launch rewards." />
+  <meta property="og:title" content="Leviousa - The Launch" />
+  <meta property="og:description" content="Ready for the upgrade? Zero interruptions. Pure magic. Join the revolution." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/og-countdown.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23905151'/%3E%3Cstop offset='1' stop-color='%23ffffff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M50 8C34 10 20 24 14 36c-3 6-4 12-4 12s6-1 12-4c12-6 26-20 28-36z' fill='url(%23g)'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --brand-start: #905151;
+      --brand-end: #f2e9e9;
+      --bg: #000;
+      --bg-soft: #050505;
+      --bg-softer: #070707;
+      --bg-card: #1a1a1a;
+      --bg-card-2: #1e1e1e;
+      --text: #fff;
+      --muted: #bbb;
+      --muted-2: #999;
+      --border: #333;
+      --shadow: rgba(0,0,0,0.6);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .countdown-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: radial-gradient(ellipse at top, rgba(144, 81, 81, 0.3) 0%, rgba(0, 0, 0, 0.9) 60%),
+                  radial-gradient(ellipse at bottom right, rgba(242, 233, 233, 0.2) 0%, transparent 50%);
+    }
+
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 1rem 2rem;
+      backdrop-filter: blur(12px);
+      background: color-mix(in oklab, var(--bg) 70%, transparent);
+      border-bottom: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+      z-index: 1000;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .main-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6rem 2rem 2rem;
+      text-align: center;
+    }
+
+    .countdown-hero {
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .location-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 2rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 2rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .teaser-line {
+      font-size: clamp(2.5rem, 8vw, 4rem);
+      font-weight: 900;
+      line-height: 1.1;
+      background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      font-size: clamp(1.2rem, 4vw, 1.8rem);
+      color: var(--muted);
+      margin-bottom: 3rem;
+      font-weight: 300;
+    }
+
+    .countdown-timer {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 3rem;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .time-unit {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem 1rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px var(--shadow);
+    }
+
+    .time-value {
+      font-size: clamp(2rem, 6vw, 3rem);
+      font-weight: 900;
+      background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      display: block;
+    }
+
+    .time-label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      margin-top: 0.5rem;
+    }
+
+    .giveaway-section {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 1.5rem;
+      padding: 2rem;
+      margin-bottom: 3rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px var(--shadow);
+    }
+
+    .giveaway-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .giveaway-subtitle {
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+      font-size: 1.1rem;
+    }
+
+    .giveaway-prizes {
+      list-style: none;
+      text-align: left;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+
+    .giveaway-prizes li {
+      padding: 0.5rem 0;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .signup-form {
+      background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 1.5rem;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px var(--shadow);
+      margin-bottom: 2rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+      text-align: left;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      background: var(--bg-soft);
+      color: var(--text);
+      font-size: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--brand-start);
+      box-shadow: 0 0 0 3px rgba(144, 81, 81, 0.1);
+    }
+
+    .signup-btn {
+      width: 100%;
+      padding: 1rem 2rem;
+      background: linear-gradient(45deg, var(--brand-start), var(--brand-end));
+      color: #000;
+      border: none;
+      border-radius: 0.75rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .signup-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(144, 81, 81, 0.3);
+    }
+
+    .signup-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .success-message {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      margin-top: 1rem;
+      color: #22c55e;
+      text-align: center;
+    }
+
+    .error-message {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 1rem;
+      padding: 1rem;
+      margin-top: 1rem;
+      color: #ef4444;
+      text-align: center;
+    }
+
+    .social-share {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .share-btn {
+      padding: 0.75rem 1.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .share-btn:hover {
+      transform: translateY(-2px);
+      border-color: var(--brand-start);
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 5rem 1rem 1rem;
+      }
+
+      .countdown-timer {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+
+      .time-unit {
+        padding: 1rem 0.75rem;
+      }
+
+      .giveaway-section,
+      .signup-form {
+        padding: 1.5rem;
+      }
+
+      .header {
+        padding: 1rem;
+      }
+
+      .social-share {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .countdown-timer {
+        gap: 0.5rem;
+      }
+
+      .time-unit {
+        padding: 0.75rem 0.5rem;
+      }
+
+      .giveaway-prizes {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">LEVIOUSA</div>
+  </header>
+
+  <div class="countdown-container">
+    <main class="main-content">
+      <div class="countdown-hero">
+        <div class="location-badge">
+          <span>🌉</span>
+          <span>Built in San Francisco</span>
+        </div>
+
+        <h1 class="teaser-line">Ready for the upgrade?</h1>
+        <p class="subtitle">Zero interruptions. Pure magic.</p>
+
+        <div class="countdown-timer" id="countdown">
+          <div class="time-unit">
+            <span class="time-value" id="hours">00</span>
+            <span class="time-label">Hours</span>
+          </div>
+          <div class="time-unit">
+            <span class="time-value" id="minutes">00</span>
+            <span class="time-label">Minutes</span>
+          </div>
+          <div class="time-unit">
+            <span class="time-value" id="seconds">00</span>
+            <span class="time-label">Seconds</span>
+          </div>
+          <div class="time-unit">
+            <span class="time-value" id="milliseconds">000</span>
+            <span class="time-label">MS</span>
+          </div>
+        </div>
+
+        <div class="giveaway-section">
+          <h2 class="giveaway-title">
+            <span>🎁</span>
+            <span>LAUNCH GIVEAWAY</span>
+          </h2>
+          <p class="giveaway-subtitle">First 100 signups get a chance to win:</p>
+          <ul class="giveaway-prizes">
+            <li><span>•</span> 6 months Pro free ($108 value)</li>
+            <li><span>•</span> Cash up to $1000</li>
+          </ul>
+        </div>
+
+        <form class="signup-form" id="signupForm">
+          <div class="form-group">
+            <label for="name" class="form-label">Full Name</label>
+            <input type="text" id="name" name="name" class="form-input" required placeholder="Enter your full name">
+          </div>
+          <div class="form-group">
+            <label for="email" class="form-label">Email Address</label>
+            <input type="email" id="email" name="email" class="form-input" required placeholder="Enter your email">
+          </div>
+          <button type="submit" class="signup-btn" id="submitBtn">
+            <span id="btnText">Claim My Founding Spot</span>
+          </button>
+          <div id="messageContainer"></div>
+        </form>
+
+        <div class="social-share">
+          <a href="#" class="share-btn" id="shareTwitter">
+            <span>🐦</span>
+            <span>Share on Twitter</span>
+          </a>
+          <a href="#" class="share-btn" id="shareLinkedIn">
+            <span>💼</span>
+            <span>Share on LinkedIn</span>
+          </a>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Countdown Timer Logic
+    function initCountdown() {
+      // Set target time to 1 PM PST today (or tomorrow if it's already past 1 PM)
+      const now = new Date();
+      const pst = new Date(now.toLocaleString("en-US", {timeZone: "America/Los_Angeles"}));
+      
+      // Create target date for 1 PM PST today
+      let targetDate = new Date(pst);
+      targetDate.setHours(13, 0, 0, 0); // 1 PM = 13:00
+      
+      // If it's already past 1 PM today, set for tomorrow
+      if (pst.getHours() >= 13) {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+      
+      // Convert back to local timezone for consistent calculation
+      const targetTime = new Date(targetDate.toLocaleString("en-US", {timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone}));
+      
+      function updateCountdown() {
+        const now = new Date().getTime();
+        const distance = targetTime.getTime() - now;
+
+        if (distance < 0) {
+          // Countdown finished
+          document.getElementById('hours').textContent = '00';
+          document.getElementById('minutes').textContent = '00';
+          document.getElementById('seconds').textContent = '00';
+          document.getElementById('milliseconds').textContent = '000';
+          
+          // Redirect to main site or show launch content
+          showLaunchContent();
+          return;
+        }
+
+        const hours = Math.floor(distance / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        const milliseconds = Math.floor(distance % 1000);
+
+        document.getElementById('hours').textContent = String(hours).padStart(2, '0');
+        document.getElementById('minutes').textContent = String(minutes).padStart(2, '0');
+        document.getElementById('seconds').textContent = String(seconds).padStart(2, '0');
+        document.getElementById('milliseconds').textContent = String(milliseconds).padStart(3, '0');
+      }
+
+      // Update every 10ms for smooth milliseconds animation
+      updateCountdown();
+      setInterval(updateCountdown, 10);
+    }
+
+    function showLaunchContent() {
+      // Handle countdown completion - redirect or show launch content
+      alert('🚀 Launch time! Redirecting to setup your account...');
+      // You can redirect to the main site or password setup page here
+      // window.location.href = '/setup-password';
+    }
+
+    // Signup Form Logic
+    document.getElementById('signupForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
+      const messageContainer = document.getElementById('messageContainer');
+      
+      // Get form data
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      
+      if (!name || !email) {
+        showMessage('Please fill in all fields.', 'error');
+        return;
+      }
+      
+      // Disable button and show loading state
+      submitBtn.disabled = true;
+      btnText.textContent = 'Joining the revolution...';
+      
+      try {
+        // Call signup API
+        const response = await fetch('/api/countdown-signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name, email })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          showMessage('🎉 Welcome to the revolution! Check your email for confirmation.', 'success');
+          document.getElementById('signupForm').reset();
+        } else {
+          showMessage(result.error || 'Something went wrong. Please try again.', 'error');
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        showMessage('Network error. Please check your connection and try again.', 'error');
+      } finally {
+        // Re-enable button
+        submitBtn.disabled = false;
+        btnText.textContent = 'Claim My Founding Spot';
+      }
+    });
+    
+    function showMessage(message, type) {
+      const messageContainer = document.getElementById('messageContainer');
+      messageContainer.innerHTML = `<div class="${type}-message">${message}</div>`;
+      
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        messageContainer.innerHTML = '';
+      }, 5000);
+    }
+    
+    // Social Sharing
+    document.getElementById('shareTwitter').addEventListener('click', function(e) {
+      e.preventDefault();
+      const text = encodeURIComponent('Ready for the upgrade? Something big is launching from @Leviousa - join the revolution! 🚀');
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+    });
+    
+    document.getElementById('shareLinkedIn').addEventListener('click', function(e) {
+      e.preventDefault();
+      const url = encodeURIComponent(window.location.href);
+      const title = encodeURIComponent('Leviousa Launch - Ready for the upgrade?');
+      const summary = encodeURIComponent('Zero interruptions. Pure magic. Join the AI revolution.');
+      window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+    });
+    
+    // Initialize countdown on page load
+    document.addEventListener('DOMContentLoaded', initCountdown);
+  </script>
+</body>
+</html>

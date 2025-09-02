@@ -5,6 +5,7 @@ import ReferralDetector from '@/components/ReferralDetector'
 import { useAuth } from '@/utils/auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import logger from '@/utils/productionLogger'
 
 export default function AuthenticatedLayout({
   children,
@@ -16,7 +17,7 @@ export default function AuthenticatedLayout({
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false)
 
   useEffect(() => {
-    console.log('🔍 AuthenticatedLayout: Auth state check - isLoading:', isLoading, 'user:', !!user, 'hasCheckedAuth:', hasCheckedAuth);
+    logger.debug('🔍 AuthenticatedLayout: Auth state check - isLoading:', isLoading, 'user:', !!user, 'hasCheckedAuth:', hasCheckedAuth);
     
     // Add timeout to prevent hanging forever on auth check
     const authTimeout = setTimeout(() => {
@@ -27,15 +28,15 @@ export default function AuthenticatedLayout({
     }, 15000); // 15 second timeout
 
     if (!isLoading) {
-      console.log('✅ AuthenticatedLayout: Auth loading complete');
+      logger.debug('✅ AuthenticatedLayout: Auth loading complete');
       setHasCheckedAuth(true);
       clearTimeout(authTimeout);
       
       if (!user) {
-        console.log('🚫 AuthenticatedLayout: No authenticated user, redirecting to login');
+        logger.debug('🚫 AuthenticatedLayout: No authenticated user, redirecting to login');
         router.push('/login');
       } else {
-        console.log('✅ AuthenticatedLayout: User authenticated, showing content');
+        logger.debug('✅ AuthenticatedLayout: User authenticated, showing content');
       }
     }
 
@@ -44,7 +45,7 @@ export default function AuthenticatedLayout({
 
   // Show loading state only for a reasonable amount of time
   if (!hasCheckedAuth || (isLoading && !hasCheckedAuth)) {
-    console.log('🔄 AuthenticatedLayout: Showing loading state - hasCheckedAuth:', hasCheckedAuth, 'isLoading:', isLoading);
+    logger.debug('🔄 AuthenticatedLayout: Showing loading state - hasCheckedAuth:', hasCheckedAuth, 'isLoading:', isLoading);
     return (
       <div className="min-h-screen flex items-center justify-center" style={{
         background: 'radial-gradient(circle at center, rgba(144, 81, 81, 0.25), #000)'

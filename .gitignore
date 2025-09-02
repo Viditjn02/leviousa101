@@ -120,4 +120,5 @@ firebase-service-account.json
 serviceAccountKey.json
 
 # Electron packaging
-out/ 
+out/ .apple-credentials
+.apple-credentials-secure
