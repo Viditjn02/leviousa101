@@ -95,6 +95,36 @@ export default async function handler(req, res) {
       to: [email],
       subject: '🚀 Welcome to the Leviousa Revolution!',
       html: `
+        <div style="font-family: Arial, sans-serif; background: #000; color: #fff; padding: 20px;">
+          <h1 style="color: #905151;">Welcome ${name}!</h1>
+          <p>You're signed up for Leviousa early access!</p>
+          <p>Share leviousa.com and tag us to increase your chances of winning!</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('❌ Email failed:', error);
+    }
+
+    console.log(`✅ Countdown signup successful for ${email}${userId ? ` (${userId})` : ''}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Successfully signed up for early access!',
+      userId: userId
+    });
+
+  } catch (error) {
+    console.error('❌ Countdown signup error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Something went wrong. Please try again.'
+    });
+  }
+}
+      subject: '🚀 Welcome to the Leviousa Revolution!',
+      html: `
         <!DOCTYPE html>
         <html>
         <head>
