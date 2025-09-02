@@ -1,13 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
     <url>
         <loc>https://www.leviousa.com/</loc>
         <lastmod>2024-12-19</lastmod>
         <changefreq>weekly</changefreq>
         <priority>1.0</priority>
+        <image:image>
+            <image:loc>https://www.leviousa.com/og-image.svg</image:loc>
+            <image:title>Leviousa - Your Invisible Upgrade</image:title>
+            <image:caption>AI-powered workflow automation with 130+ integrations</image:caption>
+        </image:image>
     </url>
     <url>
         <loc>https://www.leviousa.com/download</loc>
+        <lastmod>2024-12-19</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://www.leviousa.com/integrations</loc>
         <lastmod>2024-12-19</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
@@ -16,7 +28,7 @@
         <loc>https://www.leviousa.com/help</loc>
         <lastmod>2024-12-19</lastmod>
         <changefreq>monthly</changefreq>
-        <priority>0.6</priority>
+        <priority>0.7</priority>
     </url>
     <url>
         <loc>https://www.leviousa.com/privacy-policy</loc>

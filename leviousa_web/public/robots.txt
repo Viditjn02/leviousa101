@@ -9,10 +9,28 @@ Disallow: /api/
 Disallow: /__/auth/
 Disallow: /oauth/
 Disallow: /login/
+Disallow: /settings/
+Disallow: /activity/
+Disallow: /personalize/
+Disallow: /e/
 
-# Allow important pages
+# Allow important public pages
 Allow: /
 Allow: /download
 Allow: /help
 Allow: /privacy-policy
 Allow: /terms-of-service
+Allow: /integrations
+
+# Crawl delay (be respectful)
+Crawl-delay: 1
+
+# Block specific bots that might cause issues
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+# IndexNow key for immediate indexing
+# Key location: https://www.leviousa.com/47cae371c4b44f3eb4171e0b6b9b87ba.txt

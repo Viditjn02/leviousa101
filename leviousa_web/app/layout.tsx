@@ -47,6 +47,35 @@ export default function RootLayout({
         <meta name="theme-color" content="#905151" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <script 
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "Leviousa",
+              "description": "Your Invisible Upgrade. Automate the busywork. Keep the impact. Screen-aware AI that understands context, executes actions, and learns your workflow with 130+ integrations.",
+              "url": "https://www.leviousa.com",
+              "applicationCategory": "ProductivityApplication",
+              "operatingSystem": "macOS, Windows",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD",
+                "availability": "https://schema.org/InStock"
+              },
+              "author": {
+                "@type": "Organization",
+                "name": "Leviousa, Inc.",
+                "url": "https://www.leviousa.com"
+              },
+              "sameAs": [
+                "https://www.leviousa.com"
+              ],
+              "keywords": "AI assistant, automation, productivity, invisible upgrade, screen-aware AI, workflow automation, integrations"
+            })
+          }}
+        />
       </head>
       <body className={inter.className}>
         <PostHogProvider>
