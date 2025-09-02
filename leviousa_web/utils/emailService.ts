@@ -138,13 +138,23 @@ export async function sendConfirmationEmail(email: string, name: string): Promis
           </p>
           
           <div style="background: rgba(144, 81, 81, 0.1); border: 1px solid rgba(144, 81, 81, 0.3); border-radius: 8px; padding: 20px; margin: 30px 0;">
-            <h3 style="color: #f2e9e9; margin: 0 0 15px 0; font-size: 18px;">🎁 What you get as a founding member:</h3>
+            <h3 style="color: #f2e9e9; margin: 0 0 15px 0; font-size: 18px;">🎁 What you get as an early user:</h3>
             <ul style="color: #bbb; margin: 0; padding-left: 20px;">
               <li>Chance to win 6 months Pro free ($108 value)</li>
               <li>Chance to win up to $1000 cash</li>
               <li>Priority access when we launch</li>
-              <li>Exclusive founding member benefits</li>
+              <li>Exclusive early user benefits</li>
             </ul>
+            <div style="background: rgba(242, 233, 233, 0.05); border: 1px solid rgba(242, 233, 233, 0.1); border-radius: 8px; padding: 15px; margin-top: 15px;">
+              <p style="color: #f2e9e9; font-size: 14px; margin: 0 0 8px 0; font-weight: 600;">🎯 How to Win:</p>
+              <p style="color: #bbb; font-size: 13px; margin: 0; line-height: 1.4;">
+                Share leviousa.com on social media and tag us:<br>
+                <strong>Instagram:</strong> @Leviousa.Magic<br>
+                <strong>X/Twitter:</strong> @Leviousa_Magic<br>
+                <strong>LinkedIn:</strong> @leviousa<br>
+                <em style="color: #905151;">Each share increases your chances!</em>
+              </p>
+            </div>
           </div>
           
           <p style="font-size: 16px; margin-bottom: 20px; color: #bbb;">
@@ -165,7 +175,7 @@ export async function sendConfirmationEmail(email: string, name: string): Promis
           
           <p style="font-size: 14px; color: #999; text-align: center; margin-top: 40px; border-top: 1px solid #333; padding-top: 20px;">
             Built with ❤️ in San Francisco<br>
-            © 2024 Leviousa, Inc. | <a href="https://www.leviousa.com/privacy" style="color: #905151;">Privacy Policy</a>
+            © 2025 Leviousa, Inc. | <a href="https://www.leviousa.com/privacy" style="color: #905151;">Privacy Policy</a>
           </p>
         </div>
       </div>
@@ -239,7 +249,7 @@ export async function sendPasswordSetupEmail(data: PasswordSetupEmailData): Prom
           
           <p style="font-size: 14px; color: #999; text-align: center; margin-top: 20px;">
             Built with ❤️ in San Francisco<br>
-            © 2024 Leviousa, Inc. | <a href="https://www.leviousa.com/privacy" style="color: #905151;">Privacy Policy</a>
+            © 2025 Leviousa, Inc. | <a href="https://www.leviousa.com/privacy" style="color: #905151;">Privacy Policy</a>
           </p>
         </div>
       </div>
