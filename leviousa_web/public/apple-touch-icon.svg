@@ -1,0 +1,16 @@
+<svg width="180" height="180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#905151" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="180" height="180" fill="#000000" rx="20" />
+  
+  <!-- Logo scaled up -->
+  <g transform="translate(90, 90) scale(2.8)">
+    <path d="M50 8C34 10 20 24 14 36c-3 6-4 12-4 12s6-1 12-4c12-6 26-20 28-36z" fill="url(#iconGradient)" transform="translate(-32, -32)"/>
+  </g>
+</svg>

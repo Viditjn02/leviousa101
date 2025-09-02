@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://www.leviousa.com/sitemap.xml
+
+# Block crawlers from auth and API routes
+Disallow: /api/
+Disallow: /__/auth/
+Disallow: /oauth/
+Disallow: /login/
+
+# Allow important pages
+Allow: /
+Allow: /download
+Allow: /help
+Allow: /privacy-policy
+Allow: /terms-of-service
