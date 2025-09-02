@@ -8,12 +8,12 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
   title: 'Leviousa – Your Invisible Upgrade',
-  description: 'Automate the busywork. Keep the impact. Screen-aware AI that understands context, executes actions, and learns your workflow with 130+ integrations.',
+  description: 'Your Invisible Upgrade.',
   keywords: 'AI assistant, automation, invisible upgrade, productivity, integrations, screen-aware AI, workflow automation',
   robots: 'index, follow',
   openGraph: {
     title: 'Leviousa – Your Invisible Upgrade',
-    description: 'Automate the busywork. Keep the impact. 130+ integrations, real-time answers.',
+    description: 'Your Invisible Upgrade.',
     type: 'website',
     url: 'https://www.leviousa.com',
     images: [
@@ -28,7 +28,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Leviousa – Your Invisible Upgrade',
-    description: 'Automate the busywork. Keep the impact. 130+ integrations, real-time answers.',
+    description: 'Your Invisible Upgrade.',
     images: ['https://www.leviousa.com/og-image.svg'],
   },
 }
@@ -54,7 +54,7 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
               "name": "Leviousa",
-              "description": "Your Invisible Upgrade. Automate the busywork. Keep the impact. Screen-aware AI that understands context, executes actions, and learns your workflow with 130+ integrations.",
+              "description": "Your Invisible Upgrade.",
               "url": "https://www.leviousa.com",
               "applicationCategory": "ProductivityApplication",
               "operatingSystem": "macOS, Windows",
