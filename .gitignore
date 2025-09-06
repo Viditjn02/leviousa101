@@ -127,3 +127,4 @@ out/ .apple-credentials
 backups/
 *.backup
 **/**.backup
+.vercel

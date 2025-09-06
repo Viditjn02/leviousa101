@@ -15,7 +15,6 @@ function BillingPageContent() {
 
   const tabs = [
     { id: 'profile', name: 'Profile', href: '/settings' },
-    { id: 'privacy', name: 'Data & privacy', href: '/settings/privacy' },
     { id: 'billing', name: 'Billing', href: '/settings/billing' },
     { id: 'referrals', name: 'Referrals', href: '/settings/referrals' },
   ]
@@ -199,7 +198,6 @@ function BillingPageContent() {
     <div className="min-h-screen" style={{background: 'var(--bg)'}}>
       <div className="px-8 py-8">
         <div className="mb-6">
-          <p className="text-xs mb-1" style={{color: 'var(--muted)'}}>Settings</p>
           <h1 className="text-3xl font-bold brand-gradient">Personal Settings</h1>
         </div>
         
@@ -244,7 +242,7 @@ function BillingPageContent() {
                     )}
                   </div>
                   <p className="text-2xl font-bold mt-2 brand-gradient">
-                    {isProUser ? 'Leviousa Pro' : 'Free Plan'}
+                    {isProUser ? 'Pro Plan' : 'Free Plan'}
                   </p>
                   <p className="text-sm mt-1" style={{color: 'var(--muted)'}}>
                     {isProUser ? '$18/month • Everything unlimited' : 'Limited daily usage • Perfect to get started'}

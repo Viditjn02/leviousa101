@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-type Tab = 'profile' | 'privacy' | 'billing' | 'referrals'
+type Tab = 'profile' | 'billing' | 'referrals'
 type BillingCycle = 'monthly' | 'annually'
 
 function SettingsPageContent() {
@@ -52,7 +52,6 @@ function SettingsPageContent() {
 
   const tabs = [
     { id: 'profile' as Tab, name: 'Profile', href: '/settings' },
-    { id: 'privacy' as Tab, name: 'Data & Privacy', href: '/settings/privacy' },
     { id: 'billing' as Tab, name: 'Billing', href: '/settings/billing' },
     { id: 'referrals' as Tab, name: 'Referrals', href: '/settings/referrals' },
   ]
@@ -220,11 +219,11 @@ function SettingsPageContent() {
           <div className="space-y-6">
             {/* Removed Firebase Hosting Mode banner */}
             
-            <div className="bg-white border border-gray-300 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Display Name</h3>
+            <div className="glass-card rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4" style={{color: 'var(--text)'}}>Display Name</h3>
               <div className="space-y-4">
                   <div>
-                  <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="displayName" className="block text-sm font-medium mb-1" style={{color: 'var(--muted)'}}>
                     Display Name
                   </label>
                  <input
@@ -232,7 +231,13 @@ function SettingsPageContent() {
                     id="displayName"
                     value={displayNameInput}
                     onChange={(e) => setDisplayNameInput(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                    style={{
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text)',
+                      borderColor: 'var(--border)',
+                      border: '1px solid',
+                    }}
                     placeholder="Enter your display name"
                   />
               </div>
@@ -240,11 +245,19 @@ function SettingsPageContent() {
                 <button
                     onClick={handleUpdateDisplayName}
                     disabled={isSaving || !displayNameInput || displayNameInput === profile?.display_name}
-                    className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                       isSaving || !displayNameInput || displayNameInput === profile?.display_name
-                        ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                        : 'text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'btn-brand'
                     }`}
+                    style={{
+                      backgroundColor: isSaving || !displayNameInput || displayNameInput === profile?.display_name 
+                        ? 'var(--bg-card)' : undefined,
+                      color: isSaving || !displayNameInput || displayNameInput === profile?.display_name 
+                        ? 'var(--muted)' : undefined,
+                      border: isSaving || !displayNameInput || displayNameInput === profile?.display_name 
+                        ? '1px solid var(--border)' : undefined
+                    }}
                   >
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
@@ -271,8 +284,6 @@ function SettingsPageContent() {
             </div>
           </div>
         )
-      case 'privacy':
-        return null
       default:
         return renderBillingContent()
     }
@@ -282,7 +293,6 @@ function SettingsPageContent() {
     <div className="min-h-screen" style={{background: 'var(--bg)'}}>
       <div className="px-8 py-8">
         <div className="mb-6">
-          <p className="text-xs mb-1" style={{color: 'var(--muted)'}}>Settings</p>
           <h1 className="text-3xl font-bold brand-gradient">Personal Settings</h1>
         </div>
         
@@ -292,7 +302,7 @@ function SettingsPageContent() {
               <Link
                 key={tab.id}
                 href={tab.href}
-                onClick={tab.id === 'privacy' ? undefined : () => setActiveTab(tab.id)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors`}
                 style={{
                   borderBottomColor: activeTab === tab.id ? 'var(--brand-start)' : 'transparent',

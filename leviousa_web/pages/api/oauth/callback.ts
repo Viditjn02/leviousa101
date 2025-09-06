@@ -13,9 +13,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     state,
   });
 
-  const electronCallbackUrl = `leviousa://oauth/callback?${deepLinkParams.toString()}`;
+  // Use auth-success for Firebase authentication (not oauth/callback which is for MCP integrations)
+  const electronCallbackUrl = `leviousa://auth-success?token=${code}&state=${state}`;
 
-  console.log(`[API Callback] Redirecting to: ${electronCallbackUrl}`);
+  console.log(`[API Callback] Redirecting to Firebase auth handler: ${electronCallbackUrl}`);
 
   // Send HTML that tries multiple ways to invoke the custom protocol and then closes
   res.status(200).setHeader('Content-Type', 'text/html').send(`

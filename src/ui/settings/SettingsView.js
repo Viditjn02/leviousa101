@@ -796,37 +796,49 @@ export class SettingsView extends LitElement {
         }
 
         try {
-            // Get Firebase ID token for API authentication
-            let token = 'mock-token';
+            console.log('[SettingsView] 📊 Loading subscription data from local service...');
+            
+            // Use local subscription service instead of web API
+            // This will properly detect special emails and auto-upgrade to Pro
+            const subscriptionData = await window.api.settingsView.getSubscription();
+            this.subscription = subscriptionData;
+            
+            console.log('[SettingsView] ✅ Loaded subscription:', subscriptionData);
+            
+        } catch (error) {
+            console.error('[SettingsView] ❌ Failed to fetch subscription from local service:', error);
+            
+            // Fallback: Try web API as backup
             try {
+                let token = 'mock-token';
                 if (window.api && window.api.settingsView && window.api.settingsView.getFirebaseToken) {
                     token = await window.api.settingsView.getFirebaseToken();
-                    console.log('[SettingsView] Got Firebase token for API call');
                 }
-            } catch (tokenError) {
-                console.warn('[SettingsView] Failed to get Firebase token, using mock:', tokenError);
-            }
-            
-            // Fetch subscription data from web API
-            const response = await fetch('https://www.leviousa.com/api/subscription/current', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
+                
+                const response = await fetch('https://www.leviousa.com/api/subscription/current', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
 
-            if (response.ok) {
-                const data = await response.json();
-                this.subscription = data.subscription;
+                if (response.ok) {
+                    const data = await response.json();
+                    this.subscription = data.subscription;
+                    console.log('[SettingsView] ⚡ Fallback to web API successful');
+                } else {
+                    throw new Error(`Web API failed with status: ${response.status}`);
+                }
+            } catch (webError) {
+                console.error('[SettingsView] ❌ Web API fallback failed:', webError);
+                
+                // Final fallback to default free subscription
+                this.subscription = {
+                    plan: 'free',
+                    status: 'active',
+                    current_period_end: Date.now() + (30 * 24 * 60 * 60 * 1000),
+                    cancel_at_period_end: false
+                };
             }
-        } catch (error) {
-            console.error('Failed to fetch subscription:', error);
-            // Fallback to mock data for testing
-            this.subscription = {
-                plan: 'free', // Change to 'pro' to test Pro user UI
-                status: 'active',
-                current_period_end: Date.now() + (30 * 24 * 60 * 60 * 1000),
-                cancel_at_period_end: false
-            };
         } finally {
             this.subscriptionLoading = false;
             this.requestUpdate();
@@ -1366,7 +1378,7 @@ export class SettingsView extends LitElement {
                     <div class="section-title">Account & Profile</div>
                     <div class="section-content">
                         <button class="settings-button full-width" @click=${this.handlePersonalize}>
-                            <span>Personalize / Meeting Notes</span>
+                            <span>Meeting Notes</span>
                         </button>
                         <div class="bottom-buttons">
                             ${this.firebaseUser

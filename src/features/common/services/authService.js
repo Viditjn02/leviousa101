@@ -98,11 +98,26 @@ class AuthService {
         this.initializationPromise = new Promise((resolve) => {
             const auth = getFirebaseAuth();
             onAuthStateChanged(auth, async (user) => {
+                console.log(`[AuthService] 🔔 AUTH STATE CHANGE TRIGGERED!`);
+                console.log(`[AuthService] 🔍 Previous user:`, this.currentUser ? `${this.currentUser.uid} (${this.currentUser.email})` : 'null');
+                console.log(`[AuthService] 🔍 New user:`, user ? `${user.uid} (${user.email})` : 'null');
+                console.log(`[AuthService] 🔍 Auth state change reason: Firebase onAuthStateChanged callback`);
+                
                 const previousUser = this.currentUser;
 
                 if (user) {
                     // User signed IN
-                    console.log(`[AuthService] Firebase user signed in:`, user.uid);
+                    console.log(`[AuthService] ✅ Firebase user signed in:`, user.uid, user.email);
+                    
+                    // Validate the user object structure
+                    console.log(`[AuthService] 🔍 User object structure:`, {
+                        uid: user.uid,
+                        email: user.email,
+                        displayName: user.displayName,
+                        emailVerified: user.emailVerified,
+                        isAnonymous: user.isAnonymous
+                    });
+                    
                     this.currentUser = user;
                     this.currentUserId = user.uid;
                     this.currentUserMode = 'firebase';
@@ -139,11 +154,107 @@ class AuthService {
                     // ** Check for and run data migration for the user **
                     // Run in background without blocking startup, after auth state is broadcast
                     migrationService.checkAndRunMigration(user);
+                    
+                    // Trigger first-time user tutorial after authentication (only if truly first time)
+                    setTimeout(async () => {
+                        console.log(`[AuthService] 🎯 Checking for first-time user tutorial...`);
+                        
+                        // Check if this specific user has seen the tutorial before
+                        try {
+                            const Store = await import('electron-store');
+                            const tutorialStore = new Store.default({ 
+                                name: 'leviousa-tutorial-tracking',
+                                projectName: 'Leviousa'
+                            });
+                            
+                            const userTutorialKey = `user_${user.uid}_tutorial_completed`;
+                            const hasSeenTutorial = tutorialStore.get(userTutorialKey, false);
+                            
+                            console.log(`[AuthService] 🔍 User ${user.email} tutorial status: ${hasSeenTutorial ? 'COMPLETED' : 'NOT_SEEN'}`);
+                            
+                            if (!hasSeenTutorial && global.invisibilityService) {
+                                console.log(`[AuthService] 🎓 First-time user detected - triggering tutorial`);
+                                global.invisibilityService.checkFirstTimeUserTutorial();
+                            } else {
+                                console.log(`[AuthService] 👋 Returning user - no tutorial needed`);
+                            }
+                        } catch (error) {
+                            console.error(`[AuthService] ⚠️ Error checking tutorial status:`, error.message);
+                            // Fallback - show tutorial if we can't determine status
+                            if (global.invisibilityService) {
+                                global.invisibilityService.checkFirstTimeUserTutorial();
+                            }
+                        }
+                    }, 3000);
 
                 } else {
                     // User signed OUT or no user
-                    console.log(`[AuthService] No Firebase user - authentication required.`);
+                    console.log(`[AuthService] ❌ Firebase user is NULL - investigating cause...`);
+                    console.log(`[AuthService] 🔍 Previous user was:`, previousUser ? `${previousUser.uid} (${previousUser.email})` : 'null');
+                    console.log(`[AuthService] 🔍 This could be caused by:`);
+                    console.log(`[AuthService] 🔍   1. User explicitly logged out`);
+                    console.log(`[AuthService] 🔍   2. Auth token expired or invalid`);
+                    console.log(`[AuthService] 🔍   3. Firebase persistence failed to restore auth state`);
+                    console.log(`[AuthService] 🔍   4. Network issues preventing auth verification`);
+                    
+                    // Check if Firebase auth is still initializing
+                    if (auth.currentUser) {
+                        console.log(`[AuthService] 🤔 INCONSISTENCY: Firebase auth has currentUser but onAuthStateChanged received null`);
+                        console.log(`[AuthService] 🤔 currentUser:`, {
+                            uid: auth.currentUser.uid,
+                            email: auth.currentUser.email,
+                            emailVerified: auth.currentUser.emailVerified
+                        });
+                        console.log(`[AuthService] 🤔 This suggests a Firebase SDK bug or timing issue`);
+                    }
+                    
+                    // PERSISTENCE FALLBACK: Check for manually saved auth state (development mode)
+                    try {
+                        console.log(`[AuthService] 🔍 Checking for persistent auth state in electron-store...`);
+                        const Store = await import('electron-store');
+                        const authStore = new Store.default({ 
+                            name: 'leviousa-auth-persistence',
+                            projectName: 'Leviousa'
+                        });
+                        
+                        const persistentUser = authStore.get('persistentUser');
+                        if (persistentUser && persistentUser.uid && persistentUser.email) {
+                            console.log(`[AuthService] 🎯 Found persistent user: ${persistentUser.email}`);
+                            
+                            // Check if auth state is recent (within 7 days)
+                            const age = Date.now() - persistentUser.timestamp;
+                            const sevenDays = 7 * 24 * 60 * 60 * 1000;
+                            
+                            if (age < sevenDays) {
+                                console.log(`[AuthService] ✅ Restoring persistent auth state for ${persistentUser.email}`);
+                                
+                                this.currentUser = {
+                                    uid: persistentUser.uid,
+                                    email: persistentUser.email,
+                                    displayName: persistentUser.displayName,
+                                    photoURL: persistentUser.photoURL
+                                };
+                                this.currentUserId = persistentUser.uid;
+                                this.currentUserMode = 'firebase';
+                                
+                                // Broadcast the restored auth state
+                                this.broadcastUserState();
+                                console.log(`[AuthService] 🎉 User automatically signed back in from persistent storage`);
+                                return; // Don't proceed with logout flow
+                                
+                            } else {
+                                console.log(`[AuthService] 🕒 Persistent auth expired (${age/86400000} days old), clearing...`);
+                                authStore.delete('persistentUser');
+                            }
+                        } else {
+                            console.log(`[AuthService] 🔍 No persistent auth state found`);
+                        }
+                    } catch (storeError) {
+                        console.log(`[AuthService] ⚠️ Error checking persistent storage:`, storeError.message);
+                    }
+                    
                     if (previousUser) {
+                        console.log(`[AuthService] 💔 User ${previousUser.uid} (${previousUser.email}) was authenticated but now logged out`);
                         console.log(`[AuthService] Clearing API key for logged-out user: ${previousUser.uid}`);
                         if (global.modelStateService) {
                             // The model state service now writes directly to the DB.
@@ -160,6 +271,7 @@ class AuthService {
                     encryptionService.resetSessionKey();
                     
                     // Broadcast logout state
+                    console.log(`[AuthService] 📡 Broadcasting NULL user state to UI`);
                     this.broadcastUserState();
                 }
                 
@@ -181,18 +293,126 @@ class AuthService {
 
     async startFirebaseAuthFlow() {
         try {
-            const webUrl = process.env.leviousa_WEB_URL;
-            // Add cache-busting timestamp to prevent Safari cache issues
-            const timestamp = Date.now();
-            // Use a simple URL that sets window.name via fragment and includes app identifier
-            const authUrl = `${webUrl}/login?t=${timestamp}&app=leviousa#electron=${timestamp}`;
+            const webUrl = process.env.leviousa_WEB_URL || 'https://www.leviousa.com';
+            
+            // Simple, clean indicator that this is from Electron app (o3's working solution)
+            const authUrl = `${webUrl}/login?mode=electron`;
             console.log(`[AuthService] Opening Firebase OAuth auth URL in browser: ${authUrl}`);
+            
             await shell.openExternal(authUrl);
+            
+            // For development mode, start polling since deep links don't work on macOS
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`[AuthService] 🔧 Development mode detected - starting auth bridge polling...`);
+                this.startDevelopmentAuthPolling();
+            }
+            
             return { success: true };
         } catch (error) {
             console.error('[AuthService] Failed to open Firebase auth URL:', error);
             return { success: false, error: error.message };
         }
+    }
+    
+    async startDevelopmentAuthPolling() {
+        console.log(`[AuthService] 🔧 Starting development auth bridge polling...`);
+        
+        let pollCount = 0;
+        const maxPolls = 60; // 2 minutes at 2-second intervals
+        
+        const pollInterval = setInterval(async () => {
+            try {
+                pollCount++;
+                console.log(`[AuthService] 🔍 Polling attempt ${pollCount}/${maxPolls} for auth data...`);
+                
+                // Use the web API to check for stored auth data
+                const webUrl = process.env.leviousa_WEB_URL || 'https://www.leviousa.com';
+                const response = await fetch(`${webUrl}/api/dev-auth-bridge`);
+                
+                if (response.ok) {
+                    const authData = await response.json();
+                    console.log(`[AuthService] 🔍 Poll response data:`, authData);
+                    
+                    // The token may be at the root (legacy) or nested under authData.user.token
+                    const token = authData.token || (authData.user && authData.user.token);
+
+                    if (authData.success && token) {
+                        console.log(`[AuthService] ✅ Development auth bridge data found!`);
+                        console.log(`[AuthService] ✅ User: ${authData.user?.email || 'UNKNOWN'}`);
+
+                        clearInterval(pollInterval);
+
+                        // Create custom token for proper Firebase persistence
+                        console.log(`[AuthService] 🔄 Creating custom token for persistent authentication...`);
+                        
+                        try {
+                            const { createCustomToken } = require('./firebaseClient');
+                            
+                            const customToken = await createCustomToken(authData.user.uid, {
+                                email: authData.user.email,
+                                name: authData.user.displayName,
+                                picture: authData.user.photoURL
+                            });
+                            
+                            console.log(`[AuthService] ✅ Custom token created, signing in for persistence...`);
+                            await this.signInWithCustomToken(customToken);
+                            console.log(`[AuthService] ✅ Firebase authentication complete with persistence`);
+                            
+                        } catch (customTokenError) {
+                            console.log(`[AuthService] ⚠️ Custom token creation failed, using direct auth:`, customTokenError.message);
+                            
+                            // Fallback: Set auth state directly and save to persistence manually
+                            const firebaseUser = {
+                                uid: authData.user.uid,
+                                email: authData.user.email,
+                                displayName: authData.user.displayName,
+                                photoURL: authData.user.photoURL
+                            };
+                            
+                            this.currentUser = firebaseUser;
+                            this.currentUserId = firebaseUser.uid;
+                            this.currentUserMode = 'firebase';
+                            
+                            // Manually save to electron-store for persistence
+                            try {
+                                const Store = await import('electron-store');
+                                const authStore = new Store.default({ 
+                                    name: 'leviousa-auth-persistence',
+                                    projectName: 'Leviousa'
+                                });
+                                
+                                authStore.set('persistentUser', {
+                                    ...firebaseUser,
+                                    timestamp: Date.now()
+                                });
+                                
+                                console.log(`[AuthService] ✅ User auth saved to persistent storage`);
+                            } catch (storeError) {
+                                console.error(`[AuthService] ❌ Failed to save to persistent storage:`, storeError);
+                            }
+                            
+                            console.log(`[AuthService] ✅ Development mode auth complete - user set directly`);
+                            this.broadcastUserState();
+                        }
+                        
+                        return;
+                    } else {
+                        console.log(`[AuthService] ❌ Auth data incomplete - success: ${authData.success}, token: ${!!token}`);
+                    }
+                } else if (response.status !== 404) {
+                    console.log(`[AuthService] ❌ Poll request failed with status ${response.status}`);
+                }
+                
+            } catch (error) {
+                console.log(`[AuthService] ❌ Poll error:`, error.message);
+            }
+            
+            // Stop polling if max attempts reached
+            if (pollCount >= maxPolls) {
+                clearInterval(pollInterval);
+                console.log(`[AuthService] 🕒 Development auth bridge polling timeout after ${maxPolls} attempts`);
+            }
+        }, 2000); // Poll every 2 seconds
     }
 
     async signInWithCustomToken(token) {
@@ -261,6 +481,19 @@ class AuthService {
         try {
             // End all active sessions for the current user BEFORE signing out.
             await sessionRepository.endAllActiveSessions();
+            
+            // Clear persistent auth storage
+            try {
+                const Store = await import('electron-store');
+                const authStore = new Store.default({ 
+                    name: 'leviousa-auth-persistence',
+                    projectName: 'Leviousa'
+                });
+                authStore.delete('persistentUser');
+                console.log('[AuthService] ✅ Persistent auth storage cleared');
+            } catch (storeError) {
+                console.log('[AuthService] ⚠️ Error clearing persistent storage:', storeError.message);
+            }
 
             await signOut(auth);
             console.log('[AuthService] User sign-out initiated successfully.');
@@ -268,6 +501,23 @@ class AuthService {
             // which will also re-evaluate the API key status.
         } catch (error) {
             console.error('[AuthService] Error signing out:', error);
+        }
+    }
+    
+    // Helper method to mark tutorial as completed for a user
+    async markTutorialCompleted(userId) {
+        try {
+            const Store = await import('electron-store');
+            const tutorialStore = new Store.default({ 
+                name: 'leviousa-tutorial-tracking',
+                projectName: 'Leviousa'
+            });
+            
+            const userTutorialKey = `user_${userId}_tutorial_completed`;
+            tutorialStore.set(userTutorialKey, true);
+            console.log(`[AuthService] ✅ Tutorial marked as completed for user: ${userId}`);
+        } catch (error) {
+            console.error(`[AuthService] ❌ Error marking tutorial completed:`, error);
         }
     }
     

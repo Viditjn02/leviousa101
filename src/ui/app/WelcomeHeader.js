@@ -185,21 +185,32 @@ export class WelcomeHeader extends LitElement {
     }
 
     async handleLogin() {
-        console.log('Login button clicked');
+        console.log('[WelcomeHeader] 🔍 Login button clicked');
+        console.log('[WelcomeHeader] 🔍 window.api available:', !!window.api);
+        console.log('[WelcomeHeader] 🔍 window.api.common available:', !!window.api?.common);
+        console.log('[WelcomeHeader] 🔍 startFirebaseAuth method available:', typeof window.api?.common?.startFirebaseAuth);
         
         try {
             // Use Firebase OAuth now that domain authorization is fixed
-            console.log('Starting Firebase OAuth authentication...');
-            await window.api.common.startFirebaseAuth();
+            console.log('[WelcomeHeader] 🚀 Starting Firebase OAuth authentication...');
+            console.log('[WelcomeHeader] 🔍 About to call window.api.common.startFirebaseAuth()');
+            
+            const result = await window.api.common.startFirebaseAuth();
+            
+            console.log('[WelcomeHeader] ✅ startFirebaseAuth completed, result:', result);
+            
         } catch (error) {
-            console.error('Firebase OAuth authentication failed:', error);
+            console.error('[WelcomeHeader] ❌ Firebase OAuth authentication failed:', error);
+            console.error('[WelcomeHeader] ❌ Error name:', error.name);
+            console.error('[WelcomeHeader] ❌ Error message:', error.message);
+            console.error('[WelcomeHeader] ❌ Error stack:', error.stack);
             
             // Only fallback to server-side auth if OAuth completely fails
             try {
-                console.log('Falling back to server-side authentication...');
+                console.log('[WelcomeHeader] 🔄 Falling back to server-side authentication...');
                 await window.api.common.startServerSideAuth();
             } catch (fallbackError) {
-                console.error('All authentication methods failed:', fallbackError);
+                console.error('[WelcomeHeader] ❌ All authentication methods failed:', fallbackError);
             }
         }
     }
@@ -210,7 +221,7 @@ export class WelcomeHeader extends LitElement {
                 <button class="close-button" @click=${this.handleClose}>×</button>
                 <div class="header-section">
                     <div class="title">Welcome to Leviousa</div>
-                    <div class="subtitle">Choose how to connect your AI model</div>
+                    <div class="subtitle">Your Invisible Upgrade</div>
                 </div>
                 <div class="option-card">
                     <div class="divider"></div>

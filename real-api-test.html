@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Real MCP API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 4px; }
+        .success { border-color: #4CAF50; color: #4CAF50; }
+        .error { border-color: #f44336; color: #f44336; }
+        .pending { border-color: #FF9800; color: #FF9800; }
+        pre { background: #2a2a2a; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Real MCP API Tests</h1>
+    <div id="results"></div>
+
+    <script>
+        const REAL_USER_ID = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+        const results = document.getElementById('results');
+        
+        function addResult(testName, status, data) {
+            const div = document.createElement('div');
+            div.className = 'test ' + status;
+            div.innerHTML = '<h3>' + testName + ' - ' + status.toUpperCase() + '</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            results.appendChild(div);
+        }
+
+        async function runAllTests() {
+            console.log('🚀 Starting real API tests...');
+            
+            // Test 1: Notion (Proxy API)
+            try {
+                console.log('Testing Notion list databases...');
+                const notionResult = await window.api.mcp.callTool('notion_list_databases', { 
+                    user_id: REAL_USER_ID 
+                });
+                addResult('Notion List Databases', 'success', notionResult);
+            } catch (error) {
+                addResult('Notion List Databases', 'error', { error: error.message });
+            }
+            
+            // Test 2: LinkedIn (Zeus workflow)
+            try {
+                console.log('Testing LinkedIn get profile...');
+                const linkedinResult = await window.api.mcp.callTool('linkedin_get_profile', {
+                    user_id: REAL_USER_ID,
+                    profile_id: 'me'
+                });
+                addResult('LinkedIn Get Profile', 'success', linkedinResult);
+            } catch (error) {
+                addResult('LinkedIn Get Profile', 'error', { error: error.message });
+            }
+            
+            // Test 3: Google Calendar (Zeus workflow)
+            try {
+                console.log('Testing Google Calendar create event...');
+                const now = new Date();
+                const startTime = new Date(now.getTime() + 60 * 60 * 1000);
+                const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
+                
+                const calendarResult = await window.api.mcp.callTool('google_calendar_create_event', {
+                    user_id: REAL_USER_ID,
+                    summary: 'Real API Test Event - ' + new Date().toLocaleString(),
+                    description: 'Testing real API calls through Zeus workflow',
+                    start_time: startTime.toISOString(),
+                    end_time: endTime.toISOString(),
+                    location: 'Virtual'
+                });
+                addResult('Google Calendar Create Event', 'success', calendarResult);
+            } catch (error) {
+                addResult('Google Calendar Create Event', 'error', { error: error.message });
+            }
+            
+            // Test 4: Calendly (Zeus workflow)
+            try {
+                console.log('Testing Calendly search events...');
+                const now = new Date();
+                const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                
+                const calendlyResult = await window.api.mcp.callTool('calendly_search_events', {
+                    user_id: REAL_USER_ID,
+                    start_time: lastWeek.toISOString(),
+                    end_time: nextWeek.toISOString(),
+                    status: 'active',
+                    count: 10
+                });
+                addResult('Calendly Search Events', 'success', calendlyResult);
+            } catch (error) {
+                addResult('Calendly Search Events', 'error', { error: error.message });
+            }
+            
+            // Test 5: Gmail (verify still works)
+            try {
+                console.log('Testing Gmail send email...');
+                const gmailResult = await window.api.mcp.callTool('GMAIL_SEND_EMAIL', {
+                    user_id: REAL_USER_ID,
+                    toRecipients: [{ emailAddress: { address: 'test@leviousa.com' } }],
+                    messageContent: {
+                        subject: 'Real API Test - ' + new Date().toLocaleString(),
+                        body: {
+                            content: 'This email was sent via real API testing of all Zeus workflows and Proxy APIs!',
+                            contentType: 'text'
+                        }
+                    }
+                });
+                addResult('Gmail Send Email', 'success', gmailResult);
+            } catch (error) {
+                addResult('Gmail Send Email', 'error', { error: error.message });
+            }
+            
+            console.log('✅ All real API tests completed!');
+        }
+        
+        // Start tests immediately
+        runAllTests();
+        
+        // Also make results available globally for inspection
+        window.testResults = results;
+    </script>
+</body>
+</html>

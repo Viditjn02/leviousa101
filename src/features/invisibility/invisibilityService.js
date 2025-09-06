@@ -97,6 +97,11 @@ class InvisibilityService extends EventEmitter {
                 console.log('[InvisibilityService] Initializing MCPClient...');
                 await this.mcpClient.initialize();
                 console.log('[InvisibilityService] ✅ MCPClient initialized');
+                
+                // Make MCPClient globally available for enhanced answering
+                global.mcpClient = this.mcpClient;
+                console.log('[InvisibilityService] ✅ MCPClient set globally for enhanced answering');
+                
                 componentResults.mcpClient = true;
             } catch (error) {
                 console.error('[InvisibilityService] ❌ MCPClient failed to initialize:', error.message);
@@ -836,6 +841,9 @@ class InvisibilityService extends EventEmitter {
             // Shutdown MCP services
             if (this.mcpClient && typeof this.mcpClient.shutdown === 'function') {
                 await this.mcpClient.shutdown();
+                
+                // Clear global reference
+                global.mcpClient = null;
             }
             
             console.log('[InvisibilityService] Shutdown complete');

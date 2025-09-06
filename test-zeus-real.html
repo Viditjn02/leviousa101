@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zeus Workflows + Proxy API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #444; border-radius: 8px; }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .pending { color: #FF9800; }
+        button { padding: 10px 15px; margin: 5px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1976D2; }
+        .result { margin: 10px 0; padding: 10px; background: #2a2a2a; border-radius: 4px; white-space: pre-wrap; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Zeus Workflows + Proxy API Test</h1>
+    <p class="info">Testing with real user ID: <strong>vqLrzGnqajPGlX9Wzq89SgqVPsN2</strong></p>
+    <p class="info">Started: <span id="startTime"></span></p>
+
+    <div class="test-section">
+        <h2>📝 Notion (Proxy API)</h2>
+        <button onclick="testNotion()">Test Notion List Databases</button>
+        <button onclick="testNotionCreate()">Test Create Page</button>
+        <div id="notionResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>💼 LinkedIn (Zeus Workflows)</h2>
+        <button onclick="testLinkedInProfile()">Test Get Profile</button>
+        <button onclick="testLinkedInPost()">Test Create Post</button>
+        <div id="linkedinResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📅 Google Calendar (Zeus Workflows)</h2>
+        <button onclick="testCalendarCreate()">Test Create Event</button>
+        <button onclick="testCalendarList()">Test List Events</button>
+        <div id="calendarResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🗓️ Calendly (New Zeus Workflows)</h2>
+        <button onclick="testCalendlyEventTypes()">Test Event Type Details</button>
+        <button onclick="testCalendlySearch()">Test Search Events</button>
+        <div id="calendlyResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📧 Gmail (Already Working)</h2>
+        <button onclick="testGmail()">Test Send Email</button>
+        <div id="gmailResult" class="result"></div>
+    </div>
+
+    <script>
+        const REAL_USER_ID = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+        document.getElementById('startTime').textContent = new Date().toLocaleString();
+
+        // Test Notion (Proxy API)
+        async function testNotion() {
+            const result = document.getElementById('notionResult');
+            result.innerHTML = '<span class="pending">Testing Notion list databases (Proxy API)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'notion_list_databases',
+                        args: { user_id: REAL_USER_ID }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Notion Success!</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Notion Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function testNotionCreate() {
+            const result = document.getElementById('notionResult');
+            result.innerHTML = '<span class="pending">Testing Notion create page (Proxy API)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'notion_create_page',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            parent: { page_id: "test-parent-id" },
+                            properties: {
+                                title: {
+                                    title: [{ text: { content: `Zeus Test Page - ${new Date().toLocaleString()}` } }]
+                                }
+                            }
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Notion Create Success!</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Notion Create Error:</span>\n${error.message}`;
+            }
+        }
+
+        // Test LinkedIn (Zeus Workflows)
+        async function testLinkedInProfile() {
+            const result = document.getElementById('linkedinResult');
+            result.innerHTML = '<span class="pending">Testing LinkedIn get profile (Zeus workflow 713b7427)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'linkedin_get_profile',
+                        args: { 
+                            user_id: REAL_USER_ID,
+                            profile_id: 'me'
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ LinkedIn Profile Success!</span>\nDelivery: ${data.delivery_method}\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ LinkedIn Profile Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function testLinkedInPost() {
+            const result = document.getElementById('linkedinResult');
+            result.innerHTML = '<span class="pending">Testing LinkedIn create post (Zeus workflow 05f302b6)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'linkedin_create_post',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            text: `🚀 Testing Zeus workflow integration - ${new Date().toLocaleString()}`,
+                            visibility: 'PUBLIC'
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ LinkedIn Post Success!</span>\nDelivery: ${data.delivery_method}\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ LinkedIn Post Error:</span>\n${error.message}`;
+            }
+        }
+
+        // Test Google Calendar (Zeus Workflows)
+        async function testCalendarCreate() {
+            const result = document.getElementById('calendarResult');
+            result.innerHTML = '<span class="pending">Testing Google Calendar create event (Zeus workflow ebc98b20)...</span>';
+            
+            const now = new Date();
+            const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+            const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 2 hours from now
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'google_calendar_create_event',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            summary: `Zeus Test Meeting - ${new Date().toLocaleString()}`,
+                            description: 'Testing Zeus workflow calendar creation with system timezone',
+                            start_time: startTime.toISOString(),
+                            end_time: endTime.toISOString(),
+                            location: 'Virtual'
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Calendar Create Success!</span>\nDelivery: ${data.delivery_method}\nTimezone: ${data.timezone_used}\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Calendar Create Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function testCalendarList() {
+            const result = document.getElementById('calendarResult');
+            result.innerHTML = '<span class="pending">Testing Google Calendar list events (Zeus workflow b3722478)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'google_calendar_list_events',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            calendar_id: 'primary',
+                            max_results: 5
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Calendar List Success!</span>\nDelivery: ${data.delivery_method}\nEvents: ${data.events?.length || 0}\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Calendar List Error:</span>\n${error.message}`;
+            }
+        }
+
+        // Test Calendly (New Zeus Workflows)
+        async function testCalendlyEventTypes() {
+            const result = document.getElementById('calendlyResult');
+            result.innerHTML = '<span class="pending">Testing Calendly event type details (Zeus workflow 7e96a27e)...</span>';
+            
+            try {
+                // First get event types
+                const listResponse = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'calendly_list_event_types',
+                        args: { user_id: REAL_USER_ID }
+                    })
+                });
+                
+                const listData = await listResponse.json();
+                
+                if (listData.event_types && listData.event_types.length > 0) {
+                    const eventTypeId = listData.event_types[0].uri || listData.event_types[0].id;
+                    
+                    // Test get event type details
+                    const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            toolName: 'calendly_get_event_type_details',
+                            args: {
+                                user_id: REAL_USER_ID,
+                                event_type_id: eventTypeId
+                            }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    result.innerHTML = `<span class="success">✅ Calendly Event Type Details Success!</span>\nDelivery: ${data.delivery_method}\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    result.innerHTML = `<span class="error">❌ No event types found for testing</span>\n${JSON.stringify(listData, null, 2)}`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Calendly Event Types Error:</span>\n${error.message}`;
+            }
+        }
+
+        async function testCalendlySearch() {
+            const result = document.getElementById('calendlyResult');
+            result.innerHTML = '<span class="pending">Testing Calendly search events (Zeus workflow 8ea4f738)...</span>';
+            
+            const now = new Date();
+            const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'calendly_search_events',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            start_time: lastWeek.toISOString(),
+                            end_time: nextWeek.toISOString(),
+                            status: 'active',
+                            count: 10
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Calendly Search Success!</span>\nDelivery: ${data.delivery_method}\nEvents: ${data.events?.length || 0}\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Calendly Search Error:</span>\n${error.message}`;
+            }
+        }
+
+        // Test Gmail (already working)
+        async function testGmail() {
+            const result = document.getElementById('gmailResult');
+            result.innerHTML = '<span class="pending">Testing Gmail send (already working Proxy + Zeus)...</span>';
+            
+            try {
+                const response = await fetch('http://localhost:9001/mcp/call-tool', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        toolName: 'GMAIL_SEND_EMAIL',
+                        args: {
+                            user_id: REAL_USER_ID,
+                            toRecipients: [{ emailAddress: { address: 'test@example.com' } }],
+                            messageContent: {
+                                subject: `Zeus Test Email - ${new Date().toLocaleString()}`,
+                                body: {
+                                    content: 'Testing that Gmail still works with all Zeus workflows implemented!',
+                                    contentType: 'text'
+                                }
+                            }
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                result.innerHTML = `<span class="success">✅ Gmail Success!</span>\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Gmail Error:</span>\n${error.message}`;
+            }
+        }
+
+        console.log('🚀 Zeus Workflows + Proxy API Test Page Loaded');
+        console.log('Ready to test all integrations with real user ID:', REAL_USER_ID);
+    </script>
+</body>
+</html>
+
+
+

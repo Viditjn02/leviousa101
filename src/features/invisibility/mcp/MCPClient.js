@@ -49,6 +49,114 @@ class MCPClient extends EventEmitter {
         this.serverRegistry = new ServerRegistry();
         this.toolRegistry = new ToolRegistry(this.serverRegistry);
         this.oauthManager = new OAuthManager();
+        this.llmService = options.llmService || null; // CRITICAL FIX: Set LLM service from options
+        
+        // Add comprehensive answer strategies for proper LLM responses
+        this.answerStrategies = {
+            // MCP debug and testing - verify MCP functionality
+            mcp_debug: {
+                systemPrompt: `You are providing MCP debugging and testing information. Show the user detailed information about available MCP tools, connections, and test results. If MCP tools are working, demonstrate with actual tool calls. If not working, provide troubleshooting guidance. Be technical but helpful.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.1,
+                useMCPTools: true,
+                performMCPTest: true
+            },
+            
+            // Service-specific DATA access - actually access any service data via MCP
+            github_data_access: {
+                systemPrompt: `You are accessing real GitHub data through MCP tools. Use the available MCP tools to actually retrieve repositories, issues, pull requests, or code from the user's GitHub account. Don't describe what you see on screen - use MCP to access their actual GitHub data. If no MCP tools are available, explain that GitHub integration needs to be set up.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresServiceMCP: 'github'
+            },
+            
+            notion_data_access: {
+                systemPrompt: `You are accessing real Notion data through MCP tools. Use the available MCP tools to actually retrieve pages, databases, or content from the user's Notion workspace. Don't describe what you see on screen - use MCP to access their actual Notion data. If no MCP tools are available, explain that Notion integration needs to be set up.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresServiceMCP: 'notion'
+            },
+            
+            slack_data_access: {
+                systemPrompt: `You are accessing real Slack data through MCP tools. Use the available MCP tools to actually retrieve messages, channels, or workspace information from the user's Slack. Don't describe what you see on screen - use MCP to access their actual Slack data. If no MCP tools are available, explain that Slack integration needs to be set up.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresServiceMCP: 'slack'
+            },
+            
+            google_data_access: {
+                systemPrompt: `You are accessing real Google services data through MCP tools. Use the available MCP tools to actually retrieve files from Google Drive, emails from Gmail, or calendar events from Google Calendar. Don't describe what you see on screen - use MCP to access their actual Google data. If no MCP tools are available, explain that Google integration needs to be set up.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresServiceMCP: 'google'
+            },
+            
+            mcp_data_access: {
+                systemPrompt: `You are accessing real data from connected services through MCP tools. Use the available MCP tools to actually retrieve data from any connected services (GitHub, Notion, Slack, Google Drive, etc.). Don't describe what you see on screen - use MCP to access their actual service data. If no relevant MCP tools are available, explain what services can be integrated and how to set them up.`,
+                useResearch: false,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresServiceMCP: 'any'
+            },
+            
+            // Email drafting and sending
+            email_draft: {
+                systemPrompt: `You are drafting professional emails. Use available MCP tools to access email context, contacts, and templates. Write clear, appropriate email content based on the context provided. If you have access to Gmail tools, you can also send the email directly.`,
+                useResearch: false,
+                maxTokens: 1500,
+                temperature: 0.3,
+                useMCPTools: true,
+                requiresServiceMCP: 'gmail'
+            },
+            
+            // MCP capability questions - explain what the system can do
+            mcp_capabilities: {
+                systemPrompt: `You are explaining your capabilities as an AI system with MCP (Model Context Protocol) integrations. Be specific about what tools and services you can connect to. Mention that you can access Notion, GitHub, file systems, databases, and other external services through MCP. Explain how this allows you to do real-world tasks beyond just text generation. Be confident but informative about your actual capabilities.`,
+                useResearch: false,
+                maxTokens: 1500,
+                temperature: 0.2,
+                useMCPTools: true
+            },
+            
+            // Web search requests - CRITICAL FIX for "latest articles on elon musk"
+            web_search_request: {
+                systemPrompt: `You are helping the user find current information through web search tools. Use available web search MCP tools to find real-time, up-to-date information. Focus on recent developments, news, articles, and current events. Present the information clearly with sources when available.`,
+                useResearch: true,
+                maxTokens: 2000,
+                temperature: 0.2,
+                useMCPTools: true,
+                requiresWebSearch: true
+            },
+
+            // Screen context questions - CRITICAL FIX for "what do you see on my screen"
+            screen_context: {
+                systemPrompt: `You are analyzing what's visible on the user's screen. Focus on describing the content, interface elements, applications, and any visible text or graphics. Be specific about what you can see in the screenshot. Provide useful observations about the current state of their screen.`,
+                useResearch: false,
+                maxTokens: 1500,
+                temperature: 0.3,
+                useMCPTools: false,
+                requiresScreenshot: true
+            },
+
+            // General with tool support
+            general: {
+                systemPrompt: `You are answering a question naturally. Use available MCP tools when relevant to provide accurate, up-to-date information. Be helpful and informative but write as if you're someone knowledgeable sharing information.`,
+                useResearch: true,
+                maxTokens: 1000,
+                temperature: 0.3,
+                useMCPTools: true
+            }
+        };
         
         // Optional components based on configuration
         this.connectionPool = this.options.enableConnectionPool 
@@ -73,7 +181,7 @@ class MCPClient extends EventEmitter {
         // Answer service for intelligent responses
         this.answerService = new AnswerService({
             mcpToolInvoker: this,
-            llmService: options.llmService
+            llmService: this.llmService || options.llmService
         });
 
         // OAuth callback server for handling OAuth flows
@@ -386,6 +494,258 @@ class MCPClient extends EventEmitter {
     }
 
     /**
+     * Generate intelligent answer with proper context and tool integration
+     */
+    async generateAnswer(question, screenshotBase64, strategy, researchContext, mcpContext = '') {
+        try {
+            // Use the existing LLM service from MCPMigrationBridge if available
+            if (this.llmService && typeof this.llmService.generateResponse === 'function') {
+                return await this.generateAnswerWithLLMService(question, screenshotBase64, strategy, researchContext, mcpContext);
+            }
+
+            const modelStateService = require('../../common/services/modelStateService');
+            const { createLLM } = require('../../common/ai/factory'); // Use createLLM instead of streaming
+            
+            const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+            if (!modelInfo || !modelInfo.apiKey) {
+                throw new Error('LLM model not configured');
+            }
+
+            const llm = createLLM(modelInfo.provider, {
+                apiKey: modelInfo.apiKey,
+                model: modelInfo.model,
+                temperature: strategy.temperature,
+                maxTokens: strategy.maxTokens,
+                usePortkey: modelInfo.provider === 'openai-leviousa',
+                portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
+            });
+
+            // Build the prompt
+            let userPrompt = `Question: ${question.text}`;
+            
+            if (question.context) {
+                userPrompt += `\n\nContext: ${question.context}`;
+            }
+
+            if (researchContext) {
+                // Check if this looks like retrieved service data vs general research
+                if (researchContext.includes('Data Retrieved:')) {
+                    userPrompt += `\n\nRetrieved Data:\n${researchContext}`;
+                } else {
+                    userPrompt += `\n\nRelevant Information:\n${researchContext}`;
+                }
+            }
+
+            if (mcpContext) {
+                userPrompt += `\n\nMCP Capabilities and Tools:\n${mcpContext}`;
+            }
+
+            // Add tools information for better responses
+            if (strategy.useMCPTools) {
+                const availableTools = this.toolRegistry.listTools();
+                if (availableTools && availableTools.length > 0) {
+                    const toolNames = availableTools.map(t => t.name).join(', ');
+                    userPrompt += `\n\nAvailable Tools: ${toolNames}`;
+                }
+            }
+
+            userPrompt += `\n\nPlease provide a clear, accurate, and helpful answer. Make it appropriate for the context (${question.type || 'general'} question).`;
+
+            const messages = [
+                {
+                    role: 'system',
+                    content: strategy.systemPrompt
+                },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: userPrompt }
+                    ]
+                }
+            ];
+
+            // Include screenshot if available for visual context (but not for specific data access)
+            if (screenshotBase64 && !question.type?.includes('data_access')) {
+                messages[1].content.push({
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${screenshotBase64}` }
+                });
+            }
+
+            // Use non-streaming chat for enhanced answers
+            const response = await llm.chat(messages);
+            
+            if (response && response.content) {
+                return response.content.trim();
+            } else {
+                throw new Error('No response content received from LLM');
+            }
+        } catch (error) {
+            logger.error('Error generating answer', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Generate answer using the MCPMigrationBridge LLM service
+     */
+    async generateAnswerWithLLMService(question, screenshotBase64, strategy, researchContext, mcpContext = '') {
+        try {
+            // Build comprehensive context for LLM service
+            let context = '';
+            
+            if (question.context) {
+                context += `Context: ${question.context}\n\n`;
+            }
+
+            if (researchContext) {
+                if (researchContext.includes('Data Retrieved:')) {
+                    context += `Retrieved Data:\n${researchContext}\n\n`;
+                } else {
+                    context += `Relevant Information:\n${researchContext}\n\n`;
+                }
+            }
+
+            if (mcpContext) {
+                context += `MCP Capabilities and Tools:\n${mcpContext}\n\n`;
+            }
+
+            if (strategy.useMCPTools) {
+                const availableTools = this.toolRegistry.listTools();
+                if (availableTools && availableTools.length > 0) {
+                    const toolNames = availableTools.map(t => t.name).join(', ');
+                    context += `Available Tools: ${toolNames}\n\n`;
+                }
+            }
+
+            context += `Please provide a clear, accurate, and helpful answer appropriate for the context (${question.type || 'general'} question).`;
+
+            // Use the LLM service to generate response
+            const response = await this.llmService.generateResponse(
+                question.text, 
+                { 
+                    screenshot: screenshotBase64,
+                    context: context 
+                }, 
+                {
+                    temperature: strategy.temperature,
+                    maxTokens: strategy.maxTokens,
+                    systemPrompt: strategy.systemPrompt
+                }
+            );
+
+            return response.trim();
+        } catch (error) {
+            logger.error('Error generating answer with LLM service', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Enhanced answer generation with access to external tools
+     */
+    async getEnhancedAnswer(question, screenshotBase64) {
+        if (!this.isInitialized) {
+            throw new Error('MCPClient not initialized');
+        }
+
+        try {
+            logger.info('Generating enhanced answer', { 
+                questionType: question.type || 'general',
+                hasScreenshot: !!screenshotBase64 
+            });
+
+            // Use the answer service if available
+            if (this.answerService && typeof this.answerService.getEnhancedAnswer === 'function') {
+                try {
+                    return await this.answerService.getEnhancedAnswer(question, screenshotBase64);
+                } catch (answerServiceError) {
+                    logger.warn('Answer service failed, using direct generation', { error: answerServiceError.message });
+                    // Fall through to direct generation
+                }
+            }
+
+            // Get the appropriate strategy for this question type
+            const strategy = this.answerStrategies[question.type] || this.answerStrategies.general;
+
+            // Handle service-specific data access questions
+            if (strategy.requiresServiceMCP) {
+                const serviceData = await this.accessServiceData(question);
+                if (serviceData) {
+                    logger.info('Retrieved service data', { dataLength: serviceData.length });
+                    const answer = await this.generateAnswer(question, null, strategy, serviceData, '');
+                    return this.postProcessAnswer(answer, question.type);
+                } else {
+                    // Provide guidance for setting up service integration
+                    const setupMessage = `I don't currently have access to your ${strategy.requiresServiceMCP} workspace. To set it up:
+
+1. Go to Settings > MCP Integration
+2. Find ${strategy.requiresServiceMCP} and click Connect
+3. Complete the authentication flow
+
+Would you like me to describe what I can see on your screen instead?`;
+                    return setupMessage;
+                }
+            }
+
+            // Handle web search requests
+            if (strategy.requiresWebSearch) {
+                const webSearchData = await this.performWebSearch(question);
+                if (webSearchData) {
+                    logger.info('Web search completed', { dataLength: webSearchData.length });
+                    const answer = await this.generateAnswer(question, null, strategy, webSearchData, '');
+                    return this.postProcessAnswer(answer, question.type);
+                } else {
+                    logger.warn('Web search failed, falling back to standard answer');
+                    // Fall through to standard answer generation
+                }
+            }
+
+            // Handle screen context requests - CRITICAL FIX for "what do you see on my screen"
+            if (strategy.requiresScreenshot) {
+                try {
+                    // Capture screenshot
+                    const screenshotResult = await this.captureScreenshot();
+                    if (screenshotResult && screenshotResult.success && screenshotResult.base64) {
+                        logger.info('Screenshot captured for screen analysis', { 
+                            width: screenshotResult.width, 
+                            height: screenshotResult.height 
+                        });
+                        const answer = await this.generateAnswer(question, screenshotResult.base64, strategy, '', '');
+                        return this.postProcessAnswer(answer, question.type);
+                    } else {
+                        logger.warn('Screenshot capture failed', { error: screenshotResult?.error });
+                        return 'I apologize, but I cannot capture a screenshot of your screen right now. This could be due to system permissions or technical issues. Please ensure the application has screen recording permissions.';
+                    }
+                } catch (screenshotError) {
+                    logger.error('Screenshot capture error', { error: screenshotError.message });
+                    return 'I encountered an error while trying to capture your screen. Please check if the application has the necessary permissions to access your screen.';
+                }
+            }
+
+            // Handle MCP debug and testing requests
+            if (strategy.performMCPTest) {
+                const debugInfo = await this.performMCPDebugTest();
+                const answer = await this.generateAnswer(question, null, strategy, '', debugInfo);
+                return this.postProcessAnswer(answer, question.type);
+            }
+
+            // Generate standard answer
+            let researchContext = '';
+            if (strategy.useResearch) {
+                researchContext = await this.getResearchContext(question);
+            }
+
+            const answer = await this.generateAnswer(question, screenshotBase64, strategy, researchContext);
+            return this.postProcessAnswer(answer, question.type);
+
+        } catch (error) {
+            logger.error('Error generating enhanced answer', { error: error.message });
+            throw error;
+        }
+    }
+
+    /**
      * Invoke a tool
      */
     async invokeTool(toolName, args = {}) {
@@ -437,6 +797,217 @@ class MCPClient extends EventEmitter {
                 toolName, 
                 error: error.message 
             });
+            throw error;
+        }
+    }
+
+    /**
+     * Access service-specific data using MCP tools
+     */
+    async accessServiceData(question) {
+        try {
+            const availableTools = this.toolRegistry.listTools();
+            if (!availableTools || availableTools.length === 0) {
+                logger.warn('No MCP tools available for service data access');
+                return null;
+            }
+
+            // Try to find relevant tools for the service
+            const serviceName = question.type?.split('_')[0]; // e.g., 'notion' from 'notion_data_access'
+            const serviceTools = availableTools.filter(tool => 
+                tool.name.toLowerCase().includes(serviceName) ||
+                tool.description?.toLowerCase().includes(serviceName)
+            );
+
+            if (serviceTools.length === 0) {
+                logger.warn('No tools found for service', { serviceName });
+                return null;
+            }
+
+            // Execute the first relevant tool to get some data
+            const tool = serviceTools[0];
+            logger.info('Accessing service data with tool', { toolName: tool.name });
+            
+            try {
+                const result = await this.invokeTool(tool.name, {});
+                if (result && typeof result === 'object') {
+                    return `Data Retrieved: ${JSON.stringify(result, null, 2)}`;
+                } else if (result && typeof result === 'string') {
+                    return `Data Retrieved: ${result}`;
+                }
+            } catch (toolError) {
+                logger.error('Tool execution failed', { toolName: tool.name, error: toolError.message });
+            }
+
+            return null;
+        } catch (error) {
+            logger.error('Error accessing service data', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Perform MCP debug test to verify tool functionality
+     */
+    async performMCPDebugTest() {
+        try {
+            const availableTools = this.toolRegistry.listTools();
+            const debugInfo = [];
+
+            debugInfo.push('=== MCP Debug Test Results ===');
+            debugInfo.push(`Available Tools: ${availableTools.length}`);
+            
+            if (availableTools.length > 0) {
+                debugInfo.push('\nTool List:');
+                availableTools.forEach((tool, index) => {
+                    debugInfo.push(`${index + 1}. ${tool.name} - ${tool.description || 'No description'}`);
+                });
+
+                // Try to execute a simple tool if available
+                const testTool = availableTools.find(t => t.name.includes('list') || t.name.includes('get'));
+                if (testTool) {
+                    debugInfo.push(`\nTesting tool: ${testTool.name}`);
+                    try {
+                        const testResult = await this.invokeTool(testTool.name, {});
+                        debugInfo.push(`✅ Tool test successful: ${JSON.stringify(testResult).substring(0, 200)}`);
+                    } catch (testError) {
+                        debugInfo.push(`❌ Tool test failed: ${testError.message}`);
+                    }
+                }
+            } else {
+                debugInfo.push('❌ No MCP tools available');
+            }
+
+            return debugInfo.join('\n');
+        } catch (error) {
+            return `MCP Debug Test Error: ${error.message}`;
+        }
+    }
+
+    /**
+     * Post-process answer based on question type
+     */
+    postProcessAnswer(answer, questionType) {
+        if (!answer) return answer;
+
+        // Add context-specific formatting
+        if (questionType && questionType.includes('data_access')) {
+            return `${answer}\n\n*Data retrieved via MCP integration*`;
+        }
+
+        return answer;
+    }
+
+    /**
+     * Perform web search for current information requests
+     */
+    async performWebSearch(question) {
+        try {
+            logger.info('Performing web search', { questionText: question.text?.substring(0, 100) });
+            
+            // Try to find web search tools in the tool registry
+            const availableTools = this.toolRegistry.listTools();
+            const webSearchTool = availableTools.find(tool => 
+                tool.name.toLowerCase().includes('web_search') || 
+                tool.name.toLowerCase().includes('search') ||
+                tool.name.toLowerCase().includes('perplexity')
+            );
+
+            if (webSearchTool) {
+                logger.info('Found web search tool', { toolName: webSearchTool.name });
+                
+                const searchArgs = {
+                    query: question.text,
+                    search_type: 'recent',
+                    context: question.context || 'User is looking for current information'
+                };
+
+                const result = await this.invokeTool(webSearchTool.name, searchArgs);
+                
+                if (result && result.content && result.content[0]) {
+                    return `Web Search Results: ${result.content[0].text}`;
+                } else if (typeof result === 'string') {
+                    return `Web Search Results: ${result}`;
+                } else if (typeof result === 'object') {
+                    return `Web Search Results: ${JSON.stringify(result)}`;
+                }
+            } else {
+                logger.warn('No web search tools found, trying dynamic tool selection');
+                
+                // Try using dynamic tool selection for web search
+                if (global.askService?.dynamicToolService) {
+                    const result = await global.askService.dynamicToolService.selectAndExecuteTools(
+                        question.text, 
+                        { needsWebSearch: true }
+                    );
+                    
+                    if (result && result.response) {
+                        return `Search Results: ${result.response}`;
+                    }
+                }
+            }
+
+            logger.warn('Web search failed - no search tools available');
+            return null;
+            
+        } catch (error) {
+            logger.error('Error performing web search', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Get research context for questions that require it
+     */
+    async getResearchContext(question) {
+        try {
+            // This would normally integrate with research tools
+            // For now, return empty context since research tools aren't set up
+            logger.info('Research context requested', { questionText: question.text?.substring(0, 100) });
+            return '';
+        } catch (error) {
+            logger.error('Error getting research context', { error: error.message });
+            return '';
+        }
+    }
+
+    /**
+     * Capture screenshot for screen context analysis
+     */
+    async captureScreenshot() {
+        try {
+            // Try to use global askService screenshot functionality
+            if (global.askService && typeof global.askService.captureScreenshot === 'function') {
+                return await global.askService.captureScreenshot({ quality: 'medium' });
+            }
+            
+            // Alternative: try invisibility service
+            if (global.invisibilityService && typeof global.invisibilityService.captureScreen === 'function') {
+                const base64 = await global.invisibilityService.captureScreen();
+                if (base64) {
+                    return { success: true, base64, width: null, height: null };
+                }
+            }
+            
+            // If no screenshot services available
+            logger.warn('No screenshot service available');
+            return { success: false, error: 'Screenshot service not available' };
+            
+        } catch (error) {
+            logger.error('Screenshot capture failed', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Enhanced tool calling with both research and external tools
+     */
+    async callTool(toolName, arguments_) {
+        try {
+            logger.info('Enhanced tool calling', { toolName, arguments_ });
+            return await this.invokeTool(toolName, arguments_);
+        } catch (error) {
+            logger.error('Enhanced tool call failed', { toolName, error: error.message });
             throw error;
         }
     }

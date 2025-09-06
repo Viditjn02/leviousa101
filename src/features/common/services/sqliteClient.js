@@ -266,6 +266,48 @@ class SQLiteClient {
             throw err;
         }
     }
+
+    // Get single row (used by repositories)
+    async get(sql, params = []) {
+        if (!this.db) {
+            throw new Error('Database not connected');
+        }
+
+        try {
+            return this.db.prepare(sql).get(params);
+        } catch (err) {
+            console.error('Get query error:', err);
+            throw err;
+        }
+    }
+
+    // Run query (used by repositories)
+    async run(sql, params = []) {
+        if (!this.db) {
+            throw new Error('Database not connected');
+        }
+
+        try {
+            return this.db.prepare(sql).run(params);
+        } catch (err) {
+            console.error('Run query error:', err);
+            throw err;
+        }
+    }
+
+    // Get all rows (used by repositories)  
+    async all(sql, params = []) {
+        if (!this.db) {
+            throw new Error('Database not connected');
+        }
+
+        try {
+            return this.db.prepare(sql).all(params);
+        } catch (err) {
+            console.error('All query error:', err);
+            throw err;
+        }
+    }
 }
 
 const sqliteClient = new SQLiteClient();

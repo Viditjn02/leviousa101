@@ -81,8 +81,8 @@ mac:
     type: "distribution"  # Distribution for signed releases
     identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
     # signIgnore patterns removed to fix regex errors - will sign everything
-    # Notarization settings (Apple requirement for no warnings)  
-    notarize: false  # We'll notarize separately with our keychain profile
+    # Notarization disabled for local testing
+    notarize: false
     target:
       - target: dmg
         arch: universal  # Universal binary for both architectures
@@ -92,7 +92,7 @@ mac:
 # DMG specific configuration
 dmg:
     sign: true  # Sign the DMG installer
-    title: "Leviousa v1.01"
+    title: "Leviousa"
     backgroundColor: "#1a1a1a"
     contents:
         - x: 130
@@ -111,5 +111,5 @@ dmg:
 # Additional configuration for native modules
 buildDependenciesFromSource: true
 
-# Ensure proper permissions
-afterSign: scripts/notarize.js
+# Ensure proper permissions (notarization disabled for local testing)
+# afterSign: scripts/notarize.js

@@ -142,9 +142,9 @@ function IntegrationsContentInner() {
             </div>
 
             <div className="space-y-3">
-              <button 
+                            <button
                 onClick={() => window.open('https://www.leviousa.com/settings/billing', '_blank')}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 transform hover:scale-105"
+                className="w-full btn-brand font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
               >
                 🚀 Upgrade to Pro - $18/month
               </button>

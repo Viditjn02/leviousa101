@@ -1,0 +1,30 @@
+{
+  "notion": {
+    "status": "failed",
+    "error": "MCP error -32000: Failed to list databases: The \"options.method\" property must be of type string. Received an instance of Object"
+  },
+  "linkedin": {
+    "status": "failed",
+    "error": "MCP error -32000: Failed to get profile: Proxy API returned 404: {\"message\":\"Request failed with status code 404\",\"name\":\"Error\",\"statusText\":\"Not Found\",\"output\":{\"status\":404,\"code\":\"RESOURCE_NOT_FOUND\",\"message\":\"No virtual resource found\"},\"status\":404,\"headers\":{\"content-type\":\"application/json\",\"x-restli-gateway-error\":\"true\",\"date\":\"Thu, 04 Sep 2025 20:48:54 GMT\",\"x-li-fabric\":\"prod-ltx1\",\"x-li-source-fabric\":\"prod-lva1\",\"x-li-pop\":\"prod-lva1-x\",\"x-li-proto\":\"http/1.1\",\"x-li-uuid\":\"AAY9/9lujbKlyRtXEmUgww==\",\"set-cookie\":[\"bcookie=\\\"v=2&4dfc6f96-d8a5-476b-8563-c8fd08304a92\\\"; domain=.linkedin.com; Path=/; Secure; Expires=Fri, 04-Sep-2026 20:48:54 GMT; SameSite=None\",\"lidc=\\\"b=TB63:s=T:r=T:a=T:p=T:g=7824:u=611:x=1:i=1757018934:t=1757022546:v=2:sig=AQFFyVkVYoM4csCEuMHR5lCuYTL4Y7ir\\\"\"],\"x-li-route-key\":\"\\\"b=TB63:s=T:r=T:a=T:p=T:g=7824:u=611:x=1:i=1757018934:t=1757022546:v=2:sig=AQFFyVkVYoM4csCEuMHR5lCuYTL4Y7ir\\\"\"}}"
+  },
+  "googleCalendar": {
+    "status": "failed",
+    "error": "MCP error -32000: Failed to create event: ActionKit API returned 404"
+  },
+  "calendly": {
+    "status": "failed",
+    "error": "MCP error -32000: Failed to list event types: No organization URI found in user info"
+  },
+  "gmail": {
+    "status": "success",
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"success\": true,\n  \"message\": \"✅ Email sent successfully to test@leviousa.com\",\n  \"subject\": \"Real API Test Success - 9/4/2025, 1:48:56 PM\",\n  \"recipients\": [\n    \"test@leviousa.com\"\n  ],\n  \"cc\": [],\n  \"bcc\": [],\n  \"message_id\": \"gmail_1757018937841\",\n  \"sent_at\": \"2025-09-04T20:48:57.842Z\",\n  \"workflow_result\": {\n    \"id\": \"gmail_1757018937841\",\n    \"status\": \"sent\",\n    \"message\": \"Email sent successfully via Paragon Proxy API\"\n  },\n  \"delivery_method\": \"paragon_proxy_api\"\n}"
+        }
+      ]
+    },
+    "delivery": "proxy_zeus_hybrid"
+  }
+}

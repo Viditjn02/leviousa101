@@ -29,25 +29,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     logger.debug(`🎯 Architecture: ${detectedArch} (${arch ? 'specified' : 'auto-detected'})`);
 
-    // GitHub releases URLs - PROFESSIONAL NOTARIZED VERSION
-    const githubUrls = {
-      arm64: 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg',
-      intel: 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg' // Universal DMG works for all architectures
-    };
+    // Vercel Blob Storage - Fresh Universal DMG
+    const vercelBlobUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg';
     
-    const downloadUrl = githubUrls[detectedArch];
+    const downloadUrl = vercelBlobUrl;
     logger.debug(`🔗 Redirecting to notarized DMG: ${downloadUrl}`);
     
     // Set proper headers for download tracking and filename
     res.setHeader('X-Architecture-Detected', detectedArch);
     res.setHeader('X-User-Agent', userAgent.substring(0, 100));
-    res.setHeader('X-Download-Source', 'github-releases-production-ready');
+    res.setHeader('X-Download-Source', 'vercel-blob-storage');
     res.setHeader('X-Apple-Notarized', 'true');
-    res.setHeader('X-Leviousa-Version', 'v1.01');
-    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa v1.01.dmg"');
+    res.setHeader('X-Leviousa-Version', 'v1.02');
+    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa.dmg"');
     
-    // Direct redirect to GitHub release (notarized DMG)
-    logger.debug('🚀 Redirecting to notarized DMG with proper filename');
+    // Direct redirect to Vercel Blob storage (notarized DMG)
+    logger.debug('🚀 Redirecting to fresh notarized DMG via Vercel Blob');
     return res.redirect(302, downloadUrl);
     
   } catch (error) {

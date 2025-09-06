@@ -54,11 +54,18 @@ class SubscriptionService {
             const authService = require('./authService');
             const currentUser = authService.getCurrentUser();
             
+            console.log('[SubscriptionService] 🔍 Getting subscription for user:', currentUser);
+            console.log('[SubscriptionService] 🔍 User email:', currentUser?.email);
+            
             // Check if this is a special email that should get automatic Pro access
             const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
             const isSpecialEmail = currentUser && specialEmails.includes(currentUser.email);
             
+            console.log('[SubscriptionService] 🔍 Is special email:', isSpecialEmail);
+            console.log('[SubscriptionService] 🔍 Special emails list:', specialEmails);
+            
             let subscription = await subscriptionRepository.getCurrentUserSubscription();
+            console.log('[SubscriptionService] 🔍 Current subscription:', subscription);
             
             // Auto-upgrade special emails to Pro
             if (isSpecialEmail && subscription.plan !== 'pro') {
@@ -82,9 +89,14 @@ class SubscriptionService {
             try {
                 if (subscription.plan === 'pro' || isSpecialEmail) {
                     // Pro users and special emails have unlimited usage
+                    console.log('[SubscriptionService] 👑 Setting unlimited usage for pro/special user');
                     await usageTrackingRepository.updateUserLimits(-1, -1);
                 } else {
                     // Free users have daily limits
+                    console.log('[SubscriptionService] 🆓 Setting daily limits for free user:', {
+                        cmd_l: this.plans.free.cmd_l_daily_minutes,
+                        browser: this.plans.free.browser_daily_minutes
+                    });
                     await usageTrackingRepository.updateUserLimits(
                         this.plans.free.cmd_l_daily_minutes,
                         this.plans.free.browser_daily_minutes
@@ -410,7 +422,25 @@ class SubscriptionService {
                 try {
                     // Call web API to get real usage status with referral bonuses
                     const fetch = require('node-fetch');
-                    const idToken = await currentUser.getIdToken();
+                    
+                    console.log('[SubscriptionService] 🔍 Getting ID token from current user...');
+                    console.log('[SubscriptionService] 🔍 Current user type:', typeof currentUser);
+                    console.log('[SubscriptionService] 🔍 Has getIdToken method:', typeof currentUser?.getIdToken);
+                    
+                    let idToken = null;
+                    try {
+                        if (currentUser?.getIdToken && typeof currentUser.getIdToken === 'function') {
+                            idToken = await currentUser.getIdToken();
+                            console.log('[SubscriptionService] ✅ Got ID token from Firebase user');
+                        } else {
+                            console.log('[SubscriptionService] ⚠️ Development mode - no getIdToken method, using fallback');
+                            // In development mode, fallback to local subscription check
+                            throw new Error('Development mode - using local subscription check');
+                        }
+                    } catch (tokenError) {
+                        console.log('[SubscriptionService] ⚠️ ID token error, falling back to local check:', tokenError.message);
+                        throw tokenError;
+                    }
                     
                     const response = await fetch(`${process.env.LEVIOUSA_WEB_URL || 'https://www.leviousa.com'}/api/usage/status`, {
                         method: 'GET',
@@ -463,15 +493,20 @@ class SubscriptionService {
             }
             
             // Fallback to local subscription check
+            console.log('[SubscriptionService] 🔄 Using local subscription fallback...');
             const subscription = await this.getCurrentUserSubscription();
+            console.log('[SubscriptionService] 🔍 Local subscription:', subscription);
             
             // Pro users have unlimited access
             if (subscription.plan === 'pro') {
+                console.log('[SubscriptionService] 👑 Pro user detected - unlimited access granted');
                 return { allowed: true, unlimited: true };
             }
 
             // Check usage limits for free users using local data
+            console.log('[SubscriptionService] 🆓 Free user - checking local usage limits...');
             const usageStatus = await usageTrackingRepository.checkUsageLimit(usageType);
+            console.log('[SubscriptionService] 🔍 Local usage status:', usageStatus);
             
             return {
                 allowed: usageStatus.canUse,
@@ -555,6 +590,7 @@ class SubscriptionService {
             
             const plan = this.plans[subscription.plan] || this.plans.free;
             console.log('[SubscriptionService] 📋 Using plan config:', plan.name, plan.features);
+            console.log('[SubscriptionService] 🔍 Integration unlimited flag:', plan.features.integrations_unlimited);
             
             const hasAccess = plan.features.integrations_unlimited === true;
             

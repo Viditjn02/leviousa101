@@ -28,22 +28,8 @@ export default function Home() {
         // User is authenticated, go to activity
         router.push('/activity')
       } else {
-        // Check if countdown is active - if so, redirect to countdown
-        checkCountdownStatus().then(countdownActive => {
-          if (countdownActive) {
-            window.location.href = '/countdown.html'
-          } else {
-            router.push('/landing.html')
-          }
-        }).catch(() => {
-          // If API fails, check env variable as fallback
-          const isCountdownActive = process.env.NEXT_PUBLIC_COUNTDOWN_ACTIVE === 'true'
-          if (isCountdownActive) {
-            window.location.href = '/countdown.html'
-          } else {
-            router.push('/landing.html')
-          }
-        })
+        // User not authenticated, show wait page
+        window.location.href = '/wait.html'
       }
     }
   }, [isLoading, user, router])

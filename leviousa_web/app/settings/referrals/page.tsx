@@ -44,8 +44,7 @@ function ReferralsPageContent() {
   const [isGenerating, setIsGenerating] = useState(false)
 
   const tabs = [
-    { id: 'profile', name: 'Personal Profile', href: '/settings' },
-    { id: 'privacy', name: 'Data & Privacy', href: '/settings/privacy' },
+    { id: 'profile', name: 'Profile', href: '/settings' },
     { id: 'billing', name: 'Billing', href: '/settings/billing' },
     { id: 'referrals', name: 'Referrals', href: '/settings/referrals' },
   ]
@@ -246,8 +245,7 @@ function ReferralsPageContent() {
     <div className="min-h-screen" style={{background: 'var(--bg)'}}>
       <div className="px-8 py-8">
         <div className="mb-6">
-          <p className="text-xs mb-1" style={{color: 'var(--muted)'}}>Settings</p>
-          <h1 className="text-3xl font-bold brand-gradient">Personal settings</h1>
+          <h1 className="text-3xl font-bold brand-gradient">Personal Settings</h1>
         </div>
         
         <div className="mb-8">
@@ -273,7 +271,7 @@ function ReferralsPageContent() {
           <div>
             <h2 className="text-2xl font-bold brand-gradient mb-2">Referral Program</h2>
             <p className="text-sm" style={{color: 'var(--muted)'}}>
-              Invite friends and earn bonus usage time. Special emails get enhanced bonuses!
+              Share this link to give friends 50% off and earn 60 min daily bonus yourself!
             </p>
           </div>
 
@@ -297,7 +295,7 @@ function ReferralsPageContent() {
                     />
                     <button
                       onClick={stats?.referral_link ? copyReferralLink : generateReferralLink}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      className="btn-brand px-4 py-2 rounded-r-lg transition-colors disabled:opacity-50"
                       disabled={isGenerating}
                     >
                       {isGenerating ? 'Generating...' : stats?.referral_link ? 'Copy Link' : 'Generate Link'}
@@ -347,122 +345,7 @@ function ReferralsPageContent() {
             </div>
           )}
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-xl font-semibold mb-4" style={{color: 'var(--text)'}}>Create New Referral</h3>
-            
-            <form onSubmit={createReferral} className="flex gap-4 mb-4">
-              <input
-                type="email"
-                value={newReferralEmail}
-                onChange={(e) => setNewReferralEmail(e.target.value)}
-                placeholder="Enter email address to refer"
-                className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                style={{
-                  backgroundColor: 'var(--card)',
-                  color: 'var(--text)',
-                  borderColor: 'var(--border)'
-                }}
-                disabled={isCreating}
-                required
-              />
-              <button
-                type="submit"
-                disabled={isCreating}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-              >
-                {isCreating ? 'Creating...' : 'Create Referral'}
-              </button>
-            </form>
 
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <h4 className="font-medium mb-2 text-blue-800 dark:text-blue-200">Referral Rewards</h4>
-              <ul className="text-sm space-y-1" style={{color: 'var(--muted)'}}>
-                <li>• <strong>Normal referrals:</strong> Referred person gets 30 min Auto Answer + Browser, you get 60 min (daily, resets in 24h)</li>
-                <li>• <strong>Special emails:</strong> Referred person gets 3 day free trial of Pro with Stripe setup</li>
-                <li>• <strong>Pro upgrade:</strong> When referred person joins Pro, you get 50% off first month (14 days to claim)</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-xl font-semibold mb-4" style={{color: 'var(--text)'}}>Your Referrals</h3>
-
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="text-lg" style={{color: 'var(--muted)'}}>Loading...</div>
-              </div>
-            ) : referrals.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-lg" style={{color: 'var(--muted)'}}>No referrals yet</div>
-                <p className="text-sm mt-2" style={{color: 'var(--muted)'}}>Create your first referral above!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {referrals.map((referral) => (
-                  <div key={referral.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium" style={{color: 'var(--text)'}}>{referral.referred_email}</h4>
-                        <p className="text-sm" style={{color: 'var(--muted)'}}>
-                          Created {formatDate(referral.created_at)}
-                          {referral.referral_type === 'special' && (
-                            <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">Special</span>
-                          )}
-                        </p>
-                      </div>
-                      {getStatusBadge(referral)}
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="text-sm font-medium" style={{color: 'var(--muted)'}}>Referral Link:</label>
-                      <div className="flex mt-1">
-                        <input
-                          type="text"
-                          value={referral.referral_link}
-                          readOnly
-                          className="flex-1 px-3 py-2 text-sm border rounded-l-lg"
-                          style={{
-                            backgroundColor: 'var(--card)',
-                            color: 'var(--text)',
-                            borderColor: 'var(--border)'
-                          }}
-                        />
-                        <button
-                          onClick={() => copyToClipboard(referral.referral_link)}
-                          className="px-4 py-2 border border-l-0 rounded-r-lg transition-colors"
-                          style={{
-                            backgroundColor: 'var(--card)',
-                            color: 'var(--text)',
-                            borderColor: 'var(--border)'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover)'}
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--card)'}
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    </div>
-
-                    {referral.referred_joined_pro && referral.discount_code && !referral.discount_claimed && (
-                      <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                        <p className="text-sm text-green-800 dark:text-green-200 mb-2">
-                          🎉 Your referral joined Pro! You earned a 50% discount.
-                        </p>
-                        <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                          Claim Discount Code
-                        </button>
-                        {referral.discount_expires_at && (
-                          <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                            Expires {formatDate(referral.discount_expires_at)}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

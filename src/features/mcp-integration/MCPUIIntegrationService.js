@@ -1175,7 +1175,8 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
   async createEmailSendAction(action, context) {
     console.log('[MCPUIIntegrationService] 🔧 createEmailSendAction called with:', { action, context });
     try {
-        const emailData = {
+        // Generate intelligent, contextual email content using MCP client
+        let emailData = {
             to: context.recipients || '',
             subject: context.subject || '',
             body: context.body || '',
@@ -1183,9 +1184,49 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
             bcc: context.bcc || ''
         };
 
-        console.log('[MCPUIIntegrationService] 📧 Email data prepared:', emailData);
+        // If body is empty, generate intelligent email content
+        if (!emailData.body && global.mcpClient) {
+            console.log('[MCPUIIntegrationService] 🧠 Generating intelligent email content...');
+            
+            try {
+                const question = {
+                    text: context.message || context.currentQuestion || 'Generate a professional email',
+                    type: 'email_draft',
+                    context: `User wants to send an email${emailData.to ? ` to ${emailData.to}` : ''}${emailData.subject ? ` about ${emailData.subject}` : ''}. Generate professional email content based on the conversation context.`
+                };
 
-        // Generate email composer UI resource
+                // Get enhanced answer for email generation
+                const enhancedEmailContent = await global.mcpClient.getEnhancedAnswer(question);
+                
+                if (enhancedEmailContent && typeof enhancedEmailContent === 'string') {
+                    // Extract email parts from the generated content
+                    const emailParts = this.parseEmailContent(enhancedEmailContent, context);
+                    
+                    emailData.to = emailData.to || emailParts.to || '';
+                    emailData.subject = emailData.subject || emailParts.subject || 'Follow up';
+                    emailData.body = emailData.body || emailParts.body || enhancedEmailContent;
+                    
+                    console.log('[MCPUIIntegrationService] ✅ Generated intelligent email content:', {
+                        subject: emailData.subject?.substring(0, 50),
+                        bodyLength: emailData.body?.length
+                    });
+                } else {
+                    console.log('[MCPUIIntegrationService] ⚠️ No intelligent content generated, using default');
+                    emailData.body = 'Hi,\n\nI wanted to follow up with you about our previous conversation.\n\nBest regards';
+                }
+            } catch (error) {
+                console.error('[MCPUIIntegrationService] Error generating intelligent email content:', error);
+                emailData.body = 'Hi,\n\nI wanted to reach out to you regarding our discussion.\n\nBest regards';
+            }
+        }
+
+        console.log('[MCPUIIntegrationService] 📧 Final email data prepared:', {
+            to: emailData.to,
+            subject: emailData.subject,
+            bodyLength: emailData.body?.length
+        });
+
+        // Generate email composer UI resource with intelligent content
         const resource = UIResourceGenerator.generateEmailComposer(emailData);
         
         const uiResourcePayload = {
@@ -1281,14 +1322,12 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
   }
 
   async createEmailDraftAction(action, context) {
-    // Similar to send but saves as draft
-    const result = await this.mcpClient.invokeTool('gmail.createDraft', {
-      to: context.recipients,
-      subject: context.subject,
-      body: context.body
-    });
+    // Note: Gmail draft functionality not available in current Paragon tools
+    // Available Gmail tools: GMAIL_SEND_EMAIL, gmail_list_messages, gmail_get_message, gmail_search
+    console.warn('[MCPUIIntegrationService] Gmail draft functionality not available - using send instead');
     
-    return result;
+    // Fallback to email send action for now
+    return this.createEmailSendAction(action, context);
   }
 
   /**
@@ -1308,12 +1347,12 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
     this.emit('ui-resource-ready', {
       actionId: action.id,
       serverId: 'google',
-      tool: 'google-calendar.createEvent',
+      tool: 'google_calendar_create_event',
       resource,
       type: 'modal',
       onAction: async (tool, params) => {
-        if (tool === 'google-calendar.createEvent') {
-          return await this.mcpClient.invokeTool('google-calendar.createEvent', params);
+        if (tool === 'google_calendar_create_event') {
+          return await this.mcpClient.callTool('google_calendar_create_event', params);
         }
       }
     });
@@ -1798,6 +1837,76 @@ IMPORTANT: When generating email content, use "${userName}" as the sender name i
         message: `Failed to get LinkedIn jobs: ${error.message}`
       };
     }
+  }
+
+  /**
+   * Parse email content from AI-generated text to extract email parts
+   */
+  parseEmailContent(content, context) {
+    const emailParts = {
+      to: '',
+      subject: '',
+      body: content
+    };
+
+    try {
+      // Extract recipient if mentioned in context
+      if (context.currentQuestion) {
+        const emailMatch = context.currentQuestion.match(/(?:to|email)\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+        if (emailMatch) {
+          emailParts.to = emailMatch[1];
+        }
+        
+        // Extract name mentions for email recipient
+        const nameMatch = context.currentQuestion.match(/(?:to|email)\s+([A-Z][a-z]+)/i);
+        if (nameMatch && !emailParts.to) {
+          const name = nameMatch[1].toLowerCase();
+          emailParts.to = `${name}@company.com`; // Placeholder - user will need to correct
+        }
+      }
+
+      // Extract subject from generated content or context
+      const subjectMatch = content.match(/(?:Subject:|Re:|Regarding:)\s*(.+)/i);
+      if (subjectMatch) {
+        emailParts.subject = subjectMatch[1].trim();
+        // Remove subject line from body
+        emailParts.body = content.replace(/(?:Subject:|Re:|Regarding:)\s*.+\n?/i, '').trim();
+      } else if (context.currentQuestion) {
+        // Generate subject from the user's request
+        if (context.currentQuestion.includes('follow up')) {
+          emailParts.subject = 'Follow up from our conversation';
+        } else if (context.currentQuestion.includes('meeting')) {
+          emailParts.subject = 'Meeting follow up';
+        } else {
+          emailParts.subject = 'Following up';
+        }
+      }
+
+      // Clean up the email body
+      emailParts.body = emailParts.body
+        .replace(/^(Hi|Hello|Dear).*/m, '') // Remove generic greetings
+        .replace(/Best regards.*$/s, '') // Remove generic closings
+        .trim();
+
+      // If body is empty or too short, use the full content
+      if (emailParts.body.length < 20) {
+        emailParts.body = content;
+      }
+
+      // Ensure proper email formatting
+      if (emailParts.body && !emailParts.body.includes('Hi ') && !emailParts.body.includes('Hello ')) {
+        const recipient = emailParts.to ? emailParts.to.split('@')[0] : 'there';
+        const capitalizedRecipient = recipient.charAt(0).toUpperCase() + recipient.slice(1);
+        emailParts.body = `Hi ${capitalizedRecipient},\n\n${emailParts.body}\n\nBest regards`;
+      }
+
+    } catch (error) {
+      console.error('[MCPUIIntegrationService] Error parsing email content:', error);
+      // Return original content if parsing fails
+      emailParts.body = content;
+    }
+
+    return emailParts;
   }
 }
 

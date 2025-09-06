@@ -55,6 +55,13 @@ class DynamicToolSelectionService {
                 hasContext: !!context 
             });
 
+            // Check if this should use the enhanced answer generation from MCPClient
+            const questionType = this.detectQuestionType(userMessage);
+            if (questionType && this.shouldUseEnhancedAnswer(questionType)) {
+                logger.info('Using enhanced MCP answer generation', { questionType });
+                return await this.useEnhancedAnswering(userMessage, context, questionType);
+            }
+
             // Get all available tools from MCP registry
             const availableTools = this.toolRegistry.listTools();
             
@@ -80,15 +87,46 @@ class DynamicToolSelectionService {
                 { role: 'system', content: systemPrompt }
             ];
             
-            // Add recent conversation history if available
-            if (context.conversationHistory && context.conversationHistory.length > 0) {
-                console.log(`[DynamicToolSelection] 📜 Including ${context.conversationHistory.length} conversation history messages for context`);
-                console.log(`[DynamicToolSelection] 🔍 Conversation history preview:`, context.conversationHistory.slice(-2));
-                context.conversationHistory.forEach(msg => {
+            // Enhanced context integration (817b99ee pattern)
+            let advancedContext = null;
+            let followUpAnalysis = null;
+            
+            // Get advanced context if session ID is available  
+            if (context.sessionId && global.askService?.contextService) {
+                try {
+                    advancedContext = global.askService.contextService.getContextForLLM(context.sessionId, {
+                        includeRecentMessages: true,
+                        includeEntityDetails: true,
+                        includeTopicAnalysis: true,
+                        maxMessages: 10
+                    });
+                    
+                    followUpAnalysis = global.askService.contextService.analyzeFollowUp(context.sessionId, userMessage);
+                    
+                    logger.info('Advanced context retrieved', {
+                        sessionId: context.sessionId,
+                        hasAdvancedContext: !!advancedContext,
+                        isFollowUp: followUpAnalysis?.isFollowUp || false,
+                        entities: advancedContext?.relevantEntities?.length || 0,
+                        topics: advancedContext?.activeTopics?.length || 0
+                    });
+                } catch (contextError) {
+                    logger.warn('Advanced context retrieval failed', { error: contextError.message });
+                }
+            }
+
+            // Add conversation history (prioritize advanced context, fallback to simple context)
+            const conversationHistory = advancedContext?.immediate || context.conversationHistory || [];
+            
+            if (conversationHistory && conversationHistory.length > 0) {
+                console.log(`[DynamicToolSelection] 📜 Including ${conversationHistory.length} conversation history messages for context`);
+                console.log(`[DynamicToolSelection] 🔍 Conversation history preview:`, conversationHistory.slice(-2));
+                
+                conversationHistory.forEach(msg => {
                     if (msg.role === 'user' || msg.role === 'assistant') {
                         messages.push({
                             role: msg.role,
-                            content: msg.content
+                            content: typeof msg.content === 'string' ? msg.content : msg.content.text || JSON.stringify(msg.content)
                         });
                     }
                 });
@@ -96,10 +134,17 @@ class DynamicToolSelectionService {
                 console.log(`[DynamicToolSelection] ⚠️ No conversation history available for context`);
             }
             
-            // Add current user message with enhanced context understanding
-            const contextualPrompt = this.enhancePromptWithContext(userMessage, context.conversationHistory);
+            // Enhanced context-aware prompt building
+            const contextualPrompt = this.buildContextualPrompt(userMessage, {
+                conversationHistory,
+                advancedContext,
+                followUpAnalysis,
+                entities: advancedContext?.relevantEntities || [],
+                topics: advancedContext?.activeTopics || []
+            });
+            
             console.log(`[DynamicToolSelection] 🔄 Original prompt: "${userMessage}"`);
-            console.log(`[DynamicToolSelection] ✨ Enhanced prompt: "${contextualPrompt}"`);
+            console.log(`[DynamicToolSelection] ✨ Enhanced contextual prompt: "${contextualPrompt}"`);
             messages.push({ role: 'user', content: contextualPrompt });
 
             // Sanitize tool names for function calling (remove dots and create mapping)
@@ -224,41 +269,63 @@ class DynamicToolSelectionService {
             const successfulResults = results.filter(r => r.success);
             
             if (successfulResults.length > 0) {
-                // Format tool results for LLM
+                // Enhanced tool result formatting (817b99ee pattern)
                 let toolResultsText = '';
+                let hasEmailResult = false;
+                let hasCalendarResult = false;
+                let hasDataResult = false;
+                
                 successfulResults.forEach((result, idx) => {
-                    toolResultsText += `\nTool ${idx + 1}: ${result.toolName}\n`;
+                    toolResultsText += `\n=== Tool ${idx + 1}: ${result.toolName} ===\n`;
+                    
+                    // Track result types for better processing
+                    if (result.toolName.toLowerCase().includes('email') || result.toolName.toLowerCase().includes('gmail')) {
+                        hasEmailResult = true;
+                    }
+                    if (result.toolName.toLowerCase().includes('calendar')) {
+                        hasCalendarResult = true;
+                    }
+                    if (result.toolName.toLowerCase().includes('list') || result.toolName.toLowerCase().includes('get')) {
+                        hasDataResult = true;
+                    }
+                    
+                    // Enhanced result processing with multiple format handling
                     try {
-                        if (result.result && result.result.content && result.result.content[0]) {
-                            const resultData = result.result.content[0].text;
-                            // Try to parse and format JSON responses
-                            try {
-                                const parsed = JSON.parse(resultData);
-                                toolResultsText += `Result: ${JSON.stringify(parsed, null, 2)}\n`;
-                            } catch (e) {
-                                // If not JSON, use raw text
-                                toolResultsText += `Result: ${resultData}\n`;
-                            }
-                        } else {
-                            toolResultsText += `Result: ${JSON.stringify(result.result)}\n`;
-                        }
+                        let processedResult = this.processToolResult(result.result);
+                        toolResultsText += `Arguments: ${JSON.stringify(result.toolArgs, null, 2)}\n`;
+                        toolResultsText += `Result: ${processedResult}\n`;
                     } catch (e) {
+                        logger.warn('Error processing tool result', { 
+                            toolName: result.toolName, 
+                            error: e.message 
+                        });
                         toolResultsText += `Result: ${JSON.stringify(result.result)}\n`;
                     }
+                    toolResultsText += '\n';
                 });
                 
+                // Enhanced LLM system prompt based on result types (817b99ee pattern)
+                let contextAwarePrompt = `You are a helpful assistant with access to external tools. Based on the tool execution results, provide a clear, natural response to the user.
+
+RESPONSE GUIDELINES:
+- Extract and present key information in a readable, conversational way
+- For profiles: Show key details in a structured format
+- For email operations: Confirm success and mention key details (recipient, subject)
+- For calendar operations: Present events/schedules in a clear timeline format
+- For data retrieval: Organize and present the most relevant information first
+- For search results: List relevant items with brief descriptions
+
+FORMATTING:
+- Use natural language, not JSON dumps
+- Include relevant details but avoid overwhelming the user
+- If citations/references exist, include them at the end as:
+  **References:** [Source Name](URL)
+
+CONTEXT: ${hasEmailResult ? 'Email operation performed. ' : ''}${hasCalendarResult ? 'Calendar operation performed. ' : ''}${hasDataResult ? 'Data retrieval performed. ' : ''}`;
+
                 const finalResponse = await this.llmProvider.chatWithTools([
-                    { role: 'system', content: `You are a helpful assistant. Based on the tool execution results, provide a clear, formatted response to the user. Extract and present the key information in a readable way. For profiles, show key details. For posts/content creation, confirm success. For search results, list relevant items.
-
-IMPORTANT: If the tool results include web search results with citations, you MUST include the reference links at the end of your response. Format them as:
-
-**References:**
-1. [Source Name](URL)
-2. [Source Name](URL)
-etc.
-
-Always include citations when they are provided in the tool results to give users access to the original sources.` },
-                    { role: 'user', content: `User asked: "${userQuery}"\n\nTool execution results:${toolResultsText}\n\nPlease provide a helpful response based on these results.` }
+                    { role: 'system', content: contextAwarePrompt },
+                    { role: 'user', content: `User asked: "${userQuery}"\n\nTool execution results:\n${toolResultsText}\n\nPlease provide a helpful, natural response based on these results. Focus on the most important information for the user.` }
                 ], []);
                 
                 return {
@@ -273,6 +340,174 @@ Always include citations when they are provided in the tool results to give user
             response: "Tool execution completed",
             allResults: results
         };
+    }
+
+    /**
+     * Enhanced tool result processing to handle multiple formats (817b99ee pattern)
+     */
+    processToolResult(result) {
+        if (!result) {
+            return 'No result returned';
+        }
+
+        // Handle MCP protocol response format
+        if (result.content && Array.isArray(result.content)) {
+            const textContent = result.content
+                .filter(item => item.type === 'text')
+                .map(item => item.text)
+                .join('\n');
+            
+            if (textContent) {
+                try {
+                    // Try to parse JSON for structured data
+                    const parsed = JSON.parse(textContent);
+                    if (typeof parsed === 'object') {
+                        return this.formatStructuredData(parsed);
+                    }
+                } catch (e) {
+                    // Not JSON, return as text
+                    return textContent;
+                }
+            }
+        }
+
+        // Handle direct object results
+        if (typeof result === 'object') {
+            return this.formatStructuredData(result);
+        }
+
+        // Handle string results
+        if (typeof result === 'string') {
+            try {
+                const parsed = JSON.parse(result);
+                if (typeof parsed === 'object') {
+                    return this.formatStructuredData(parsed);
+                }
+            } catch (e) {
+                // Not JSON, return as string
+                return result;
+            }
+        }
+
+        return JSON.stringify(result, null, 2);
+    }
+
+    /**
+     * Format structured data for better readability
+     */
+    formatStructuredData(data) {
+        if (!data || typeof data !== 'object') {
+            return JSON.stringify(data);
+        }
+
+        // Handle arrays
+        if (Array.isArray(data)) {
+            if (data.length === 0) return 'No items found';
+            
+            // For small arrays, show all items
+            if (data.length <= 5) {
+                return JSON.stringify(data, null, 2);
+            }
+            
+            // For larger arrays, show first few items
+            return JSON.stringify(data.slice(0, 3), null, 2) + `\n... and ${data.length - 3} more items`;
+        }
+
+        // Handle common API response patterns
+        if (data.success !== undefined) {
+            let formatted = `Success: ${data.success}\n`;
+            if (data.message) formatted += `Message: ${data.message}\n`;
+            if (data.data) formatted += `Data: ${JSON.stringify(data.data, null, 2)}`;
+            return formatted;
+        }
+
+        if (data.error) {
+            return `Error: ${JSON.stringify(data.error, null, 2)}`;
+        }
+
+        // Default: pretty-printed JSON with truncation for large objects
+        const jsonString = JSON.stringify(data, null, 2);
+        if (jsonString.length > 1000) {
+            return jsonString.substring(0, 1000) + '\n... (truncated)';
+        }
+        
+        return jsonString;
+    }
+
+    /**
+     * Build context-aware prompt with advanced conversation understanding (817b99ee pattern)
+     */
+    buildContextualPrompt(userMessage, contextData = {}) {
+        let enhancedPrompt = userMessage;
+        const {
+            conversationHistory = [],
+            advancedContext = null,
+            followUpAnalysis = null,
+            entities = [],
+            topics = []
+        } = contextData;
+
+        // Add follow-up context if detected
+        if (followUpAnalysis?.isFollowUp && followUpAnalysis.confidence > 0.6) {
+            const recentContext = conversationHistory.slice(-3)
+                .map(msg => `${msg.role}: ${msg.content}`)
+                .join('\n');
+            
+            enhancedPrompt = `${userMessage}
+
+[FOLLOW-UP CONTEXT - Confidence: ${Math.round(followUpAnalysis.confidence * 100)}%]
+Recent conversation:
+${recentContext}
+
+This appears to be a follow-up question. Please consider the previous context when selecting tools.`;
+        }
+
+        // Add entity context if available
+        if (entities.length > 0) {
+            const entityContext = entities.slice(0, 5) // Limit to top 5 entities
+                .map(entity => `- ${entity.value} (${entity.type})`)
+                .join('\n');
+            
+            enhancedPrompt += `
+
+[ENTITY CONTEXT]
+Referenced entities:
+${entityContext}`;
+        }
+
+        // Add topic context if available
+        if (topics.length > 0) {
+            const topicContext = topics.slice(0, 3) // Limit to top 3 topics
+                .map(topic => `- ${topic.name} (mentioned ${topic.mentions} times)`)
+                .join('\n');
+            
+            enhancedPrompt += `
+
+[TOPIC CONTEXT]
+Active conversation topics:
+${topicContext}`;
+        }
+
+        // Add timezone context for calendar-related requests
+        if (userMessage.toLowerCase().includes('calendar') || 
+            userMessage.toLowerCase().includes('schedule') ||
+            userMessage.toLowerCase().includes('meeting') ||
+            userMessage.toLowerCase().includes('event')) {
+            
+            try {
+                const userTimezoneService = require('./userTimezoneService');
+                const timezone = userTimezoneService.getUserTimezone();
+                enhancedPrompt += `
+
+[TIMEZONE CONTEXT]
+User timezone: ${timezone}
+Current time: ${new Date().toLocaleString('en-US', { timeZone: timezone })}`;
+            } catch (error) {
+                // Timezone service not available, continue without it
+            }
+        }
+
+        return enhancedPrompt;
     }
 
     /**
@@ -460,6 +695,183 @@ Please provide a natural, intelligent response that addresses what the user actu
         }
         
         return { sanitizedTools, toolNameMapping };
+    }
+
+    /**
+     * Detect the question type for enhanced answering
+     */
+    detectQuestionType(userMessage) {
+        const message = userMessage.toLowerCase();
+        
+        // Web search requests - CRITICAL FIX for "latest articles on elon musk" type queries
+        if (message.includes('latest') || message.includes('recent') || message.includes('current') || 
+            message.includes('news') || message.includes('articles') || message.includes('what happened') ||
+            message.includes('today') || message.includes('this week') || message.includes('developments') ||
+            message.includes('updates') || message.includes('trending')) {
+            return 'web_search_request';
+        }
+        
+        // Email-related requests
+        if (message.includes('draft') && message.includes('email') || 
+            message.includes('write') && message.includes('email') ||
+            message.includes('send') && message.includes('email')) {
+            return 'email_draft';
+        }
+        
+        // Service-specific data access
+        if (message.includes('notion') && (message.includes('show') || message.includes('get') || message.includes('access'))) {
+            return 'notion_data_access';
+        }
+        if (message.includes('github') && (message.includes('show') || message.includes('get') || message.includes('access'))) {
+            return 'github_data_access';
+        }
+        if (message.includes('google') && (message.includes('show') || message.includes('get') || message.includes('access'))) {
+            return 'google_data_access';
+        }
+        if (message.includes('slack') && (message.includes('show') || message.includes('get') || message.includes('access'))) {
+            return 'slack_data_access';
+        }
+        
+        // MCP debugging
+        if (message.includes('mcp') && (message.includes('debug') || message.includes('test') || message.includes('tools'))) {
+            return 'mcp_debug';
+        }
+        
+        // Screen context questions - CRITICAL FIX for "what do you see on my screen"
+        if (message.includes('what') && (message.includes('see') || message.includes('on') || message.includes('screen')) ||
+            message.includes('describe') && message.includes('screen') ||
+            message.includes('what\'s on') && message.includes('screen') ||
+            message.includes('screenshot') || message.includes('what is visible') ||
+            message.includes('current screen') || message.includes('my screen')) {
+            return 'screen_context';
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if question should use enhanced answering
+     */
+    shouldUseEnhancedAnswer(questionType) {
+        const enhancedTypes = [
+            'email_draft', 
+            'notion_data_access', 
+            'github_data_access', 
+            'google_data_access', 
+            'slack_data_access',
+            'mcp_debug',
+            'web_search_request', // CRITICAL FIX: Enable web search handling
+            'screen_context' // CRITICAL FIX: Enable screen context handling
+        ];
+        return enhancedTypes.includes(questionType);
+    }
+
+    /**
+     * Use enhanced answering through MCPClient
+     */
+    async useEnhancedAnswering(userMessage, context, questionType) {
+        try {
+            // Check if we have an MCPClient instance available
+            let mcpClient = null;
+            if (global.mcpClient) {
+                mcpClient = global.mcpClient;
+            } else if (this.mcpClient) {
+                mcpClient = this.mcpClient;
+            }
+
+            if (!mcpClient || !mcpClient.getEnhancedAnswer) {
+                logger.warn('No MCPClient available for enhanced answering');
+                return await this.fallbackToStandardToolSelection(userMessage, context);
+            }
+
+            const question = {
+                text: userMessage,
+                type: questionType,
+                context: context.conversationHistory ? 
+                    context.conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n') : 
+                    null
+            };
+
+            logger.info('Using enhanced MCP answering', { questionType, hasContext: !!question.context });
+            
+            const enhancedAnswer = await mcpClient.getEnhancedAnswer(question, context.screenshotBase64);
+            
+            return {
+                response: enhancedAnswer,
+                toolCalled: questionType,
+                enhanced: true,
+                questionType: questionType
+            };
+
+        } catch (error) {
+            logger.error('Enhanced answering failed, falling back', { error: error.message });
+            return await this.fallbackToStandardToolSelection(userMessage, context);
+        }
+    }
+
+    /**
+     * Fallback to standard tool selection if enhanced answering fails
+     */
+    async fallbackToStandardToolSelection(userMessage, context) {
+        logger.info('Using fallback standard tool selection');
+        
+        const availableTools = this.toolRegistry.listTools();
+        if (!availableTools || availableTools.length === 0) {
+            return {
+                response: "I don't have access to any external tools right now. Please check your MCP connections.",
+                toolCalled: null,
+                needsTools: true
+            };
+        }
+
+        // Continue with standard tool selection flow
+        const systemPrompt = this.buildToolSelectionPrompt(availableTools, context);
+        
+        // Build messages and continue with normal flow
+        const messages = [{ role: 'system', content: systemPrompt }];
+        
+        // Add conversation history if available
+        if (context.conversationHistory && context.conversationHistory.length > 0) {
+            context.conversationHistory.forEach(msg => {
+                if (msg.role === 'user' || msg.role === 'assistant') {
+                    messages.push({
+                        role: msg.role,
+                        content: msg.content
+                    });
+                }
+            });
+        }
+
+        const contextualPrompt = this.enhancePromptWithContext(userMessage, context.conversationHistory);
+        messages.push({
+            role: 'user',
+            content: contextualPrompt
+        });
+
+        try {
+            const response = await this.llmProvider.generateResponse(messages, availableTools, {
+                temperature: 0.1,
+                maxTokens: 4000,
+                parallel_tool_calls: true
+            });
+
+            if (response.toolCalls && response.toolCalls.length > 0) {
+                const toolResults = await this.executeToolCalls(response, messages);
+                return toolResults;
+            } else {
+                return {
+                    response: response.message,
+                    toolCalled: null
+                };
+            }
+        } catch (error) {
+            logger.error('Fallback tool selection failed', { error: error.message });
+            return {
+                response: "I'm having trouble processing your request right now. Please try again later.",
+                toolCalled: null,
+                error: error.message
+            };
+        }
     }
 
     /**

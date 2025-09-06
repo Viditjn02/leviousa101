@@ -67,8 +67,14 @@ function initializeLeviousaHandlers() {
     // Call any MCP tool
     ipcMain.handle('mcp:callTool', async (_event, toolName, args) => {
         try {
-            const mcpClient = require('../features/invisibility/mcpClient');
-            if (!mcpClient || !mcpClient.callTool) throw new Error('MCP client not available');
+            // Use the global invisibility service which contains the MCPMigrationBridge
+            if (!global.invisibilityService || !global.invisibilityService.mcpClient) {
+                throw new Error('MCP client not available');
+            }
+            
+            const mcpClient = global.invisibilityService.mcpClient;
+            if (!mcpClient || !mcpClient.callTool) throw new Error('MCP client not properly initialized');
+            
             const result = await mcpClient.callTool(toolName, args || {});
             return { success: true, content: JSON.stringify(result) };
         } catch (err) {

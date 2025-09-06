@@ -2076,25 +2076,30 @@ export class AskView extends LitElement {
       
       console.log('[AskView] 📧 Using email tool:', emailToolName);
       
-      // Invoke the Paragon email send tool via MCP UI dynamically
-      const actionData = {
-        serverId: 'paragon',
-        tool: emailToolName,
-        params: {
-          to: Array.isArray(to) ? to : [to],
+      // Use the Microsoft Graph API format like the working MCPUIIntegrationService
+      const toAddresses = Array.isArray(to) ? to : [to];
+      const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
+      const bccAddresses = bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : [];
+      
+      const toolParams = {
+        toRecipients: toAddresses.map(addr => ({ emailAddress: { address: addr } })),
+        messageContent: {
           subject: subject,
-          body: body,
-          // user_id will be added dynamically below
+          body: {
+            content: body,
+            contentType: 'text'
+          }
         }
       };
+      
+      // Add CC and BCC if present (using Microsoft Graph format)
+      if (ccAddresses.length > 0) {
+        toolParams.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+      }
+      if (bccAddresses.length > 0) {
+        toolParams.bccRecipients = bccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+      }
 
-      // Only add cc and bcc if they have values (Gmail API rejects empty strings)
-      if (cc && cc.trim()) {
-        actionData.params.cc = cc;
-      }
-      if (bcc && bcc.trim()) {
-        actionData.params.bcc = bcc;
-      }
       // PERFORMANCE: Cache user_id to avoid repeated API calls
       if (!this._cachedUserId) {
         try {
@@ -2110,7 +2115,15 @@ export class AskView extends LitElement {
           this._cachedUserId = 'default-user';
         }
       }
-      actionData.params.user_id = this._cachedUserId;
+      
+      // Add user_id to toolParams (required by Paragon)
+      toolParams.user_id = this._cachedUserId;
+
+      const actionData = {
+        serverId: 'paragon',
+        tool: emailToolName,
+        params: toolParams
+      };
 
       console.log('[AskView] 📧 Final actionData being sent to MCP API:', JSON.stringify(actionData, null, 2));
       
@@ -2166,7 +2179,7 @@ export class AskView extends LitElement {
     
     // PERFORMANCE: Use hardcoded known tool name for Paragon Gmail
     // This avoids the expensive getAvailableTools() call entirely
-    const knownEmailTool = 'gmail_send_email';
+    const knownEmailTool = 'GMAIL_SEND_EMAIL';
     console.log(`[AskView] Using known email tool: ${knownEmailTool}`);
     this._cachedEmailToolName = knownEmailTool;
     return knownEmailTool;
@@ -2178,7 +2191,7 @@ export class AskView extends LitElement {
       if (result && result.success && result.tools) {
         // Look for email send tools in order of preference
         const emailSendPatterns = [
-          'gmail_send_email',     // Paragon Gmail
+          'GMAIL_SEND_EMAIL',     // Paragon Gmail
           'send_gmail_message',   // Google Workspace MCP
           'email_send',           // Generic email send
           'send_email'            // Alternative generic

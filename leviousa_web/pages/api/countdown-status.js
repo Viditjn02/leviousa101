@@ -7,8 +7,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // COUNTDOWN IS NOW ACTIVE - ENABLE IMMEDIATELY
-    const countdownActive = true; // Force active for launch
+    // COUNTDOWN IS NOW DISABLED - SHOW LANDING PAGE
+    const countdownActive = false; // Disabled - show landing page
     
     return res.status(200).json({
       countdownActive: countdownActive,

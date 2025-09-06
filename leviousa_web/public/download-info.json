@@ -1,27 +1,26 @@
 {
-  "version": "1.01",
-  "releaseDate": "2025-09-02T10:08:00.000Z",
+  "version": "1.02",
+  "releaseDate": "2025-01-24T15:20:00.000Z",
   "notarized": true,
   "codeSignedBy": "Developer ID Application: Vidit Jain (8LNUMP84V8)",
-  "githubRelease": "https://github.com/Viditjn02/leviousa101/releases/tag/1.0.0-FINAL-COMPLETE-1756840180591",
+  "vercelBlob": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg",
   "allIssuesResolved": true,
   "downloads": {
     "macos-universal": {
-      "url": "https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg",
-      "filename": "Leviousa v1.01.dmg",
-      "size": "354 MB",
+      "url": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg",
+      "filename": "Leviousa.dmg",
+      "size": "376 MB",
       "platform": "macOS Universal",
       "architecture": "Universal (Intel + Apple Silicon)",
       "notarized": true,
-      "status": "FINAL COMPLETE - All production issues resolved",
+      "status": "FRESH BUILD - Clean naming and optimized delivery",
       "features": [
-        "Zero crashes - keytar distribution fixed",
-        "Perfect installation UX with drag-drop dialog",
-        "Authentication completely fixed (Google + email)",
-        "Display names save correctly", 
-        "CSP allows Google auth without script blocking",
-        "Clean production console (no debug spam)",
-        "Professional grade stability and UX"
+        "Clean DMG naming - just 'Leviousa.dmg'",
+        "Perfect drag-to-Applications installation",
+        "Apple notarized and code signed",
+        "Universal binary for all Mac architectures",
+        "Fast delivery via Vercel Blob CDN",
+        "All production issues resolved"
       ]
     }
   }

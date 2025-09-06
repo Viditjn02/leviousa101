@@ -3,18 +3,18 @@ import { NextResponse } from 'next/server'
 export function middleware(request) {
   const url = request.nextUrl.clone()
   
-  // Check if countdown is active (hardcoded for immediate launch)
-  const isCountdownActive = true; // COUNTDOWN MODE ENABLED
+  // Check if we should show wait page (enabled - show wait page)
+  const showWaitPage = true; // WAIT PAGE MODE ENABLED - SHOW "LITTLE MORE WAIT" PAGE
   
-  // If countdown is active and user is visiting root domain
-  if (isCountdownActive && url.pathname === '/') {
-    url.pathname = '/countdown.html'
+  // If wait page is active and user is visiting root domain
+  if (showWaitPage && url.pathname === '/') {
+    url.pathname = '/wait.html'
     return NextResponse.redirect(url)
   }
   
-  // Block landing.html access during countdown
-  if (isCountdownActive && url.pathname === '/landing.html') {
-    url.pathname = '/countdown.html'
+  // Block landing.html access during wait mode
+  if (showWaitPage && url.pathname === '/landing.html') {
+    url.pathname = '/wait.html'
     return NextResponse.redirect(url)
   }
   

@@ -577,27 +577,37 @@ export class SummaryView extends LitElement {
         try {
             console.log('[SummaryView] Attempting to send email via Paragon MCP...');
             
-            // Use the same email sending logic as AskView
-            const actionData = {
-                serverId: 'paragon',
-                tool: 'gmail_send_email',
-                params: {
-                    to: Array.isArray(to) ? to : [to],
+            // Use the Microsoft Graph API format like the working MCPUIIntegrationService
+            const toAddresses = Array.isArray(to) ? to : [to];
+            const ccAddresses = cc ? (Array.isArray(cc) ? cc : [cc]) : [];
+            const bccAddresses = bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : [];
+            
+            const toolParams = {
+                toRecipients: toAddresses.map(addr => ({ emailAddress: { address: addr } })),
+                messageContent: {
                     subject: subject,
-                    body: body,
-                    // user_id will be added dynamically below
+                    body: {
+                        content: body,
+                        contentType: 'text'
+                    }
                 }
             };
-
-            // Only add cc and bcc if they have values
-            if (cc && cc.trim()) {
-                actionData.params.cc = cc;
+            
+            // Add CC and BCC if present (using Microsoft Graph format)
+            if (ccAddresses.length > 0) {
+                toolParams.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
             }
-            if (bcc && bcc.trim()) {
-                actionData.params.bcc = bcc;
+            if (bccAddresses.length > 0) {
+                toolParams.bccRecipients = bccAddresses.map(addr => ({ emailAddress: { address: addr } }));
             }
 
-            // Get authenticated user ID
+            const actionData = {
+                serverId: 'paragon',
+                tool: 'GMAIL_SEND_EMAIL',
+                params: toolParams
+            };
+
+            // Get authenticated user ID and add to toolParams
             try {
                 const userState = await window.api.common.getCurrentUser();
                 if (userState && userState.uid) {

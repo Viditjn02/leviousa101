@@ -32,30 +32,21 @@ class CustomDialogService {
         } = options;
 
         return new Promise((resolve) => {
-            // Create custom dialog window
-            const dialogWindow = new BrowserWindow({
-                width: 480,
-                height: 340,
-                resizable: false,
-                minimizable: false,
-                maximizable: false,
-                alwaysOnTop: true,
-                modal: true,
-                show: false,
-                frame: false, // Custom frame for better branding
-                transparent: true, // For rounded corners
-                webPreferences: {
-                    nodeIntegration: false,
-                    contextIsolation: true,
-                    preload: path.join(__dirname, '../../../preload.js')
-                }
-            });
-
-            // Store dialog reference
+            console.log('[CustomDialogService] 🎯 Showing upgrade dialog as tutorial-style overlay');
+            
+            // Use tutorial-style overlay in header window instead of separate BrowserWindow
+            const { windowPool } = require('../../../window/windowManager');
+            const header = windowPool.get('header');
+            
+            if (!header || header.isDestroyed()) {
+                console.error('[CustomDialogService] ❌ Header window not available for upgrade dialog');
+                resolve('cancel');
+                return;
+            }
+            
             const dialogId = Date.now().toString();
-            this.activeDialogs.set(dialogId, dialogWindow);
-
-            // Create the HTML content with Leviousa branding
+            
+            // Create the upgrade dialog HTML content
             const htmlContent = this.createUpgradeDialogHTML({
                 title,
                 message,
@@ -64,56 +55,140 @@ class CustomDialogService {
                 usage,
                 dialogId
             });
-
-            // Load the content
-            dialogWindow.loadURL(`data:text/html,${encodeURIComponent(htmlContent)}`);
-
-            // Center dialog relative to parent window
-            const { windowPool } = require('../../../window/windowManager');
-            const parentWindow = windowPool.get('header');
-            if (parentWindow) {
-                const parentBounds = parentWindow.getBounds();
-                const dialogBounds = dialogWindow.getBounds();
-                
-                dialogWindow.setPosition(
-                    Math.round(parentBounds.x + (parentBounds.width - dialogBounds.width) / 2),
-                    Math.round(parentBounds.y + (parentBounds.height - dialogBounds.height) / 2)
-                );
-            }
-
-            // Handle window events
-            dialogWindow.once('ready-to-show', () => {
-                dialogWindow.show();
-                dialogWindow.focus();
+            
+            // Inject the dialog as an overlay in header window (tutorial style)
+            const script = `
+                (function() {
+                    // Remove any existing upgrade dialogs
+                    const existingDialogs = document.querySelectorAll('.upgrade-dialog-overlay');
+                    existingDialogs.forEach(dialog => dialog.remove());
+                    
+                    // Create tutorial-style overlay
+                    const overlay = document.createElement('div');
+                    overlay.className = 'upgrade-dialog-overlay';
+                    overlay.setAttribute('data-dialog-id', '${dialogId}');
+                    overlay.style.cssText = \`
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100vw;
+                        height: 100vh;
+                        z-index: 99999;
+                        background: rgba(0, 0, 0, 0.6);
+                        backdrop-filter: blur(3px);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        opacity: 0;
+                        transition: opacity 0.3s ease;
+                    \`;
+                    
+                    overlay.innerHTML = \`${htmlContent}\`;
+                    document.body.appendChild(overlay);
+                    
+                    // Animate in
+                    requestAnimationFrame(() => {
+                        overlay.style.opacity = '1';
+                    });
+                    
+                    // Set up event listeners for dialog actions
+                    const upgradeBtn = overlay.querySelector('.btn-upgrade');
+                    const laterBtn = overlay.querySelector('.btn-later');
+                    const closeBtn = overlay.querySelector('.dialog-close');
+                    
+                    const cleanup = () => {
+                        overlay.style.opacity = '0';
+                        setTimeout(() => {
+                            if (overlay.parentNode) {
+                                overlay.parentNode.removeChild(overlay);
+                            }
+                        }, 300);
+                    };
+                    
+                    if (upgradeBtn) {
+                        upgradeBtn.onclick = () => {
+                            cleanup();
+                            window.ipcRenderer?.send('dialog-action-upgrade', '${dialogId}');
+                        };
+                    }
+                    
+                    if (laterBtn) {
+                        laterBtn.onclick = () => {
+                            cleanup();
+                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
+                        };
+                    }
+                    
+                    if (closeBtn) {
+                        closeBtn.onclick = () => {
+                            cleanup();
+                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
+                        };
+                    }
+                    
+                    // ESC key to close
+                    const escHandler = (e) => {
+                        if (e.key === 'Escape') {
+                            cleanup();
+                            document.removeEventListener('keydown', escHandler);
+                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
+                        }
+                    };
+                    document.addEventListener('keydown', escHandler);
+                    
+                    return true;
+                })();
+            `;
+            
+            header.webContents.executeJavaScript(script).then(result => {
+                console.log('[CustomDialogService] ✅ Upgrade dialog overlay injected successfully');
+            }).catch(error => {
+                console.error('[CustomDialogService] ❌ Failed to inject upgrade dialog:', error);
+                resolve('cancel');
             });
+
+            // Store dialog reference for cleanup
+            this.activeDialogs.set(dialogId, { type: 'overlay', windowRef: header });
 
             // Handle dialog actions via IPC
             const { ipcMain } = require('electron');
             
-            const handleDialogAction = (event, action) => {
-                if (event.sender === dialogWindow.webContents) {
-                    this.activeDialogs.delete(dialogId);
-                    dialogWindow.close();
+            const handleDialogAction = (event, receivedDialogId) => {
+                if (receivedDialogId === dialogId) {
+                    console.log(`[CustomDialogService] Dialog action received for: ${dialogId}`);
                     
-                    if (action === 'upgrade') {
-                        // Open upgrade page
-                        const { shell } = require('electron');
-                        shell.openExternal('https://www.leviousa.com/settings/billing');
-                        resolve({ action: 'upgrade', upgrade: true });
-                    } else {
-                        resolve({ action: 'cancel', upgrade: false });
-                    }
+                    // Clean up
+                    this.activeDialogs.delete(dialogId);
+                    
+                    // Remove IPC listeners
+                    ipcMain.removeAllListeners(`dialog-action-upgrade`);
+                    ipcMain.removeAllListeners(`dialog-action-cancel`);
+                    
+                    // Open upgrade page
+                    const { shell } = require('electron');
+                    shell.openExternal('https://www.leviousa.com/settings/billing');
+                    resolve('upgrade');
                 }
             };
 
-            ipcMain.once(`dialog-action-${dialogId}`, handleDialogAction);
+            const handleDialogCancel = (event, receivedDialogId) => {
+                if (receivedDialogId === dialogId) {
+                    console.log(`[CustomDialogService] Dialog cancelled for: ${dialogId}`);
+                    
+                    // Clean up
+                    this.activeDialogs.delete(dialogId);
+                    
+                    // Remove IPC listeners
+                    ipcMain.removeAllListeners(`dialog-action-upgrade`);
+                    ipcMain.removeAllListeners(`dialog-action-cancel`);
+                    
+                    resolve('cancel');
+                }
+            };
 
-            // Cleanup on window close
-            dialogWindow.on('closed', () => {
-                this.activeDialogs.delete(dialogId);
-                ipcMain.removeAllListeners(`dialog-action-${dialogId}`);
-                resolve({ action: 'cancel', upgrade: false });
-            });
+            // Register IPC listeners for this specific dialog
+            ipcMain.on('dialog-action-upgrade', handleDialogAction);
+            ipcMain.on('dialog-action-cancel', handleDialogCancel);
         });
     }
 
