@@ -14,7 +14,7 @@ class PerplexityProvider {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'llama-3.1-sonar-small-128k-online',
+                    model: 'sonar-pro',
                     messages: [{ role: 'user', content: 'test' }],
                     max_tokens: 1
                 })
@@ -48,7 +48,7 @@ class PerplexityProvider {
  */
 function createLLM({ 
     apiKey, 
-    model = 'sonar', 
+    model = 'sonar-pro', // Use correct Perplexity model name for advanced search
     temperature = 0.2,
     maxTokens = 2048,
     includeSource = true,
@@ -63,13 +63,19 @@ function createLLM({
             stream: false
         };
 
-        // Add search parameters for online models
-        if (model.includes('online')) {
-            requestBody.search_domain_filter = options.searchDomainFilter || [];
+        // Add search parameters for all sonar models (they all have search capabilities)
+        if (model.includes('sonar')) {
+            requestBody.return_citations = true; // Always return citations for web search
             requestBody.search_recency_filter = options.searchRecencyFilter || 'month';
-            requestBody.return_citations = includeSource;
-            requestBody.return_images = options.returnImages || false;
         }
+
+        // Ensure we're using the right model for web search
+        if (requestBody.model === 'sonar') {
+            requestBody.model = 'sonar-pro';
+            console.log('[PerplexityProvider] Using sonar-pro for advanced search capabilities');
+        }
+
+        console.log('[PerplexityProvider] Request body:', JSON.stringify(requestBody, null, 2));
 
         const response = await fetch('https://api.perplexity.ai/chat/completions', {
             method: 'POST',
@@ -87,8 +93,15 @@ function createLLM({
 
         const result = await response.json();
         
-        // Extract citations if available
-        const citations = result.citations || [];
+        // Debug Perplexity API response for citations
+        console.log('[PerplexityProvider] Raw API response keys:', Object.keys(result));
+        console.log('[PerplexityProvider] Citations in response:', result.citations ? 'Found' : 'Not found');
+        if (result.citations) {
+            console.log('[PerplexityProvider] Citations data:', JSON.stringify(result.citations, null, 2));
+        }
+        
+        // Extract citations if available - check multiple possible locations
+        const citations = result.citations || result.choices?.[0]?.citations || [];
         const content = result.choices[0].message.content;
         
         return {

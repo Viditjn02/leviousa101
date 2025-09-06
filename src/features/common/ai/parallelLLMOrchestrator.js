@@ -8,13 +8,15 @@ class WebSearchDetector {
         // Patterns that indicate real-time information needs
         this.timeIndicators = [
             'latest', 'recent', 'current', 'today', 'now', 'this year',
-            'yesterday', 'last week', 'last month', 'updated', 'new'
+            'yesterday', 'last week', 'last month', 'updated', 'new',
+            'pullup', 'pull up', 'find', 'show me', 'get me' // CRITICAL: These trigger web search
         ];
         
         // Topics that typically need current information
         this.realTimeTopics = [
             'news', 'weather', 'stock', 'price', 'market', 'trending',
-            'score', 'result', 'election', 'covid', 'breaking'
+            'score', 'result', 'election', 'covid', 'breaking',
+            'articles', 'story', 'report', 'announcement', 'update' // CRITICAL: 'articles' triggers web search
         ];
         
         // Question types that often need web search
@@ -140,12 +142,40 @@ class ResponseMerger {
         // Simple merger - can be enhanced with more sophisticated logic
         let mergedContent = primaryContent;
         
-        // Add citations if available
+        // Add citations if available with enhanced processing
         if (citations && citations.length > 0) {
             mergedContent += '\n\n**Sources:**\n';
+            
             citations.forEach((citation, index) => {
-                mergedContent += `${index + 1}. [${citation.title || citation.url}](${citation.url})\n`;
+                // Handle different citation formats from Perplexity
+                let title, url;
+                
+                if (typeof citation === 'string') {
+                    // Citation is just a URL string
+                    url = citation;
+                    title = this._extractTitleFromUrl(url);
+                } else if (citation && typeof citation === 'object') {
+                    // Citation is an object with title/url properties
+                    url = citation.url || citation;
+                    title = citation.title || this._extractTitleFromUrl(url);
+                } else {
+                    // Fallback for unexpected format
+                    url = String(citation);
+                    title = this._extractTitleFromUrl(url);
+                }
+                
+                // Filter out invalid URLs
+                if (!url || url === 'undefined' || url === 'null' || !url.startsWith('http')) {
+                    console.warn(`[ParallelLLM] Skipping invalid citation:`, citation);
+                    return;
+                }
+                
+                // Use plain text format (HTML links don't render properly in the UI)
+                mergedContent += `${index + 1}. ${title}\n   📂 ${url}\n\n`;
             });
+            
+            // Add user instruction for opening links
+            mergedContent += '*📋 Copy any URL above and paste in your browser (🌐 globe icon) to read the full article.*';
         }
 
         // Add note about sources
@@ -160,6 +190,44 @@ class ResponseMerger {
             citations,
             hasWebInfo: primarySource === 'web' || citations.length > 0
         };
+    }
+    
+    /**
+     * Extract meaningful title from URL path
+     * @private
+     */
+    _extractTitleFromUrl(url) {
+        try {
+            if (!url || typeof url !== 'string') return 'Article';
+            
+            const urlObj = new URL(url);
+            const domain = urlObj.hostname.replace('www.', '');
+            
+            // Extract meaningful parts from the path
+            const pathParts = urlObj.pathname.split('/').filter(part => 
+                part && part.length > 3 && !part.match(/^\d+$/)
+            );
+            
+            if (pathParts.length > 0) {
+                // Take the last meaningful part of the path
+                const lastPart = pathParts[pathParts.length - 1];
+                // Convert hyphens/underscores to spaces and capitalize
+                const title = lastPart
+                    .replace(/[-_]/g, ' ')
+                    .replace(/\.(html|php|aspx?)$/i, '')
+                    .split(' ')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                
+                return `${title} - ${domain}`;
+            }
+            
+            // Fallback to domain name
+            return `Article from ${domain}`;
+        } catch (error) {
+            console.warn('[ParallelLLM] Error extracting title from URL:', error);
+            return 'Article';
+        }
     }
 }
 

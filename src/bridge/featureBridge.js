@@ -67,6 +67,24 @@ module.exports = {
     ipcMain.handle('authenticate-with-server-token', async (event, userInfo) => await authService.authenticateWithServerSideToken(userInfo));
     ipcMain.handle('firebase-logout', async () => await authService.signOut());
 
+    // Subscription Service - Connect UI to local subscription detection
+    ipcMain.handle('subscription:getCurrentUser', async () => {
+        try {
+            const subscriptionService = require('../features/common/services/subscriptionService');
+            const subscription = await subscriptionService.getCurrentUserSubscription();
+            console.log('[FeatureBridge] 📊 Retrieved subscription from local service:', subscription);
+            return subscription;
+        } catch (error) {
+            console.error('[FeatureBridge] ❌ Error getting subscription:', error);
+            // Return default free subscription on error
+            return {
+                plan: 'free',
+                status: 'active',
+                uid: null
+            };
+        }
+    });
+
     // Handle auth success from web login page
     ipcMain.on('firebase-auth-success', async (event, { uid, email, displayName, idToken }) => {
         console.log('[FeatureBridge] Received firebase-auth-success from web login page for user:', uid);

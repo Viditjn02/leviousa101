@@ -346,6 +346,9 @@ leviousaApp: {
     firebaseLogout: () => ipcRenderer.invoke('firebase-logout'),
     startFirebaseAuth: () => ipcRenderer.invoke('start-firebase-auth'),
     getFirebaseToken: () => ipcRenderer.invoke('settings:get-firebase-token'),
+    
+    // Subscription
+    getSubscription: () => ipcRenderer.invoke('subscription:getCurrentUser'),
 
     // Model & Provider Management
     getModelSettings: () => ipcRenderer.invoke('settings:get-model-settings'), // Facade call

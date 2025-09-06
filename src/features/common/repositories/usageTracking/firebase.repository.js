@@ -1,7 +1,30 @@
 const { v4: uuidv4 } = require('uuid');
-const { getFirestoreInstance } = require('../../services/firebaseClient');
+const { getFirestoreInstance, initializeFirebase } = require('../../services/firebaseClient');
 
 const collectionName = 'usage_tracking';
+
+/**
+ * Ensures Firebase is initialized and returns a valid Firestore instance
+ * @returns {Promise<Object>} Firestore instance
+ */
+async function getValidFirestoreInstance() {
+    try {
+        let firestore = getFirestoreInstance();
+        if (!firestore || typeof firestore.collection !== 'function') {
+            console.error('[FirebaseRepository] Firestore not properly initialized, initializing...');
+            await initializeFirebase();
+            firestore = getFirestoreInstance();
+            if (!firestore || typeof firestore.collection !== 'function') {
+                throw new Error('Firestore initialization failed - collection method not available');
+            }
+            console.log('[FirebaseRepository] ✅ Firestore successfully initialized');
+        }
+        return firestore;
+    } catch (error) {
+        console.error('[FirebaseRepository] Failed to get valid Firestore instance:', error);
+        throw error;
+    }
+}
 
 async function getOrCreateTodayUsage(uid) {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -24,7 +47,7 @@ async function getOrCreateTodayUsage(uid) {
 }
 
 async function create(uid, usageData) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const id = uuidv4();
     const now = Date.now();
     
@@ -47,7 +70,7 @@ async function create(uid, usageData) {
 }
 
 async function findByUserAndDate(uid, date) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('uid', '==', uid)
         .where('date', '==', date)
@@ -58,7 +81,7 @@ async function findByUserAndDate(uid, date) {
 }
 
 async function updateUsage(uid, date, usageType, minutes) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const now = Date.now();
     let fieldToUpdate;
     
@@ -94,7 +117,7 @@ async function updateUsage(uid, date, usageType, minutes) {
 }
 
 async function updateLimits(uid, date, cmd_l_limit = null, browser_limit = null) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const now = Date.now();
     const updates = { updated_at: now };
     
@@ -124,7 +147,7 @@ async function updateLimits(uid, date, cmd_l_limit = null, browser_limit = null)
 }
 
 async function findById(id) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const docRef = firestore.collection(collectionName).doc(id);
     const snapshot = await docRef.get();
     
@@ -132,7 +155,7 @@ async function findById(id) {
 }
 
 async function getUserUsageHistory(uid, limit = 30) {
-    const firestore = getFirestoreInstance();
+    const firestore = await getValidFirestoreInstance();
     const query = firestore.collection(collectionName)
         .where('uid', '==', uid)
         .orderBy('date', 'desc')

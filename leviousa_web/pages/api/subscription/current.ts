@@ -21,13 +21,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const tokenParts = token.split('.')
       if (tokenParts.length === 3) {
-        const payload = JSON.parse(atob(tokenParts[1]))
+        // Use Buffer for better base64 decoding (more reliable than atob)
+        const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString('utf8'))
         uid = payload.user_id || payload.sub || payload.uid || 'test-uid'
         email = payload.email || 'test@test.com'
         console.log('✅ Token decoded successfully for user:', uid, email)
       }
     } catch (error) {
-      console.log('⚠️ Token decode failed, using defaults for testing')
+      console.log('⚠️ Token decode failed, using defaults for testing:', error)
     }
     
     const decodedToken = { uid, email }
@@ -49,41 +50,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       browser_limit: isSpecialEmail ? -1 : 10      // Unlimited for special emails
     }
 
-    // For special emails, create/update to Pro subscription automatically
+    // For special emails, return Pro subscription immediately
     if (isSpecialEmail) {
-      console.log('👑 Special email detected, ensuring Pro subscription')
+      console.log('👑 Special email detected:', email, '- returning Pro subscription')
       
-      const { createSubscription, findSubscriptionByUserId, updateSubscription } = await import('../../../utils/repositories/subscription')
-      
-      let subscription = await findSubscriptionByUserId(uid)
-      
-      if (!subscription) {
-        // Create new Pro subscription for special email
-        subscription = await createSubscription(uid, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
-        })
-        console.log('✨ Created permanent Pro subscription for special email')
-      } else if (subscription.plan !== 'pro') {
-        // Update existing subscription to Pro
-        await updateSubscription(subscription.id!, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
-        })
-        console.log('⬆️ Upgraded existing subscription to Pro for special email')
-      }
+      // Create/update Pro subscription in database
+      try {
+        const { createSubscription, findSubscriptionByUserId, updateSubscription } = await import('../../../utils/repositories/subscription')
+        
+        let subscription = await findSubscriptionByUserId(uid)
+        
+        if (!subscription) {
+          // Create new Pro subscription for special email
+          subscription = await createSubscription(uid, {
+            plan: 'pro',
+            status: 'active',
+            trial_start: Date.now(),
+            trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
+          })
+          console.log('✨ Created permanent Pro subscription for special email')
+        } else if (subscription.plan !== 'pro') {
+          // Update existing subscription to Pro
+          subscription = await updateSubscription(subscription.id!, {
+            plan: 'pro',
+            status: 'active',
+            trial_start: Date.now(),
+            trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
+          })
+          console.log('⬆️ Upgraded existing subscription to Pro for special email')
+        }
 
-      return res.status(200).json({ 
-        subscription: {
-          ...subscription,
+        return res.status(200).json({ 
+          subscription: {
+            ...subscription,
+            plan: 'pro', // Ensure plan is explicitly set to pro
+            is_special_email: true
+          }, 
+          usage: usageData 
+        })
+      } catch (dbError) {
+        console.error('⚠️ Database error for special email, returning inline Pro subscription:', dbError)
+        
+        // Fallback: Return Pro subscription without database (for immediate UI fix)
+        const proSubscription = {
+          uid,
+          plan: 'pro', // ← This is the key fix
+          status: 'active',
+          stripe_customer_id: null,
+          stripe_subscription_id: null,
+          current_period_start: undefined,
+          current_period_end: undefined,
+          trial_start: Date.now(),
+          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000),
+          created_at: Date.now(),
+          updated_at: Date.now(),
           is_special_email: true
-        }, 
-        usage: usageData 
-      })
+        }
+
+        return res.status(200).json({ subscription: proSubscription, usage: usageData })
+      }
     }
 
     // For regular users, return default free subscription

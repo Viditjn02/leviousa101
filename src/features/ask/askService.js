@@ -1,8 +1,6 @@
 const { BrowserWindow } = require('electron');
 const { createStreamingLLM } = require('../common/ai/factory');
 const { ParallelLLMOrchestrator } = require('../common/ai/parallelLLMOrchestrator');
-const ConversationalContextService = require('../common/services/conversationalContextService');
-const DynamicToolSelectionService = require('../common/services/dynamicToolSelectionService');
 // Lazy require helper to avoid circular dependency issues
 const getWindowManager = () => require('../../window/windowManager');
 const internalBridge = require('../../bridge/internalBridge');
@@ -167,17 +165,6 @@ class AskService {
         this.conversationSessions = new Map(); // Enhanced conversation session tracking
         this.mcpVerificationDone = false; // Flag to track if MCP verification has been done
         this.parallelOrchestrator = new ParallelLLMOrchestrator(); // Parallel LLM execution
-        
-        // Initialize advanced conversational context service
-        this.contextService = new ConversationalContextService({
-            maxMessagesInMemory: 150,
-            maxContextLength: 12000,
-            summaryThreshold: 60,
-            entityRetentionDays: 45
-        });
-        
-        // Dynamic tool selection service (initialized lazily)
-        this.dynamicToolService = null;
         
         // MCP verification will be done lazily when first needed
     }
@@ -380,116 +367,6 @@ class AskService {
     }
 
     /**
-     * Build advanced question object with comprehensive context analysis
-     * @param {string} userPrompt - The user's question
-     * @param {object} advancedContext - Advanced context from ConversationalContextService
-     * @param {string} questionType - Classified question type
-     * @param {object} followUpAnalysis - Follow-up analysis results
-     * @returns {object} Advanced question object
-     * @private
-     */
-    _buildAdvancedQuestion(userPrompt, advancedContext, questionType, followUpAnalysis) {
-        const question = {
-            text: userPrompt.trim(),
-            type: questionType,
-            context: this._formatAdvancedConversationForPrompt(advancedContext),
-            confidence: 95, // Higher confidence with advanced analysis
-            timestamp: new Date().toISOString(),
-            
-            // Advanced context indicators
-            isFollowUp: followUpAnalysis.isFollowUp,
-            followUpConfidence: followUpAnalysis.confidence,
-            needsPreviousContext: followUpAnalysis.isFollowUp || followUpAnalysis.entityContinuity?.hasContinuity,
-            requiresScreenContext: this._detectScreenReferenceContext(userPrompt, advancedContext),
-            
-            // Entity and topic continuity
-            entityContinuity: followUpAnalysis.entityContinuity,
-            topicContinuity: followUpAnalysis.topicContinuity,
-            
-            // Context metadata
-            contextLayers: {
-                immediate: advancedContext.conversationFlow?.length || 0,
-                entities: advancedContext.activeEntities?.length || 0,
-                topics: advancedContext.topicThreads?.length || 0,
-                historical: advancedContext.relevantHistory?.length || 0
-            }
-        };
-
-        return question;
-    }
-
-    /**
-     * Format advanced conversation context for LLM prompt
-     * @param {object} advancedContext - Advanced context from ConversationalContextService
-     * @returns {string} Formatted context for LLM
-     * @private
-     */
-    _formatAdvancedConversationForPrompt(advancedContext) {
-        const contextParts = [];
-        
-        // Immediate conversation flow (most recent exchanges)
-        if (advancedContext.conversationFlow && advancedContext.conversationFlow.length > 0) {
-            contextParts.push("=== Recent Conversation ===");
-            advancedContext.conversationFlow.forEach(msg => {
-                const followUpIndicator = msg.followUp ? " [FOLLOW-UP]" : "";
-                contextParts.push(`${msg.role}: ${msg.content}${followUpIndicator}`);
-            });
-        }
-        
-        // Active entities and their context
-        if (advancedContext.activeEntities && advancedContext.activeEntities.length > 0) {
-            contextParts.push("\n=== Active Entities ===");
-            advancedContext.activeEntities.slice(0, 10).forEach(entity => {
-                contextParts.push(`${entity.type}: ${entity.value} (mentioned ${entity.frequency}x)`);
-            });
-        }
-        
-        // Active topic threads
-        if (advancedContext.topicThreads && advancedContext.topicThreads.length > 0) {
-            contextParts.push("\n=== Active Topics ===");
-            advancedContext.topicThreads.slice(0, 5).forEach(topic => {
-                contextParts.push(`${topic.topic}: ${topic.messages.length} messages, relevance: ${Math.round(topic.relevance * 100)}%`);
-            });
-        }
-        
-        // Session overview
-        if (advancedContext.sessionOverview) {
-            contextParts.push(`\n=== Session Overview ===`);
-            contextParts.push(advancedContext.sessionOverview);
-        }
-        
-        return contextParts.join('\n');
-    }
-
-    /**
-     * Detect if screen reference context is needed
-     * @param {string} userPrompt - User's question
-     * @param {object} advancedContext - Advanced context
-     * @returns {boolean} Whether screen context is needed
-     * @private
-     */
-    _detectScreenReferenceContext(userPrompt, advancedContext) {
-        const lowerPrompt = userPrompt.toLowerCase();
-        
-        // Direct screen references
-        if (lowerPrompt.match(/\b(this|these|that|those|here|on screen|visible|showing|current)\b/)) {
-            return true;
-        }
-        
-        // Context-based screen reference (if previous message mentioned screen elements)
-        if (advancedContext.conversationFlow) {
-            const recentMessages = advancedContext.conversationFlow.slice(-3);
-            return recentMessages.some(msg => 
-                msg.content.toLowerCase().includes('screen') ||
-                msg.content.toLowerCase().includes('visible') ||
-                msg.content.toLowerCase().includes('showing')
-            );
-        }
-        
-        return false;
-    }
-
-    /**
      * Initialize conversation session with enhanced context tracking
      * @param {string} sessionId - Session identifier
      * @returns {Promise<void>}
@@ -651,66 +528,27 @@ class AskService {
         try {
             console.log(`[AskService] 🤖 Processing message: ${userPrompt.substring(0, 50)}...`);
 
-            // 🔒 Check subscription and usage limits for Auto Answer feature
-            const subscriptionService = require('../common/services/subscriptionService');
-            const usageTrackingRepository = require('../common/repositories/usageTracking');
-            
-            console.log('[AskService] 🔍 Checking Auto Answer usage limits...');
-            const usageCheck = await subscriptionService.checkUsageAllowed('cmd_l');
-            
-            if (!usageCheck.allowed) {
-                const errorMessage = usageCheck.unlimited ? 
-                    'Auto Answer feature is not available.' :
-                    `Auto Answer daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
-                    
-                console.log('[AskService] 🚫 Usage limit exceeded:', errorMessage);
-                
-                // Show custom branded upgrade dialog
-                const customDialogService = require('../common/services/customDialogService');
-                customDialogService.showUpgradeDialog({
-                    title: 'Auto Answer Usage Limit Reached',
-                    message: errorMessage,
-                    detail: 'Upgrade to Pro for unlimited AI-powered auto answers and advanced features.',
-                    featureType: 'cmd_l',
-                    usage: usageCheck.usage !== undefined ? {
-                        used: usageCheck.usage,
-                        limit: usageCheck.limit,
-                        remaining: usageCheck.remaining
-                    } : null
-                }).then((result) => {
-                    console.log('[AskService] Custom dialog result:', result);
-                }).catch((error) => {
-                    console.error('[AskService] Custom dialog error:', error);
-                });
-                
-                // Update UI to show limit exceeded
-                this.state = {
-                    ...this.state,
-                    isLoading: false,
-                    currentResponse: errorMessage,
-                    showTextInput: true,
-                };
-                this._broadcastState();
-                return;
-            }
-            
-            console.log('[AskService] ✅ Usage check passed. Remaining:', usageCheck.remaining || 'unlimited');
-
             sessionId = await sessionRepository.getOrCreateActive('ask');
             await this.initializeConversationSession(sessionId);
-            
-            // Add user message to context service FIRST for immediate context tracking
-            await this.contextService.addMessage(sessionId, {
-                role: 'user',
-                content: userPrompt.trim(),
-                type: 'text'
-            });
             
             await askRepository.addAiMessage({ sessionId, role: 'user', content: userPrompt.trim() });
             console.log(`[AskService] DB: Saved user prompt to session ${sessionId}`);
             
             // Initialize MCP verification lazily when first needed
             await this.initializeMCPVerification();
+            
+            // Check for screen questions and handle directly with screenshot (main branch style)
+            if (this.isScreenQuestion(userPrompt)) {
+                console.log('[AskService] 👁️ Screen question detected, using direct screenshot analysis...');
+                await this.handleScreenQuestionDirectly(userPrompt, sessionId, conversationHistoryRaw);
+                return { success: true };
+            }
+
+            // Check for web search questions and bypass MCP to use ParallelLLMOrchestrator
+            if (this.needsWebSearch(userPrompt)) {
+                console.log('[AskService] 🔍 Web search request detected, bypassing MCP to use Perplexity...');
+                // Skip MCP routing and go directly to the ParallelLLMOrchestrator section
+            } else {
             
             // NEW: Try MCP enhanced answer generation first
             const mcpClient = getMCPClient();
@@ -720,111 +558,9 @@ class AskService {
                     const screenshotResult = await captureScreenshot({ quality: 'medium' });
                     const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
                     
-                    // Analyze follow-up context using advanced context service
-                    const followUpAnalysis = this.contextService.analyzeFollowUp(sessionId, userPrompt);
-                    console.log(`[AskService] 📊 Follow-up analysis:`, {
-                        isFollowUp: followUpAnalysis.isFollowUp,
-                        confidence: followUpAnalysis.confidence,
-                        entityContinuity: followUpAnalysis.entityContinuity?.hasContinuity,
-                        topicContinuity: followUpAnalysis.topicContinuity?.hasContinuity
-                    });
-                    
                     // Classify question type for MCP
-                    const questionType = await this.classifyQuestionType(userPrompt);
+                    const questionType = this.classifyQuestionType(userPrompt);
                     console.log(`[AskService] MCP: Classified question as '${questionType}' type`);
-                    
-                    // Handle email composer requests - ONLY show UI, do not send email
-                    if (questionType === 'email_composer_request') {
-                        console.log(`[AskService] 📧 Processing email composer request - showing UI only, no direct sending`);
-                        try {
-                            // Extract email context from user prompt
-                            const emailMatch = userPrompt.match(/(?:email|send).*?(?:to|@)\s*([^\s,]+@[^\s,]+)/i);
-                            const recipientEmail = emailMatch ? emailMatch[1] : '';
-                            
-                            // Extract subject if mentioned
-                            const subjectMatch = userPrompt.match(/(?:subject|about|re):\s*([^.!?]+)/i);
-                            const subject = subjectMatch ? subjectMatch[1].trim() : '';
-                            
-                            // Generate email body from context
-                            let emailBody = '';
-                            if (userPrompt.includes('test email')) {
-                                emailBody = 'This is a test email sent through Leviousa.';
-                            } else if (userPrompt.includes('reminder')) {
-                                emailBody = 'This is a reminder as requested.';
-                            } else {
-                                emailBody = `Hi,\n\nI wanted to reach out to you.\n\nBest regards`;
-                            }
-                            
-                            // Prepare email UI data
-                            const emailUIData = {
-                                actionId: 'email-send',
-                                serverId: 'paragon',
-                                tool: 'gmail.send',
-                                context: {
-                                    recipients: recipientEmail,
-                                    subject: subject || 'Message from Leviousa',
-                                    body: emailBody,
-                                    cc: '',
-                                    bcc: ''
-                                },
-                                resource: {
-                                    type: 'email-composer',
-                                    uri: 'email://compose'
-                                },
-                                type: 'inline'
-                            };
-                            
-                            console.log('[AskService] 📧 Emitting email UI resource for composer:', JSON.stringify(emailUIData, null, 2));
-                            
-                            // Emit the UI resource event to trigger email composer
-                            if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
-                                global.invisibilityService.mcpUIIntegration.emit('ui-resource-ready', emailUIData);
-                                console.log('[AskService] ✅ Email composer UI triggered successfully');
-                                
-                                // Return professional message indicating composer is opening
-                                responseText = recipientEmail ? 
-                                    `Email composer opened. You can now compose and send your email to ${recipientEmail}.` :
-                                    "Email composer opened. You can now compose and send your email.";
-                                
-                                // Save response and return early - do not continue with any other processing
-                                await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
-                                console.log(`[AskService] DB: Saved email composer response to session ${sessionId}`);
-                                await this._streamMCPAnswer(responseText, sessionId);
-                                return;
-                            } else {
-                                console.log('[AskService] ⚠️ MCP UI Integration not available for email composer');
-                                responseText = "Email composer is not available right now. Please try again.";
-                                await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
-                                await this._streamMCPAnswer(responseText, sessionId);
-                                return;
-                            }
-                            
-                        } catch (emailError) {
-                            console.error('[AskService] Email composer trigger failed:', emailError);
-                            responseText = "Sorry, I couldn't open the email composer. Please try again.";
-                            await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
-                            await this._streamMCPAnswer(responseText, sessionId);
-                            return;
-                        }
-                    }
-                    
-                    // Handle dynamic tool requests
-                    if (questionType === 'dynamic_tool_request') {
-                        console.log(`[AskService] 🔧 Processing dynamic tool request...`);
-                        const dynamicResult = await this.handleDynamicToolRequest(userPrompt, sessionId);
-                        if (dynamicResult) {
-                            console.log(`[AskService] ✅ Dynamic tool execution completed`);
-                            responseText = dynamicResult;
-                            
-                            // Save the dynamic tool response to session
-                            await askRepository.addAiMessage({ sessionId, role: 'assistant', content: responseText });
-                            console.log(`[AskService] DB: Saved dynamic tool response to session ${sessionId}`);
-                            
-                            // Send the response to UI using the same streaming method as regular LLM responses
-                            await this._streamMCPAnswer(responseText, sessionId);
-                            return;
-                        }
-                    }
                     
                     // Special logging for Notion questions
                     if (questionType === 'notion_data_access') {
@@ -834,21 +570,8 @@ class AskService {
                         console.log(`[AskService] 🎯 Available external tools: ${mcpClient.externalTools?.length || 0}`);
                     }
                     
-                    // Get comprehensive context from context service
-                    const advancedContext = this.contextService.getContextForLLM(sessionId, {
-                        includeEntityDetails: true,
-                        includeTopicAnalysis: questionType.includes('linkedin') || questionType.includes('mcp')
-                    });
-                    
-                    console.log(`[AskService] 📊 Advanced context generated:`, {
-                        layers: Object.keys(advancedContext).length,
-                        entities: advancedContext.activeEntities?.length || 0,
-                        topics: advancedContext.topicThreads?.length || 0,
-                        followUpDetected: followUpAnalysis.isFollowUp
-                    });
-                    
-                    // Build enhanced question with advanced conversation awareness
-                    const questionObj = this._buildAdvancedQuestion(userPrompt, advancedContext, questionType, followUpAnalysis);
+                    // Build enhanced question with conversation awareness
+                    const questionObj = this._buildEnhancedQuestion(userPrompt, conversationHistoryRaw, questionType);
                     
                     // Add conversation context from session tracking
                     const conversationContext = this.getConversationContext(sessionId);
@@ -856,7 +579,7 @@ class AskService {
                         questionObj.sessionContext = conversationContext;
                     }
                     
-                    console.log('[AskService] MCP: Requesting enhanced answer with advanced context...');
+                    console.log('[AskService] MCP: Requesting enhanced answer...');
                     // Pass the question text and include the enhanced context in the context parameter
                     const enhancedContext = {
                         questionType: questionObj.type,
@@ -865,61 +588,33 @@ class AskService {
                         needsPreviousContext: questionObj.needsPreviousContext,
                         requiresScreenContext: questionObj.requiresScreenContext,
                         sessionContext: questionObj.sessionContext,
-                        screenshot: screenshotBase64,
-                        // NEW: Advanced context from ConversationalContextService
-                        advancedContext: advancedContext,
-                        followUpAnalysis: followUpAnalysis,
-                        entities: advancedContext.activeEntities,
-                        topics: advancedContext.topicThreads,
-                        conversationLayers: advancedContext.conversationFlow
+                        screenshot: screenshotBase64
                     };
-                    // PERFORMANCE OPTIMIZATION: Run answer generation and UI analysis in parallel
-                    console.log('[AskService] 🚀 Running answer generation and UI analysis in parallel...');
-                    
-                    const parallelPromises = [
-                        // Promise 1: Generate MCP answer
-                        mcpClient.getEnhancedAnswer(questionObj.text, enhancedContext),
+                    const mcpResponse = await mcpClient.getEnhancedAnswer(questionObj.text, enhancedContext);
+                    if (mcpResponse && mcpResponse.answer) {
+                        const mcpAnswer = mcpResponse.answer;
+                        console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
                         
-                        // Promise 2: Analyze for contextual UI actions (can start immediately)
-                        (async () => {
+                        // Analyze conversation for contextual UI opportunities
+                        let didUIOverride = false;
+                        try {
                             if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
-                                console.log('[AskService] 🎨 Starting parallel UI analysis...');
+                                console.log('[AskService] 🎨 Analyzing conversation for contextual UI triggers...');
                                 
                                 const uiContext = {
                                     type: 'conversation',
                                     message: userPrompt,
-                                    response: '', // Will be updated later if needed
+                                    response: mcpAnswer,
                                     conversationHistory: conversationHistoryRaw,
                                     hasScreenshot: !!screenshotBase64,
                                     timestamp: new Date().toISOString()
                                 };
                                 
-                                try {
-                                    return await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
-                                } catch (uiError) {
-                                    console.error('[AskService] Parallel UI analysis failed:', uiError);
-                                    return null;
-                                }
-                            }
-                            return null;
-                        })()
-                    ];
-                    
-                    // Wait for both operations to complete
-                    const [mcpResponse, uiResult] = await Promise.all(parallelPromises);
-                    
-                    if (mcpResponse && mcpResponse.answer) {
-                        const mcpAnswer = mcpResponse.answer;
-                        console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
-                        
-                        // Email requests are now handled at classification level and return early
-                        // This section is for other UI opportunities
-                        let didUIOverride = false;
-                        
-                        // Process UI result from parallel operation
-                        try {
-                            if (uiResult) {
-                                console.log('[AskService] 🔍 DEBUG parallel uiResult:', JSON.stringify(uiResult, null, 2));
+                                // Get contextual actions and track UI override
+                                let uiResult = null;
+                                uiResult = await global.invisibilityService.mcpUIIntegration.getContextualActions(uiContext);
+                                
+                                console.log('[AskService] 🔍 DEBUG uiResult:', JSON.stringify(uiResult, null, 2));
                                 if (uiResult && uiResult.autoTriggered) {
                                     console.log(`[AskService] UI auto-triggered for: ${uiResult.autoTriggeredTypes.join(', ')}`);
                                     
@@ -1002,6 +697,7 @@ class AskService {
                     console.warn(`[AskService] 🎯 This means Notion data cannot be accessed`);
                 }
             }
+            } // Close the else block for non-web-search requests
             
             const modelInfo = await modelStateService.getCurrentModelInfo('llm');
             if (!modelInfo || !modelInfo.apiKey) {
@@ -1012,7 +708,7 @@ class AskService {
             const screenshotResult = await captureScreenshot({ quality: 'medium' });
             const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
 
-            const questionType = await this.classifyQuestionType(userPrompt);
+            const questionType = this.classifyQuestionType(userPrompt);
             const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw, questionType);
 
             const systemPrompt = getSystemPrompt('leviousa_analysis', conversationHistory, false);
@@ -1034,38 +730,34 @@ class AskService {
                 });
             }
             
-            // PERFORMANCE: Use Ultra-Fast Streaming Service for <100ms responses
-            console.log('[AskService] 🚀 Using Ultra-Fast Streaming Service for realtime responses');
+            // Use parallel orchestrator for intelligent LLM selection and execution
+            console.log('[AskService] 🚀 Using Parallel LLM Orchestrator for optimal response');
             
             try {
-                const { getUltraFastStreamingService } = require('../common/services/ultraFastStreamingService');
-                const ultraFastStreamer = getUltraFastStreamingService();
-                
-                // Stream with ultra-fast optimizations
-                const response = await ultraFastStreamer.streamResponse(userPrompt.trim(), {
-                    provider: modelInfo.provider,
-                    model: modelInfo.model,
+                // Use parallel orchestrator for intelligent provider selection with web search
+                const response = await this.parallelOrchestrator.execute(userPrompt.trim(), {
+                    standardProvider: modelInfo.provider,
+                    standardModel: modelInfo.model,
+                    webProvider: 'perplexity',
+                    webModel: 'sonar-pro', // Use correct Perplexity model for advanced search
                     temperature: 0.7,
-                    maxTokens: 2048,
-                    mode: 'ask'
-                });
-                
-                const askWin = getWindowPool()?.get('ask');
-
-                if (!askWin || askWin.isDestroyed()) {
-                    console.error("[AskService] Ask window is not available to send stream to.");
-                    response.body.getReader().cancel();
-                    return { success: false, error: 'Ask window is not available.' };
-                }
-
-                const reader = response.body.getReader();
-                signal.addEventListener('abort', () => {
-                    console.log(`[AskService] Aborting stream reader. Reason: ${signal.reason}`);
-                    reader.cancel(signal.reason).catch(() => { /* 이미 취소된 경우의 오류는 무시 */ });
+                    maxTokens: 2048
                 });
 
-                await this._processStream(reader, askWin, sessionId, signal);
+                // Handle parallel orchestrator response (non-streaming)
+                if (response && response.content) {
+                    console.log(`[AskService] ✅ Parallel orchestrator response received (${response.content.length} chars) from ${response.provider}`);
+                    
+                    // Update conversation session
+                    const questionType = this.classifyQuestionType(userPrompt);
+                    this.updateConversationSession(sessionId, userPrompt, questionType, response.content);
+                    
+                    // Stream the response to maintain UI consistency
+                    await this._streamMCPAnswer(response.content, sessionId);
                 return { success: true };
+                } else {
+                    throw new Error('No content received from parallel orchestrator');
+                }
 
             } catch (orchestratorError) {
                 // If parallel orchestrator fails, fall back to standard streaming
@@ -1166,14 +858,6 @@ class AskService {
                     if (line.startsWith('data: ')) {
                         const data = line.substring(6);
                         if (data === '[DONE]') {
-                            // 📊 Track Auto Answer usage completion
-                            try {
-                                const subscriptionService = require('../common/services/subscriptionService');
-                                await subscriptionService.trackUsageToWebAPI('cmd_l', 1); // Track 1 minute per use
-                                console.log('[AskService] ✅ Auto Answer usage tracked: +1 minute');
-                            } catch (trackingError) {
-                                console.error('[AskService] ❌ Failed to track usage:', trackingError);
-                            }
                             return; 
                         }
                         try {
@@ -1208,7 +892,7 @@ class AskService {
                     console.log(`[AskService] DB: Saved partial or full assistant response to session ${sessionId} after stream ended.`);
                     
                     // Update conversation session with this exchange
-                    const questionType = await this.classifyQuestionType(this.state.currentQuestion || '');
+                    const questionType = this.classifyQuestionType(this.state.currentQuestion || '');
                     this.updateConversationSession(sessionId, this.state.currentQuestion || '', questionType, fullResponse);
                     
                     // NEW: Trigger intelligent title generation after assistant response
@@ -1311,7 +995,7 @@ Provide one actionable insight (max 15 words):`;
      * @returns {string}
      * @private
      */
-    async classifyQuestionType(userPrompt) {
+    classifyQuestionType(userPrompt) {
         const lowerPrompt = userPrompt.toLowerCase();
         
         // Enhanced debugging for Notion questions specifically
@@ -1359,18 +1043,27 @@ Provide one actionable insight (max 15 words):`;
             console.log(`[AskService] ⚠️ NOTION QUESTION NOT CLASSIFIED AS notion_data_access, continuing with other checks...`);
         }
         
-        // EMAIL COMPOSER REQUESTS - Must be caught BEFORE dynamic tools to prevent direct sending
-        if (lowerPrompt.match(/\b(send email|email.*to|compose email|write.*email|email someone|need.*email|want.*send.*email|send.*test.*email)\b/)) {
-            console.log(`[AskService] ✅ CLASSIFIED AS EMAIL_COMPOSER_REQUEST: "${userPrompt}"`);
-            return 'email_composer_request';
+        // Slack data access
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(messages?|channels?|conversations?|users?|workspaces?)\b.*\b(slack|my slack)\b/) ||
+            lowerPrompt.match(/\b(slack|my slack)\b.*\b(messages?|channels?|conversations?|users?|workspaces?)\b/) ||
+            lowerPrompt.match(/\b(messages?|channels?)\b.*\b(in|from|on)\b.*\b(slack)\b/) ||
+            lowerPrompt.includes('my slack') && lowerPrompt.match(/\b(messages?|channels?|conversations?|users?)\b/)) {
+            return 'slack_data_access';
         }
-
         
-        // DYNAMIC TOOL SELECTION - Replace hardcoded patterns
-        // Check if this is an actionable request that might need tools
-        if (await this.isDynamicToolRequest(userPrompt)) {
-            console.log(`[AskService] ✅ CLASSIFIED AS DYNAMIC_TOOL_REQUEST: "${userPrompt}"`);
-            return 'dynamic_tool_request';
+        // Google Drive/Gmail data access
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(files?|docs?|emails?|drive|gmail|calendar)\b.*\b(google|my google|drive|gmail)\b/) ||
+            lowerPrompt.match(/\b(google|my google|drive|gmail)\b.*\b(files?|docs?|emails?|calendar|documents?)\b/) ||
+            lowerPrompt.match(/\b(files?|docs?|emails?)\b.*\b(in|from|on)\b.*\b(google|drive|gmail)\b/) ||
+            lowerPrompt.includes('my google') && lowerPrompt.match(/\b(files?|docs?|emails?|drive|calendar)\b/)) {
+            return 'google_data_access';
+        }
+        
+        // Generic MCP service data access - catch-all for any connected service
+        if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(my|from|in)\b.*\b(data|content|files?|information)\b/) ||
+            lowerPrompt.match(/\b(what)\b.*\b(services?|integrations?|connections?)\b.*\b(do I have|are connected|can you access)\b/) ||
+            lowerPrompt.match(/\b(access|connect to|use)\b.*\b(my|the)\b.*\b(account|workspace|data|service)\b/)) {
+            return 'mcp_data_access';
         }
         
         // MCP capability questions - when user asks about what the system can do
@@ -1387,10 +1080,8 @@ Provide one actionable insight (max 15 words):`;
         }
         
         // Screen context questions - asking about something visible (ONLY when not asking for data access)
-        // FIXED: Exclude calendar/schedule queries from screen context classification
         if (lowerPrompt.match(/\b(this|these|that|those|here|on screen|visible|showing|displayed|see|looking at|current|open)\b/) &&
-            !lowerPrompt.match(/\b(what can|capabilities|features|do you|are you|pages?|databases?|content|workspace|notes?|documents?|repos?|files?|messages?|channels?)\b/) &&
-            !lowerPrompt.match(/\b(calendar|schedule|event|meeting|appointment|day|week|month|date|time|25th|today|tomorrow|yesterday)\b/)) {
+            !lowerPrompt.match(/\b(what can|capabilities|features|do you|are you|pages?|databases?|content|workspace|notes?|documents?|repos?|files?|messages?|channels?)\b/)) {
             return 'screen_context';
         }
         
@@ -1470,19 +1161,6 @@ Provide one actionable insight (max 15 words):`;
         try {
             await askRepository.addAiMessage({ sessionId, role: 'assistant', content: answer });
             console.log(`[AskService] DB: Saved MCP assistant response to session ${sessionId}`);
-            
-            // Add AI response to context service for advanced context tracking
-            await this.contextService.addMessage(sessionId, {
-                role: 'assistant',
-                content: answer,
-                type: 'text',
-                metadata: {
-                    source: 'mcp_enhanced',
-                    confidence: 0.9
-                }
-            });
-            console.log(`[AskService] 📊 Added AI response to context service`);
-            
             this.triggerTitleGeneration(sessionId);
         } catch (dbError) {
             console.error("[AskService] DB: Failed to save MCP assistant response:", dbError);
@@ -1490,184 +1168,108 @@ Provide one actionable insight (max 15 words):`;
     }
 
     /**
-     * Initialize dynamic tool selection service
+     * Simple screen question detection (main branch style)
      */
-    initializeDynamicToolService() {
-        if (this.dynamicToolService) return this.dynamicToolService;
-        
+    isScreenQuestion(userPrompt) {
+        const lowerPrompt = userPrompt.toLowerCase();
+        return lowerPrompt.includes('what do you see') ||
+               lowerPrompt.includes('what can you see') ||
+               lowerPrompt.includes('on my screen') ||
+               lowerPrompt.includes('what is on') ||
+               lowerPrompt.includes('describe what') ||
+               lowerPrompt.includes('tell me what') ||
+               lowerPrompt.includes('screen') && (lowerPrompt.includes('see') || lowerPrompt.includes('visible'));
+    }
+
+    /**
+     * Handle screen questions directly with screenshot (main branch style)
+     */
+    async handleScreenQuestionDirectly(userPrompt, sessionId, conversationHistoryRaw) {
         try {
-            const mcpClient = getMCPClient();
-            if (!mcpClient) {
-                console.log('[AskService] Dynamic tool service: MCP client not available');
-                return null;
+            const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+            if (!modelInfo || !modelInfo.apiKey) {
+                throw new Error('AI model or API key not configured.');
             }
 
-            // Get tool registry from MCP client
-            const toolRegistry = mcpClient.toolRegistry;
-            if (!toolRegistry) {
-                console.log('[AskService] Dynamic tool service: Tool registry not available');
-                return null;
+            // Always capture screenshot for screen questions
+            const screenshotResult = await captureScreenshot({ quality: 'medium' });
+            const screenshotBase64 = screenshotResult.success ? screenshotResult.base64 : null;
+
+            if (!screenshotBase64) {
+                // If screenshot failed, provide a helpful error message
+                this.state.isLoading = false;
+                this.state.currentResponse = "I apologize, but I cannot capture a screenshot of your screen right now. Please ensure the application has screen recording permissions.";
+                this._broadcastState();
+                
+                await askRepository.addAiMessage({ sessionId, role: 'assistant', content: this.state.currentResponse });
+                return;
             }
 
-            // Get LLM provider - use the one from MCP client that supports chatWithTools
-            const llmProvider = mcpClient.llmService;
-            if (!llmProvider || typeof llmProvider.chatWithTools !== 'function') {
-                console.log('[AskService] Dynamic tool service: LLM provider with chatWithTools not available');
-                return null;
-            }
+            const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw);
+            const systemPrompt = getSystemPrompt('leviousa_analysis', conversationHistory, false);
 
-            this.dynamicToolService = new DynamicToolSelectionService(toolRegistry, llmProvider);
-            console.log('[AskService] ✅ Dynamic tool selection service initialized');
-            
-            return this.dynamicToolService;
-        } catch (error) {
-            console.error('[AskService] Failed to initialize dynamic tool service:', error);
-            return null;
-        }
-    }
+            const messages = [
+                { role: 'system', content: systemPrompt },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: `User Request: ${userPrompt.trim()}` },
+                        {
+                            type: 'image_url',
+                            image_url: { url: `data:image/jpeg;base64,${screenshotBase64}` }
+                        }
+                    ],
+                },
+            ];
 
-    /**
-     * Check if this is a dynamic tool request using pure LLM intelligence
-     */
-    async isDynamicToolRequest(userPrompt) {
-        try {
-            // Initialize dynamic tool service if needed
-            const toolService = this.initializeDynamicToolService();
-            if (!toolService) {
-                console.log('[AskService] Dynamic tool service not available, using fallback patterns');
-                return this.isActionableRequestFallback(userPrompt);
-            }
-
-            // Get available tool count
-            const toolCount = toolService.getAvailableToolCount();
-            if (toolCount === 0) {
-                console.log('[AskService] No tools available for dynamic selection');
-                return false;
-            }
-
-            // Let the LLM with conversation context decide intelligently
-            // No hardcoded patterns - Claude understands context naturally
-            console.log(`[AskService] 🧠 LLM-driven analysis: ${toolCount} tools available for "${userPrompt.substring(0, 80)}..."`);
-            console.log(`[AskService] ✅ ROUTING TO DYNAMIC TOOLS: Letting LLM with conversation context decide intelligently`);
-            return true;
-            
-        } catch (error) {
-            console.error('[AskService] Error in dynamic tool request analysis:', error);
-            return this.isActionableRequestFallback(userPrompt);
-        }
-    }
-
-    /**
-     * Quick heuristic check if request could potentially need tools
-     */
-    couldNeedTools(prompt) {
-        const lowerPrompt = prompt.toLowerCase();
-        
-        // Action words that typically require tools
-        const actionWords = [
-            'send', 'create', 'schedule', 'book', 'get', 'find', 'search', 'pull up',
-            'show me', 'list', 'access', 'retrieve', 'post', 'publish', 'compose',
-            'draft', 'email', 'message', 'meeting', 'event', 'calendar', 'linkedin',
-            'delete', 'remove', 'cancel', 'clear', 'update', 'modify', 'change', 'edit'
-        ];
-        
-        // Service/platform keywords
-        const serviceWords = [
-            'gmail', 'google', 'calendar', 'linkedin', 'calendly', 'notion', 
-            'slack', 'github', 'drive', 'email', 'profile'
-        ];
-        
-        // Calendar/schedule related phrases that indicate need for calendar tools
-        const calendarPhrases = [
-            'my day', 'day look', 'scheduled for', 'appointments on', 'busy on',
-            'free on', 'available on', 'booked on', 'events on', 'meetings on',
-            'this month', 'next month', 'this week', 'next week', 'today', 'tomorrow',
-            '25th', '26th', '27th', '28th', '29th', '30th', '31st'
-        ];
-        
-        const hasCalendarPhrase = calendarPhrases.some(phrase => lowerPrompt.includes(phrase));
-        
-        const hasActionWord = actionWords.some(word => lowerPrompt.includes(word));
-        const hasServiceWord = serviceWords.some(word => lowerPrompt.includes(word));
-        
-        // Could need tools if it has action words OR mentions specific services OR calendar phrases
-        return hasActionWord || hasServiceWord || hasCalendarPhrase;
-    }
-
-    /**
-     * Fallback pattern matching for when dynamic tool service is unavailable
-     */
-    isActionableRequestFallback(prompt) {
-        const lowerPrompt = prompt.toLowerCase();
-        
-        // Gmail/Email patterns
-        if (lowerPrompt.match(/\b(send|compose|draft|email|gmail)\b/)) {
-            return true;
-        }
-        
-        // Calendar patterns - Enhanced to catch more calendar-related queries
-        if (lowerPrompt.match(/\b(schedule|book|create|calendar|meeting|event)\b/) ||
-            lowerPrompt.match(/\b(my day|day look|scheduled for|appointments|busy|free|available|booked)\b/) ||
-            lowerPrompt.match(/\b(this month|next month|this week|next week|today|tomorrow)\b/) ||
-            lowerPrompt.match(/\b(25th|26th|27th|28th|29th|30th|31st)\b/) ||
-            lowerPrompt.match(/\b(events on|meetings on|what.*on.*\d+)\b/)) {
-            return true;
-        }
-        
-        // LinkedIn patterns
-        if (lowerPrompt.match(/\b(linkedin|profile|pull\s*up|pullup)\b/)) {
-            return true;
-        }
-        
-        return false;
-    }
-
-    /**
-     * Handle dynamic tool requests using LLM-based selection
-     */
-    async handleDynamicToolRequest(userPrompt, sessionId) {
-        try {
-            console.log(`[AskService] 🔧 Handling dynamic tool request: "${userPrompt}"`);
-            
-            const toolService = this.initializeDynamicToolService();
-            if (!toolService) {
-                throw new Error('Dynamic tool service not available');
-            }
-
-            // Get the current user ID from authService
-            const authService = require('../common/services/authService');
-            const userId = authService.getCurrentUserId();
-            
-            // Get conversation history from context service for better continuity
-            const conversationContext = this.contextService.getContextForLLM(sessionId, {
-                includeRecentMessages: true,
-                maxMessages: 10
-            });
-            
-            // Build context with user information AND conversation history
-            const context = {
-                userId: userId,
-                user_id: userId, // Both formats for compatibility
-                sessionId: sessionId,
-                conversationHistory: conversationContext.immediate || [],
-                recentContext: conversationContext
-            };
-
-            // Use dynamic tool selection with user context
-            const result = await toolService.selectAndExecuteTools(userPrompt, context);
-            
-            console.log(`[AskService] 🎯 Dynamic tool result:`, {
-                toolCalled: result.toolCalled,
-                success: !result.error,
-                responseLength: result.response?.length || 0
+            // Use direct streaming LLM (main branch style)
+            const streamingLLM = createStreamingLLM(modelInfo.provider, {
+                apiKey: modelInfo.apiKey,
+                model: modelInfo.model,
+                temperature: 0.7,
+                maxTokens: 2048,
+                usePortkey: modelInfo.provider === 'openai-leviousa',
+                portkeyVirtualKey: modelInfo.provider === 'openai-leviousa' ? modelInfo.apiKey : undefined,
             });
 
-            return result.response;
+            const response = await streamingLLM.streamChat(messages);
+            const askWin = getWindowPool()?.get('ask');
+
+            if (!askWin || askWin.isDestroyed()) {
+                console.error("[AskService] Ask window is not available for screen analysis.");
+                response.body.getReader().cancel();
+                return;
+            }
+
+            const reader = response.body.getReader();
+            this.abortController.signal.addEventListener('abort', () => {
+                console.log(`[AskService] Aborting screen analysis stream. Reason: ${this.abortController.signal.reason}`);
+                reader.cancel(this.abortController.signal.reason).catch(() => {});
+            });
+
+            await this._processStream(reader, askWin, sessionId, this.abortController.signal);
             
         } catch (error) {
-            console.error('[AskService] Dynamic tool request failed:', error);
-            return `I encountered an error while processing your request: ${error.message}. Please try again or contact support if the issue persists.`;
+            console.error('[AskService] Screen question handling failed:', error);
+            this.state.isLoading = false;
+            this.state.currentResponse = `I encountered an error while analyzing your screen: ${error.message}`;
+            this._broadcastState();
+            
+            await askRepository.addAiMessage({ sessionId, role: 'assistant', content: this.state.currentResponse });
         }
+    }
+
+    /**
+     * Detect if request needs web search (using same logic as ParallelLLMOrchestrator)
+     */
+    needsWebSearch(userPrompt) {
+        if (!this.parallelOrchestrator?.webSearchDetector) {
+            return false;
+        }
+        
+        const analysis = this.parallelOrchestrator.webSearchDetector.analyze(userPrompt);
+        console.log(`[AskService] 🔍 Web search analysis: "${userPrompt}" -> confidence: ${Math.round(analysis.confidence * 100)}%, needsSearch: ${analysis.needsWebSearch}`);
+        return analysis.needsWebSearch && analysis.confidence > 0.5; // 50% confidence threshold
     }
 
 }
