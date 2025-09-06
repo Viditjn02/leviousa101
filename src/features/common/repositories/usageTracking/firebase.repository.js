@@ -1,5 +1,17 @@
 const { v4: uuidv4 } = require('uuid');
 const { getFirestoreInstance, initializeFirebase } = require('../../services/firebaseClient');
+const { 
+    collection, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    getDocs, 
+    query, 
+    where, 
+    limit, 
+    orderBy,
+    updateDoc 
+} = require('firebase/firestore');
 
 const collectionName = 'usage_tracking';
 
@@ -10,12 +22,12 @@ const collectionName = 'usage_tracking';
 async function getValidFirestoreInstance() {
     try {
         let firestore = getFirestoreInstance();
-        if (!firestore || typeof firestore.collection !== 'function') {
+        if (!firestore) {
             console.error('[FirebaseRepository] Firestore not properly initialized, initializing...');
             await initializeFirebase();
             firestore = getFirestoreInstance();
-            if (!firestore || typeof firestore.collection !== 'function') {
-                throw new Error('Firestore initialization failed - collection method not available');
+            if (!firestore) {
+                throw new Error('Firestore initialization failed - instance not available');
             }
             console.log('[FirebaseRepository] ✅ Firestore successfully initialized');
         }
@@ -63,20 +75,22 @@ async function create(uid, usageData) {
         updated_at: now
     };
 
-    const docRef = firestore.collection(collectionName).doc(id);
-    await docRef.set(usage);
+    const docRef = doc(collection(firestore, collectionName), id);
+    await setDoc(docRef, usage);
     
     return usage;
 }
 
 async function findByUserAndDate(uid, date) {
     const firestore = await getValidFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .where('date', '==', date)
-        .limit(1);
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        where('date', '==', date),
+        limit(1)
+    );
     
-    const snapshot = await query.get();
+    const snapshot = await getDocs(q);
     return snapshot.empty ? null : snapshot.docs[0].data();
 }
 
@@ -94,21 +108,23 @@ async function updateUsage(uid, date, usageType, minutes) {
     }
 
     // Find the document first
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .where('date', '==', date)
-        .limit(1);
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        where('date', '==', date),
+        limit(1)
+    );
     
-    const snapshot = await query.get();
+    const snapshot = await getDocs(q);
     if (snapshot.empty) {
         throw new Error('Usage record not found for user and date');
     }
     
-    const doc = snapshot.docs[0];
-    const currentData = doc.data();
+    const docSnapshot = snapshot.docs[0];
+    const currentData = docSnapshot.data();
     const newUsage = (currentData[fieldToUpdate] || 0) + minutes;
     
-    await doc.ref.update({
+    await updateDoc(docSnapshot.ref, {
         [fieldToUpdate]: newUsage,
         updated_at: now
     });
@@ -130,39 +146,43 @@ async function updateLimits(uid, date, cmd_l_limit = null, browser_limit = null)
     }
     
     // Find the document first
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .where('date', '==', date)
-        .limit(1);
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        where('date', '==', date),
+        limit(1)
+    );
     
-    const snapshot = await query.get();
+    const snapshot = await getDocs(q);
     if (snapshot.empty) {
         throw new Error('Usage record not found for user and date');
     }
     
-    const doc = snapshot.docs[0];
-    await doc.ref.update(updates);
+    const docSnapshot = snapshot.docs[0];
+    await updateDoc(docSnapshot.ref, updates);
     
     return await findByUserAndDate(uid, date);
 }
 
 async function findById(id) {
     const firestore = await getValidFirestoreInstance();
-    const docRef = firestore.collection(collectionName).doc(id);
-    const snapshot = await docRef.get();
+    const docRef = doc(collection(firestore, collectionName), id);
+    const snapshot = await getDoc(docRef);
     
-    return snapshot.exists ? snapshot.data() : null;
+    return snapshot.exists() ? snapshot.data() : null;
 }
 
-async function getUserUsageHistory(uid, limit = 30) {
+async function getUserUsageHistory(uid, limitCount = 30) {
     const firestore = await getValidFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .orderBy('date', 'desc')
-        .limit(limit);
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        orderBy('date', 'desc'),
+        limit(limitCount)
+    );
     
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => doc.data());
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => docSnapshot.data());
 }
 
 module.exports = {

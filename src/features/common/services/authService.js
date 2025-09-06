@@ -614,6 +614,14 @@ class AuthService {
         // Return null when not authenticated - no default user
         return null;
     }
+
+    // Add method to get the raw Firebase user object for API calls
+    getFirebaseUser() {
+        if (this.currentUserMode === 'firebase' && this.currentUser) {
+            return this.currentUser;
+        }
+        return null;
+    }
 }
 
 const authService = new AuthService();

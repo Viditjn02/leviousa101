@@ -27,6 +27,12 @@ class SQLiteClient {
     }
 
     getDb() {
+        // Check for shutdown state to prevent operations during app exit
+        if (global.isShuttingDown) {
+            console.log('[SQLiteClient] 🔇 Ignoring database operation during shutdown');
+            return null; // Return null instead of throwing during shutdown
+        }
+        
         if (!this.db) {
             throw new Error("Database not connected. Call connect() first.");
         }

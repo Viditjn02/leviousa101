@@ -248,6 +248,59 @@ async function verifyIdToken(idToken) {
     }
 }
 
+/**
+ * Graceful cleanup for Firebase services during app shutdown
+ * This helps prevent BloomFilter and other cleanup errors
+ */
+async function cleanupFirebase() {
+    console.log('[FirebaseClient] Starting Firebase cleanup...');
+    
+    try {
+        // Terminate Firestore connections gracefully
+        if (firestoreInstance) {
+            console.log('[FirebaseClient] Terminating Firestore connections...');
+            const { terminate } = require('firebase/firestore');
+            await terminate(firestoreInstance);
+            firestoreInstance = null;
+        }
+
+        // REMOVED: Don't sign out user during app shutdown to preserve session persistence
+        // The Firebase client-side auth will automatically persist the session via electron-store
+        // and the user should remain logged in when the app restarts
+
+        // Clean up Admin SDK
+        if (adminApp) {
+            console.log('[FirebaseClient] Cleaning up Firebase Admin...');
+            await adminApp.delete();
+            adminApp = null;
+        }
+
+        firebaseAuth = null;
+        firebaseApp = null;
+
+        console.log('[FirebaseClient] ✅ Firebase cleanup completed successfully');
+    } catch (error) {
+        // Suppress known cleanup errors to prevent app shutdown issues
+        if (error.message && (
+            error.message.includes('BloomFilter') ||
+            error.message.includes('Invalid hash count') ||
+            error.message.includes('already terminated') ||
+            error.message.includes('already deleted')
+        )) {
+            console.log('[FirebaseClient] 🔇 Suppressed known Firebase cleanup error:', error.message.split('\n')[0]);
+        } else {
+            console.warn('[FirebaseClient] ⚠️ Firebase cleanup warning (non-critical):', error);
+        }
+    }
+}
+
+// Add error handler for uncaught Firebase errors during shutdown
+process.on('beforeExit', () => {
+    cleanupFirebase().catch(err => {
+        console.log('[FirebaseClient] 🔇 Cleanup error during shutdown (suppressed):', err.message);
+    });
+});
+
 module.exports = {
     initializeFirebase,
     getFirebaseAuth,
@@ -255,4 +308,5 @@ module.exports = {
     getFirebaseAdmin,
     createCustomToken,
     verifyIdToken,
+    cleanupFirebase,
 }; 

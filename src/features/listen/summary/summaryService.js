@@ -189,9 +189,10 @@ Keep all points concise and build upon previous analysis if provided.`,
     parseResponseText(responseText, previousResult) {
         const structuredData = {
             summary: [],
-            topic: { header: '', bullets: [] },
-            actions: [],
-            followUps: ['✉️ Draft a follow-up email', '✅ Generate action items', '📝 Show summary'],
+              topic: { header: '', bullets: [] },
+              actions: [],
+              followUps: ['✉️ Send a follow-up email', '📅 Book Calendar', '📝 Save to Notion'],
+              searchSuggestions: [], // New section for web search suggestions
         };
 
         // 이전 결과가 있으면 기본값으로 사용
@@ -264,8 +265,8 @@ Keep all points concise and build upon previous analysis if provided.`,
                 }
             }
 
-            // 기본 액션 추가
-            const defaultActions = ['✨ What should I say next?', '💬 Suggest follow-up questions'];
+            // 기본 액션 추가 - Keep only essential meeting actions
+            const defaultActions = ['✨ What should I say next?'];
             defaultActions.forEach(action => {
                 if (!structuredData.actions.includes(action)) {
                     structuredData.actions.push(action);
@@ -274,6 +275,9 @@ Keep all points concise and build upon previous analysis if provided.`,
 
             // 액션 개수 제한
             structuredData.actions = structuredData.actions.slice(0, 5);
+
+            // Generate search suggestions based on conversation content
+            structuredData.searchSuggestions = this.generateSearchSuggestions(responseText, structuredData);
 
             // 유효성 검증 및 이전 데이터 병합
             if (structuredData.summary.length === 0 && previousResult) {
@@ -289,14 +293,119 @@ Keep all points concise and build upon previous analysis if provided.`,
                 previousResult || {
                     summary: [],
                     topic: { header: 'Analysis in progress', bullets: [] },
-                    actions: ['✨ What should I say next?', '💬 Suggest follow-up questions'],
-                    followUps: ['✉️ Draft a follow-up email', '✅ Generate action items', '📝 Show summary'],
+                    actions: ['✨ What should I say next?'],
+                    followUps: ['✉️ Send a follow-up email', '📅 Book Calendar', '📝 Save to Notion'],
+                    searchSuggestions: []
                 }
             );
         }
 
         console.log('📊 Final structured data:', JSON.stringify(structuredData, null, 2));
         return structuredData;
+    }
+
+    /**
+     * Get the latest structured data (for follow-up questions, etc.)
+     */
+    getLatestStructuredData() {
+        try {
+            return this.previousAnalysisResult;
+        } catch (error) {
+            console.warn('[SummaryService] Error getting latest structured data:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Generate search suggestions based on conversation content
+     */
+    generateSearchSuggestions(responseText, structuredData) {
+        const searchSuggestions = [];
+        
+        try {
+            // Combine all text content for analysis
+            const allText = [
+                responseText || '',
+                structuredData.topic.header || '',
+                ...structuredData.summary,
+                ...structuredData.topic.bullets
+            ].join(' ').toLowerCase();
+
+            // Company name patterns (including common company suffixes)
+            const companyPatterns = [
+                /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:Inc|Corp|LLC|Ltd|Co|Company|Technologies|Tech|Systems|Solutions|Labs|AI|Software|Services))?)\b/g,
+                /\b(Y\s*Combinator|YC)\b/gi,
+                /\b([A-Z][a-z]+(?:AI|Tech|Corp|Inc|Labs|Systems))\b/g
+            ];
+
+            // Technology/concept patterns
+            const techPatterns = [
+                /\b(AI|artificial intelligence|machine learning|ML|deep learning|neural network|blockchain|cryptocurrency|API|SaaS|cloud computing|DevOps|microservices|kubernetes|docker)\b/gi,
+                /\b([A-Z]{2,}(?:\s+[A-Z]{2,})*)\b/g, // Acronyms
+                /\b(React|Python|JavaScript|Node\.js|GraphQL|REST|PostgreSQL|MongoDB|Redis|AWS|Azure|GCP)\b/gi
+            ];
+
+            // Person name patterns (basic heuristics)
+            const personPatterns = [
+                /\bMr\.\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g,
+                /\bMs\.\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g,
+                /\bDr\.\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g,
+            ];
+
+            // Extract companies
+            companyPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(allText)) !== null && searchSuggestions.length < 8) {
+                    const company = match[1] || match[0];
+                    if (company.length > 2 && !company.match(/^(the|and|for|with|from|this|that|have|been|will|would|could|should)$/i)) {
+                        const suggestion = `🔍 Look up ${company}`;
+                        if (!searchSuggestions.includes(suggestion)) {
+                            searchSuggestions.push(suggestion);
+                        }
+                    }
+                }
+            });
+
+            // Extract technologies
+            techPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(allText)) !== null && searchSuggestions.length < 8) {
+                    const tech = match[1] || match[0];
+                    if (tech.length > 1 && !tech.match(/^(AI|ML|API|SaaS|AWS|GCP)$/)) {
+                        const suggestion = `🔍 Research ${tech}`;
+                        if (!searchSuggestions.includes(suggestion)) {
+                            searchSuggestions.push(suggestion);
+                        }
+                    }
+                }
+            });
+
+            // Extract person names
+            personPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(allText)) !== null && searchSuggestions.length < 8) {
+                    const person = match[1];
+                    if (person.length > 2) {
+                        const suggestion = `🔍 Look up ${person}`;
+                        if (!searchSuggestions.includes(suggestion)) {
+                            searchSuggestions.push(suggestion);
+                        }
+                    }
+                }
+            });
+
+            // If we found specific items, prioritize the most relevant ones
+            if (searchSuggestions.length > 5) {
+                return searchSuggestions.slice(0, 5);
+            }
+
+            console.log(`[SummaryService] Generated ${searchSuggestions.length} search suggestions:`, searchSuggestions);
+            return searchSuggestions;
+
+        } catch (error) {
+            console.error('[SummaryService] Error generating search suggestions:', error);
+            return [];
+        }
     }
 
     /**

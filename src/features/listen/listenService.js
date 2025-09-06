@@ -217,6 +217,10 @@ class ListenService {
                 case 'Stop':
                     console.log('[ListenService] changeSession to "Stop"');
                     await this.closeSession();
+                    // Trigger final title generation when session stops
+                    if (this.currentSessionId) {
+                        this.triggerTitleGeneration(this.currentSessionId, true);
+                    }
                     if (listenWindow && !listenWindow.isDestroyed()) {
                         listenWindow.webContents.send('session-state-changed', { isActive: false });
                     }
@@ -224,8 +228,16 @@ class ListenService {
         
                 case 'Done':
                     console.log('[ListenService] changeSession to "Done"');
+                    // Close the session to stop listening completely
+                    await this.closeSession();
+                    // Trigger final title generation when session is done
+                    if (this.currentSessionId) {
+                        this.triggerTitleGeneration(this.currentSessionId, true);
+                    }
                     internalBridge.emit('window:requestVisibility', { name: 'listen', visible: false });
-                    listenWindow.webContents.send('session-state-changed', { isActive: false });
+                    if (listenWindow && !listenWindow.isDestroyed()) {
+                        listenWindow.webContents.send('session-state-changed', { isActive: false });
+                    }
                     break;
         
                 default:
@@ -275,22 +287,26 @@ class ListenService {
     }
 
     // NEW: Trigger intelligent title generation for session
-    async triggerTitleGeneration(sessionId) {
+    async triggerTitleGeneration(sessionId, isFinal = false) {
         try {
-            // Don't generate titles immediately - wait for some conversation
             const sessionRepository = require('../common/repositories/session');
             const sttRepository = require('./stt/repositories');
             
             // Get transcript count for this session
             const transcripts = await sttRepository.getAllTranscriptsBySessionId(sessionId);
             
-            // Generate title after 8-12 meaningful transcripts (a few exchanges)
-            if (transcripts.length >= 8 && transcripts.length <= 15) {
-                console.log(`[ListenService] Triggering title generation for session ${sessionId} (${transcripts.length} transcripts)`);
+            // Generate title in different scenarios
+            const shouldGenerate = isFinal 
+                ? transcripts.length >= 2  // Final generation: need at least 2 transcripts
+                : (transcripts.length === 4 || transcripts.length === 8 || transcripts.length === 12); // Progressive generation
+            
+            if (shouldGenerate) {
+                const generationType = isFinal ? 'final' : 'progressive';
+                console.log(`[ListenService] Triggering ${generationType} title generation for session ${sessionId} (${transcripts.length} transcripts)`);
                 
                 // Generate title in background (don't await to avoid blocking)
                 sessionRepository.generateIntelligentTitle(sessionId).catch(error => {
-                    console.warn('[ListenService] Title generation failed:', error.message);
+                    console.warn(`[ListenService] ${generationType} title generation failed:`, error.message);
                 });
             }
         } catch (error) {

@@ -3,6 +3,13 @@ const encryptionService = require('../../services/encryptionService');
 
 function getByProvider(provider) {
     const db = sqliteClient.getDb();
+    
+    // Handle shutdown case gracefully
+    if (!db) {
+        console.log('[ProviderSettings] 🔇 Database not available during shutdown, returning null');
+        return null;
+    }
+    
     const stmt = db.prepare('SELECT * FROM provider_settings WHERE provider = ?');
     const result = stmt.get(provider) || null;
     
@@ -33,6 +40,12 @@ function upsert(provider, settings) {
     }
     
     const db = sqliteClient.getDb();
+    
+    // Handle shutdown case gracefully
+    if (!db) {
+        console.log('[ProviderSettings] 🔇 Database not available during shutdown, skipping upsert');
+        return { changes: 0 };
+    }
     
     // Use SQLite's UPSERT syntax (INSERT ... ON CONFLICT ... DO UPDATE)
     const stmt = db.prepare(`

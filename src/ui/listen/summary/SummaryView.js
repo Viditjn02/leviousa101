@@ -172,6 +172,19 @@ export class SummaryView extends LitElement {
             transform: translateX(2px);
         }
 
+        .search-suggestion {
+            background: rgba(33, 150, 243, 0.1);
+            border-left: 3px solid rgba(33, 150, 243, 0.5);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .search-suggestion:hover {
+            background: rgba(33, 150, 243, 0.2);
+            border-left-color: rgba(33, 150, 243, 0.8);
+            transform: translateX(3px);
+        }
+
         /* 마크다운 렌더링된 콘텐츠 스타일 */
         .markdown-content {
             color: #ffffff;
@@ -694,6 +707,33 @@ export class SummaryView extends LitElement {
         }
     }
 
+    async handleSearchClick(searchText) {
+        console.log('🔍 Search suggestion clicked:', searchText);
+        
+        try {
+            // Extract the search term from the suggestion text
+            const searchMatch = searchText.match(/🔍\s+(?:Look up|Search for|Research)\s+(.+?)(?:\s+(?:on web|info))?$/);
+            const searchTerm = searchMatch ? searchMatch[1] : searchText.replace(/🔍\s+/, '');
+            
+            // Create search URL
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`;
+            
+            // Use Electron's shell to open in browser
+            if (window.api?.shell?.openExternal) {
+                await window.api.shell.openExternal(searchUrl);
+                console.log('✅ Opened web search for:', searchTerm);
+            } else if (window.api?.openExternalUrl) {
+                await window.api.openExternalUrl(searchUrl);
+                console.log('✅ Opened web search for:', searchTerm);
+            } else {
+                // Fallback: open in current window
+                window.open(searchUrl, '_blank');
+            }
+        } catch (error) {
+            console.error('❌ Error opening search:', error);
+        }
+    }
+
     getSummaryText() {
         const data = this.structuredData || { summary: [], topic: { header: '', bullets: [] }, actions: [] };
         let sections = [];
@@ -736,12 +776,12 @@ export class SummaryView extends LitElement {
         
         // Ensure actions are always available, even if empty from data
         if (!data.actions || data.actions.length === 0) {
-            data.actions = ['✨ What should I say next?', '💬 Suggest follow-up questions'];
+            data.actions = ['✨ What should I say next?'];
         }
         
         // Ensure followUps are available when recording is completed
         if (this.hasCompletedRecording && (!data.followUps || data.followUps.length === 0)) {
-            data.followUps = ['✉️ Draft a follow-up email', '✅ Generate action items', '📝 Show summary'];
+            data.followUps = ['✉️ Send a follow-up email'];
         }
 
         const hasAnyContent = data.summary.length > 0 || data.topic.bullets.length > 0 || data.actions.length > 0;
@@ -787,18 +827,34 @@ export class SummaryView extends LitElement {
                                       )}
                               `
                             : ''}
-                        ${data.actions.length > 0 || this.hasCompletedRecording
+                        ${data.actions.length > 0
+                            ? html`
+                                  <insights-title>What should I say next?</insights-title>
+                                  ${data.actions.map((action, index) => 
+                                      html`<div class="request-item" @click=${() => this.handleRequestClick(action)}>${action}</div>`
+                                  )}
+                              `
+                            : ''}
+                        ${data.searchSuggestions && data.searchSuggestions.length > 0
+                            ? html`
+                                  <insights-title>Search</insights-title>
+                                  ${data.searchSuggestions.map((suggestion, index) => 
+                                      html`<div class="request-item search-suggestion" @click=${() => this.handleSearchClick(suggestion)}>${suggestion}</div>`
+                                  )}
+                              `
+                            : ''}
+                        ${this.hasCompletedRecording && data.followUps && data.followUps.length > 0
                             ? html`
                                   <insights-title>Actions</insights-title>
                                   <mcp-action-bar
                                       .context=${{
-                                          type: this.hasCompletedRecording ? 'listen-complete' : 'listen-summary',
+                                          type: 'listen-complete',
                                           summary: this.getSummaryText(),
                                           structuredData: this.structuredData,
                                           sessionType: 'listen',
-                                          message: this.hasCompletedRecording ? 'Meeting completed' : 'Live insights',
+                                          message: 'Meeting completed',
                                           response: this.getSummaryText(),
-                                          actions: data.actions || [],
+                                          actions: [],
                                           followUps: data.followUps || []
                                       }}
                                       @mcp-action=${this.handleMCPAction}

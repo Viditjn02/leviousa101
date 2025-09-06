@@ -24,10 +24,13 @@ module.exports = {
     ipcMain.handle('settings:get-firebase-token', async () => {
       try {
         const currentUser = authService.getCurrentUser();
-        if (currentUser && currentUser.getIdToken) {
-          const token = await currentUser.getIdToken();
-          console.log('[FeatureBridge] Got Firebase ID token for settings');
-          return token;
+        if (currentUser && currentUser.mode === 'firebase') {
+          const firebaseUser = authService.getFirebaseUser();
+          if (firebaseUser && firebaseUser.getIdToken) {
+            const token = await firebaseUser.getIdToken();
+            console.log('[FeatureBridge] Got Firebase ID token for settings');
+            return token;
+          }
         }
         console.warn('[FeatureBridge] No Firebase user available for token');
         return null;

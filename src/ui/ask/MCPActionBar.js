@@ -199,9 +199,48 @@ export class MCPActionBar extends LitElement {
     
     // Handle built-in actions differently
     if (action.isBuiltIn) {
-      console.log('[MCPActionBar] Built-in action clicked, sending to ask service:', action.label);
+      console.log('[MCPActionBar] Built-in action clicked:', action.label);
       
-      // Send built-in actions to the ask service for processing
+      // Check if this is a calendar or notion action that should be handled as MCP actions
+      if (action.label?.includes('📅') || action.label?.toLowerCase().includes('calendar')) {
+        // Convert to MCP calendar action
+        const mcpAction = {
+          id: `mcp-calendar-${Date.now()}`,
+          label: action.label,
+          type: 'meeting.schedule',
+          confidence: 0.9,
+          context: this.context
+        };
+        
+        console.log('[MCPActionBar] Converting calendar action to MCP action:', mcpAction);
+        this.dispatchEvent(new CustomEvent('mcp-action', {
+          detail: { action: mcpAction },
+          bubbles: true,
+          composed: true
+        }));
+        return;
+      }
+      
+      if (action.label?.includes('📝') || action.label?.toLowerCase().includes('notion')) {
+        // Convert to MCP notion action
+        const mcpAction = {
+          id: `mcp-notion-${Date.now()}`,
+          label: action.label,
+          type: 'notes.save',
+          confidence: 0.9,
+          context: this.context
+        };
+        
+        console.log('[MCPActionBar] Converting notion action to MCP action:', mcpAction);
+        this.dispatchEvent(new CustomEvent('mcp-action', {
+          detail: { action: mcpAction },
+          bubbles: true,
+          composed: true
+        }));
+        return;
+      }
+      
+      // Send other built-in actions to the ask service for processing
       if (window.api?.summaryView?.sendQuestionFromSummary) {
         try {
           await window.api.summaryView.sendQuestionFromSummary(action.label);

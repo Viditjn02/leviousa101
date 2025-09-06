@@ -1,5 +1,17 @@
 const { v4: uuidv4 } = require('uuid');
 const { getFirestoreInstance } = require('../../services/firebaseClient');
+const { 
+    collection, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    getDocs, 
+    query, 
+    where, 
+    limit, 
+    orderBy,
+    writeBatch
+} = require('firebase/firestore');
 
 const collectionName = 'referral_bonuses';
 
@@ -20,20 +32,22 @@ async function create(uid, bonusType, bonusData) {
         created_at: now
     };
 
-    const docRef = firestore.collection(collectionName).doc(id);
-    await docRef.set(bonus);
+    const docRef = doc(collection(firestore, collectionName), id);
+    await setDoc(docRef, bonus);
     
     return bonus;
 }
 
 async function findByUserId(uid) {
     const firestore = getFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .orderBy('created_at', 'desc');
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        orderBy('created_at', 'desc')
+    );
     
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => doc.data());
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => docSnapshot.data());
 }
 
 async function findActiveByUserId(uid) {
@@ -41,12 +55,14 @@ async function findActiveByUserId(uid) {
     const now = Date.now();
     
     // Get all bonuses for user (Firebase doesn't support complex OR queries easily)
-    const query = firestore.collection(collectionName)
-        .where('uid', '==', uid)
-        .orderBy('created_at', 'desc');
+    const q = query(
+        collection(firestore, collectionName),
+        where('uid', '==', uid),
+        orderBy('created_at', 'desc')
+    );
     
-    const snapshot = await query.get();
-    const allBonuses = snapshot.docs.map(doc => doc.data());
+    const snapshot = await getDocs(q);
+    const allBonuses = snapshot.docs.map(docSnapshot => docSnapshot.data());
     
     // Filter active bonuses client-side
     return allBonuses.filter(bonus => 
@@ -56,20 +72,22 @@ async function findActiveByUserId(uid) {
 
 async function findByReferralId(referralId) {
     const firestore = getFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .where('referral_id', '==', referralId)
-        .orderBy('created_at', 'desc');
+    const q = query(
+        collection(firestore, collectionName),
+        where('referral_id', '==', referralId),
+        orderBy('created_at', 'desc')
+    );
     
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => doc.data());
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => docSnapshot.data());
 }
 
 async function findById(id) {
     const firestore = getFirestoreInstance();
-    const docRef = firestore.collection(collectionName).doc(id);
-    const snapshot = await docRef.get();
+    const docRef = doc(collection(firestore, collectionName), id);
+    const snapshot = await getDoc(docRef);
     
-    return snapshot.exists ? snapshot.data() : null;
+    return snapshot.exists() ? snapshot.data() : null;
 }
 
 async function getTotalActiveBonusMinutes(uid) {
@@ -88,14 +106,16 @@ async function deleteExpired() {
     const firestore = getFirestoreInstance();
     const now = Date.now();
     
-    const query = firestore.collection(collectionName)
-        .where('bonus_expires_at', '<=', now);
+    const q = query(
+        collection(firestore, collectionName),
+        where('bonus_expires_at', '<=', now)
+    );
     
-    const snapshot = await query.get();
-    const batch = firestore.batch();
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(firestore);
     
-    snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
+    snapshot.docs.forEach(docSnapshot => {
+        batch.delete(docSnapshot.ref);
     });
     
     if (!snapshot.empty) {

@@ -232,6 +232,12 @@ class ModelStateService extends EventEmitter {
     async setFirebaseVirtualKey(virtualKey) {
         console.log(`[ModelStateService] Setting Firebase virtual key.`);
 
+        // Handle shutdown gracefully
+        if (global.isShuttingDown) {
+            console.log('[ModelStateService] 🔇 Ignoring Firebase virtual key update during shutdown');
+            return;
+        }
+
         // 키를 설정하기 전에, 이전에 openai-leviousa 키가 있었는지 확인합니다.
         const previousSettings = await providerSettingsRepository.getByProvider('openai-leviousa');
         const wasPreviouslyConfigured = !!previousSettings?.api_key;

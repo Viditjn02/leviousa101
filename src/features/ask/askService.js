@@ -570,6 +570,14 @@ class AskService {
                         console.log(`[AskService] 🎯 Available external tools: ${mcpClient.externalTools?.length || 0}`);
                     }
                     
+                    // Special logging for Google Calendar/Gmail questions
+                    if (questionType === 'google_data_access') {
+                        console.log(`[AskService] 🎯 GOOGLE DATA ACCESS DETECTED - proceeding with MCP enhanced answer`);
+                        console.log(`[AskService] 🎯 Question: "${userPrompt}"`);
+                        console.log(`[AskService] 🎯 MCP Client initialized: ${mcpClient.isInitialized}`);
+                        console.log(`[AskService] 🎯 Available external tools: ${mcpClient.externalTools?.length || 0}`);
+                    }
+                    
                     // Build enhanced question with conversation awareness
                     const questionObj = this._buildEnhancedQuestion(userPrompt, conversationHistoryRaw, questionType);
                     
@@ -595,10 +603,13 @@ class AskService {
                         const mcpAnswer = mcpResponse.answer;
                         console.log(`[AskService] ✅ MCP generated enhanced answer (${mcpAnswer.length} characters)`);
                         
-                        // Analyze conversation for contextual UI opportunities
+                        // Analyze conversation for contextual UI opportunities  
                         let didUIOverride = false;
                         try {
-                            if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
+                            // Skip UI analysis for MCP data access since tools are already handling it properly
+                            if (questionType === 'google_data_access' || questionType === 'notion_data_access' || questionType === 'slack_data_access') {
+                                console.log(`[AskService] ⏭️ Skipping UI analysis for ${questionType} - already handled by MCP tools`);
+                            } else if (global.invisibilityService && global.invisibilityService.mcpUIIntegration) {
                                 console.log('[AskService] 🎨 Analyzing conversation for contextual UI triggers...');
                                 
                                 const uiContext = {
@@ -645,6 +656,11 @@ class AskService {
                             console.log(`[AskService] 🎯 NOTION MCP ANSWER SUCCESS: ${mcpAnswer.substring(0, 200)}...`);
                         }
                         
+                        // Special logging for successful Google Calendar/Gmail answers
+                        if (questionType === 'google_data_access') {
+                            console.log(`[AskService] 🎯 GOOGLE DATA ACCESS MCP ANSWER SUCCESS: ${mcpAnswer.substring(0, 200)}...`);
+                        }
+                        
                         // Only set default answer if UI did not override
                         if (!didUIOverride) {
                             responseText = mcpAnswer;
@@ -676,6 +692,18 @@ class AskService {
                                 console.log(`[AskService] 🎯 Notion server not found in server status`);
                             }
                         }
+                        
+                        // Special logging for failed Google Calendar/Gmail answers  
+                        if (questionType === 'google_data_access') {
+                            console.log(`[AskService] 🎯 GOOGLE DATA ACCESS MCP ANSWER FAILED - no answer generated, checking server status...`);
+                            const serverStatus = mcpClient.getServerStatus();
+                            const googleServer = serverStatus.servers?.['google-calendar'] || serverStatus.servers?.paragon;
+                            if (googleServer) {
+                                console.log(`[AskService] 🎯 Google Calendar server status: authenticated=${googleServer.authenticated}, connected=${googleServer.connected}, tools=${googleServer.tools?.length || 0}`);
+                            } else {
+                                console.log(`[AskService] 🎯 Google Calendar server not found in server status`);
+                            }
+                        }
                     }
                 } catch (mcpError) {
                     console.warn('[AskService] MCP answer generation failed, falling back to standard:', mcpError.message);
@@ -684,6 +712,12 @@ class AskService {
                     // Special logging for Notion MCP errors
                     if (userPrompt.toLowerCase().includes('notion')) {
                         console.error(`[AskService] 🎯 NOTION MCP ERROR: ${mcpError.message}`);
+                        console.error(`[AskService] 🎯 Error stack:`, mcpError.stack);
+                    }
+                    
+                    // Special logging for Google Calendar/Gmail MCP errors
+                    if (questionType === 'google_data_access') {
+                        console.error(`[AskService] 🎯 GOOGLE DATA ACCESS MCP ERROR: ${mcpError.message}`);
                         console.error(`[AskService] 🎯 Error stack:`, mcpError.stack);
                     }
                 }
@@ -1051,11 +1085,16 @@ Provide one actionable insight (max 15 words):`;
             return 'slack_data_access';
         }
         
-        // Google Drive/Gmail data access
+        // Google Drive/Gmail/Calendar data access - ENHANCED for calendar booking
         if (lowerPrompt.match(/\b(what|list|show|find|get|access)\b.*\b(files?|docs?|emails?|drive|gmail|calendar)\b.*\b(google|my google|drive|gmail)\b/) ||
             lowerPrompt.match(/\b(google|my google|drive|gmail)\b.*\b(files?|docs?|emails?|calendar|documents?)\b/) ||
             lowerPrompt.match(/\b(files?|docs?|emails?)\b.*\b(in|from|on)\b.*\b(google|drive|gmail)\b/) ||
-            lowerPrompt.includes('my google') && lowerPrompt.match(/\b(files?|docs?|emails?|drive|calendar)\b/)) {
+            lowerPrompt.includes('my google') && lowerPrompt.match(/\b(files?|docs?|emails?|drive|calendar)\b/) ||
+            // CRITICAL: Calendar booking patterns - "book meeting", "schedule meeting", "create event"
+            lowerPrompt.match(/\b(book|schedule|create|add|set up|set)\b.*\b(meeting|event|appointment|call)\b/) ||
+            lowerPrompt.match(/\b(meeting|event|appointment)\b.*\b(on|for|at)\b.*\b(\d+th|\d+st|\d+nd|\d+rd|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/) ||
+            lowerPrompt.match(/\b(book|schedule)\b.*\b(for|on|at)\b.*\b(\d+)\b/) ||
+            lowerPrompt.match(/\b(meet|meeting)\b.*\b(with|at|on)\b.*\b(@|gmail\.com|\.com)\b/)) {
             return 'google_data_access';
         }
         

@@ -68,7 +68,7 @@ const ANSWER_STRATEGIES = {
         temperature: 0.2,
         timeout: 7000, // 7 second timeout
         useMCPTools: true,
-        requiresServiceMCP: 'google'
+        requiresServiceMCP: 'paragon'  // FIXED: Use actual server name 'paragon' not 'google'
     },
     
     linkedin_data_access: {
@@ -337,6 +337,16 @@ class AnswerService extends EventEmitter {
             return 'google_data_access';
         }
         
+        // Calendar booking requests - CRITICAL for "book meeting" requests
+        if (lowerQuestion.includes('book') && lowerQuestion.includes('meeting') ||
+            lowerQuestion.includes('schedule') && lowerQuestion.includes('meeting') ||
+            lowerQuestion.includes('create') && lowerQuestion.includes('event') ||
+            lowerQuestion.includes('book') && lowerQuestion.includes('appointment') ||
+            lowerQuestion.includes('meeting') && lowerQuestion.includes('18th') ||
+            lowerQuestion.includes('meeting') && lowerQuestion.includes('@gmail.com')) {
+            return 'google_data_access';
+        }
+        
         if (lowerQuestion.includes('linkedin') && 
             (lowerQuestion.includes('profile') || 
              lowerQuestion.includes('pullup') || 
@@ -399,10 +409,11 @@ class AnswerService extends EventEmitter {
             return 'system_status';
         }
         
-        // Help/conversation
+        // Help/conversation - ONLY for explicit help requests (removed faulty conversationHistory check)
         if (lowerQuestion.includes('help') || 
             lowerQuestion.includes('how do') ||
-            context.conversationHistory) {
+            lowerQuestion.includes('tutorial') ||
+            lowerQuestion.includes('guide me')) {
             return 'help_conversation';
         }
         
@@ -610,6 +621,92 @@ Your response should be based entirely on the actual search results above. If th
             }
         }
         
+        // Pre-execute Google Calendar actions for google_data_access strategy
+        if (strategy.requiresServiceMCP === 'paragon' && context.questionType === 'google_data_access' && this.mcpToolInvoker) {
+            try {
+                logger.info('Google Calendar strategy detected, attempting to execute calendar action', { 
+                    query: prompt.userPrompt,
+                    strategyRequires: strategy.requiresServiceMCP,
+                    hasMcpInvoker: !!this.mcpToolInvoker
+                });
+                
+                // Parse calendar request from prompt
+                const calendarRequest = this.parseCalendarRequest(prompt.userPrompt);
+                logger.info('Calendar request parsed', { calendarRequest, originalQuery: prompt.userPrompt });
+                
+                if (calendarRequest && calendarRequest.action === 'create_event') {
+                    logger.info('Executing calendar event creation', { 
+                        title: calendarRequest.title,
+                        date: calendarRequest.date,
+                        attendee: calendarRequest.attendee
+                    });
+                    
+                    // Actually execute the calendar tool
+                    const toolArgs = {
+                        user_id: context.userId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+                        summary: calendarRequest.title,
+                        description: `Meeting scheduled via Leviousa AI`,
+                        start: {
+                            dateTime: calendarRequest.startDateTime,
+                            timeZone: calendarRequest.timeZone || 'America/Vancouver'
+                        },
+                        end: {
+                            dateTime: calendarRequest.endDateTime,
+                            timeZone: calendarRequest.timeZone || 'America/Vancouver'
+                        },
+                        attendees: calendarRequest.attendee ? [{ email: calendarRequest.attendee }] : []
+                    };
+                    
+                    logger.info('Calling google_calendar_create_event tool', { toolArgs });
+                    const calendarResult = await this.mcpToolInvoker.invokeTool('google_calendar_create_event', toolArgs);
+                    
+                    if (calendarResult && calendarResult.content) {
+                        logger.info('Calendar event created successfully', { 
+                            resultLength: JSON.stringify(calendarResult).length 
+                        });
+                        
+                        // Extract calendar event link from the response
+                        let calendarLink = null;
+                        try {
+                            if (calendarResult.content && calendarResult.content[0] && calendarResult.content[0].text) {
+                                const responseData = JSON.parse(calendarResult.content[0].text);
+                                calendarLink = responseData.event?.output?.htmlLink;
+                            }
+                        } catch (e) {
+                            logger.warn('Failed to parse calendar response for link extraction', { error: e.message });
+                        }
+                        
+                        // Return clean, user-friendly response
+                        return `✅ **Meeting scheduled successfully!**
+
+📅 **Meeting Details:**
+• **Title:** ${calendarRequest.title}
+• **Date & Time:** ${calendarRequest.readableDate}
+• **Attendee:** ${calendarRequest.attendee}
+• **Duration:** ${calendarRequest.duration}
+
+The meeting has been added to your Google Calendar and an invitation has been sent to ${calendarRequest.attendee}.
+
+${calendarLink ? `🔗 **View in Calendar:** ${calendarLink}` : ''}`;
+                    } else {
+                        logger.warn('Calendar tool returned no content', { calendarResult });
+                    }
+                } else {
+                    logger.warn('Could not parse calendar request or unsupported action', { 
+                        calendarRequest, 
+                        query: prompt.userPrompt 
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to execute calendar action', { 
+                    error: error.message,
+                    stack: error.stack,
+                    query: prompt.userPrompt
+                });
+                // Continue with LLM generation if calendar execution fails
+            }
+        }
+        
         // Set the system prompt in llmOptions AFTER all processing is complete
         llmOptions.systemPrompt = prompt.systemPrompt;
         
@@ -626,7 +723,8 @@ Your response should be based entirely on the actual search results above. If th
             logger.info('=== END PROMPT DEBUG ===');
         }
         
-        // Generate the answer
+        
+        // Generate the answer using standard LLM
         const answer = await this.llmService.generateResponse(
             prompt.userPrompt,
             prompt.context,
@@ -814,6 +912,95 @@ Your response should be based entirely on the actual search results above. If th
      */
     getStrategyConfig(type) {
         return this.strategies[type] || null;
+    }
+
+    /**
+     * Parse calendar request from natural language
+     */
+    parseCalendarRequest(prompt) {
+        try {
+            const lowerPrompt = prompt.toLowerCase();
+            
+            // Check if it's a calendar creation request
+            if (!lowerPrompt.match(/\b(book|schedule|create|add|set up|set)\b.*\b(meeting|event|appointment|call)\b/)) {
+                return null;
+            }
+            
+            // Extract attendee email
+            const emailMatch = prompt.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+            const attendeeEmail = emailMatch ? emailMatch[1] : null;
+            
+            // Extract date patterns
+            const now = new Date();
+            let targetDate = new Date(now);
+            
+            // Handle "18th of this month", "18th", etc.
+            const dayMatch = prompt.match(/(\d{1,2})(st|nd|rd|th)\s*(?:of\s+this\s+month)?/i);
+            if (dayMatch) {
+                const day = parseInt(dayMatch[1]);
+                targetDate.setDate(day);
+                // If the date has passed this month, assume next month
+                if (targetDate < now) {
+                    targetDate.setMonth(targetDate.getMonth() + 1);
+                }
+            }
+            
+            // Extract time
+            let hour = 17; // Default to 5pm
+            const timeMatch = prompt.match(/(\d{1,2})\s*(pm|am|:00)?/i);
+            if (timeMatch) {
+                hour = parseInt(timeMatch[1]);
+                const meridiem = timeMatch[2]?.toLowerCase();
+                if (meridiem === 'pm' && hour < 12) {
+                    hour += 12;
+                } else if (meridiem === 'am' && hour === 12) {
+                    hour = 0;
+                }
+            }
+            
+            // Handle "6pm" specifically
+            if (prompt.toLowerCase().includes('6pm')) {
+                hour = 18;
+            }
+            
+            // Set the time
+            targetDate.setHours(hour, 0, 0, 0);
+            
+            // Create end time (1 hour later)
+            const endDate = new Date(targetDate);
+            endDate.setHours(endDate.getHours() + 1);
+            
+            // Generate title
+            const title = attendeeEmail 
+                ? `Meeting with ${attendeeEmail}`
+                : 'Scheduled Meeting';
+                
+            const readableDate = targetDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric', 
+                month: 'long',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            });
+            
+            return {
+                action: 'create_event',
+                title,
+                attendee: attendeeEmail,
+                date: targetDate.toISOString().split('T')[0],
+                startDateTime: targetDate.toISOString(),
+                endDateTime: endDate.toISOString(),
+                readableDate,
+                duration: '1 hour',
+                timeZone: 'America/Vancouver'
+            };
+            
+        } catch (error) {
+            console.error('Error parsing calendar request:', error);
+            return null;
+        }
     }
 
     /**

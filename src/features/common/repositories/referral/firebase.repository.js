@@ -1,6 +1,18 @@
 const { v4: uuidv4 } = require('uuid');
 const { getFirestoreInstance } = require('../../services/firebaseClient');
 const { createEncryptedConverter } = require('../firestoreConverter');
+const { 
+    collection, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    getDocs, 
+    query, 
+    where, 
+    limit, 
+    orderBy,
+    updateDoc
+} = require('firebase/firestore');
 
 const collectionName = 'referrals';
 
@@ -34,44 +46,47 @@ async function create(referrerUid, referredEmail, referralType = 'normal') {
         updated_at: now
     };
 
-    const docRef = firestore.collection(collectionName).doc(id).withConverter(referralConverter);
-    await docRef.set(referral);
+    const docRef = doc(collection(firestore, collectionName), id).withConverter(referralConverter);
+    await setDoc(docRef, referral);
     
     return referral;
 }
 
 async function findByReferralCode(referralCode) {
     const firestore = getFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .withConverter(referralConverter)
-        .where('referral_code', '==', referralCode)
-        .limit(1);
+    const q = query(
+        collection(firestore, collectionName).withConverter(referralConverter),
+        where('referral_code', '==', referralCode),
+        limit(1)
+    );
     
-    const snapshot = await query.get();
+    const snapshot = await getDocs(q);
     return snapshot.empty ? null : snapshot.docs[0].data();
 }
 
 async function findByReferredEmail(email) {
     const firestore = getFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .withConverter(referralConverter)
-        .where('referred_email', '==', email.toLowerCase().trim())
-        .orderBy('created_at', 'desc')
-        .limit(1);
+    const q = query(
+        collection(firestore, collectionName).withConverter(referralConverter),
+        where('referred_email', '==', email.toLowerCase().trim()),
+        orderBy('created_at', 'desc'),
+        limit(1)
+    );
     
-    const snapshot = await query.get();
+    const snapshot = await getDocs(q);
     return snapshot.empty ? null : snapshot.docs[0].data();
 }
 
 async function findByReferrerUid(referrerUid) {
     const firestore = getFirestoreInstance();
-    const query = firestore.collection(collectionName)
-        .withConverter(referralConverter)
-        .where('referrer_uid', '==', referrerUid)
-        .orderBy('created_at', 'desc');
+    const q = query(
+        collection(firestore, collectionName).withConverter(referralConverter),
+        where('referrer_uid', '==', referrerUid),
+        orderBy('created_at', 'desc')
+    );
     
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => doc.data());
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => docSnapshot.data());
 }
 
 async function update(id, updates) {
@@ -79,18 +94,18 @@ async function update(id, updates) {
     const now = Date.now();
     updates.updated_at = now;
 
-    const docRef = firestore.collection(collectionName).doc(id).withConverter(referralConverter);
-    await docRef.update(updates);
+    const docRef = doc(collection(firestore, collectionName), id).withConverter(referralConverter);
+    await updateDoc(docRef, updates);
     
     return await findById(id);
 }
 
 async function findById(id) {
     const firestore = getFirestoreInstance();
-    const docRef = firestore.collection(collectionName).doc(id).withConverter(referralConverter);
-    const snapshot = await docRef.get();
+    const docRef = doc(collection(firestore, collectionName), id).withConverter(referralConverter);
+    const snapshot = await getDoc(docRef);
     
-    return snapshot.exists ? snapshot.data() : null;
+    return snapshot.exists() ? snapshot.data() : null;
 }
 
 async function markReferredUserJoined(referralId, referredUid) {

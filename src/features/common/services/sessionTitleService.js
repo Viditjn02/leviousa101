@@ -91,9 +91,16 @@ class SessionTitleService {
      */
     async generateAITitle(content, sessionType) {
         try {
-            const modelInfo = await modelStateService.getCurrentModelInfo('llm');
+            // Make sure modelStateService is available globally
+            if (!global.modelStateService) {
+                console.warn('[SessionTitleService] modelStateService not available globally');
+                return null;
+            }
+            
+            const modelInfo = await global.modelStateService.getCurrentModelInfo('llm');
             if (!modelInfo) {
-                throw new Error('No LLM model available for title generation');
+                console.warn('[SessionTitleService] No LLM model available for title generation');
+                return null;
             }
 
             const { createStreamingLLM } = require('../ai/factory');

@@ -423,14 +423,15 @@ class SubscriptionService {
                     // Call web API to get real usage status with referral bonuses
                     const fetch = require('node-fetch');
                     
-                    console.log('[SubscriptionService] 🔍 Getting ID token from current user...');
-                    console.log('[SubscriptionService] 🔍 Current user type:', typeof currentUser);
-                    console.log('[SubscriptionService] 🔍 Has getIdToken method:', typeof currentUser?.getIdToken);
+                    console.log('[SubscriptionService] 🔍 Getting ID token from Firebase user...');
+                    const firebaseUser = authService.getFirebaseUser();
+                    console.log('[SubscriptionService] 🔍 Firebase user type:', typeof firebaseUser);
+                    console.log('[SubscriptionService] 🔍 Has getIdToken method:', typeof firebaseUser?.getIdToken);
                     
                     let idToken = null;
                     try {
-                        if (currentUser?.getIdToken && typeof currentUser.getIdToken === 'function') {
-                            idToken = await currentUser.getIdToken();
+                        if (firebaseUser?.getIdToken && typeof firebaseUser.getIdToken === 'function') {
+                            idToken = await firebaseUser.getIdToken();
                             console.log('[SubscriptionService] ✅ Got ID token from Firebase user');
                         } else {
                             console.log('[SubscriptionService] ⚠️ Development mode - no getIdToken method, using fallback');
@@ -531,7 +532,8 @@ class SubscriptionService {
                 
                 try {
                     const fetch = require('node-fetch');
-                    const idToken = await currentUser.getIdToken();
+                    const firebaseUser = authService.getFirebaseUser();
+                    const idToken = await firebaseUser.getIdToken();
                     
                     // Map usage types to web API format
                     const usageTypeMap = {

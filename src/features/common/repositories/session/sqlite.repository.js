@@ -175,6 +175,13 @@ function getOrCreateActive(uid, requestedType = 'ask') {
 
 function endAllActiveSessions(uid) {
     const db = sqliteClient.getDb();
+    
+    // Handle shutdown case gracefully
+    if (!db) {
+        console.log('[Session] 🔇 Database not available during shutdown, skipping session cleanup');
+        return { changes: 0 };
+    }
+    
     const now = Math.floor(Date.now() / 1000);
     // Filter by uid to match the Firebase repository's behavior.
     const query = `UPDATE sessions SET ended_at = ?, updated_at = ? WHERE ended_at IS NULL AND uid = ?`;

@@ -51,6 +51,23 @@ process.on('SIGTERM', () => handleAppExit('SIGTERM'));
 process.on('SIGINT', () => handleAppExit('SIGINT'));
 process.on('beforeExit', () => handleAppExit('beforeExit'));
 
+// Suppress known Firebase BloomFilter errors and database shutdown errors
+process.on('unhandledRejection', (reason, promise) => {
+    if (reason && reason.message && (
+        reason.message.includes('BloomFilter error') ||
+        reason.message.includes('Invalid hash count') ||
+        reason.message.includes('WatchChangeAggregator') ||
+        reason.message.includes('Database not connected. Call connect() first.') ||
+        reason.message.includes('Cannot read properties of null (reading \'prepare\')') ||
+        (global.isShuttingDown && reason.message.includes('Database')) ||
+        (global.isShuttingDown && reason.message.includes('Cannot read properties of null'))
+    )) {
+        console.log('[Shutdown] 🔇 Suppressed known shutdown error:', reason.message.split('\n')[0]);
+        return; // Don't crash the app for these known shutdown issues
+    }
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
@@ -58,7 +75,7 @@ if (require('electron-squirrel-startup')) {
 const { app, BrowserWindow, shell, ipcMain, dialog, desktopCapturer, session } = require('electron');
 const logger = require('./utils/logger');
 
-// Set app name immediately for proper identification in System Preferences
+// Set app name immediately for proper identification in System Preferences and protocol dialogs
 app.setName('Leviousa');
 
 const { createWindows } = require('./window/windowManager.js');
@@ -161,21 +178,28 @@ function setupProtocolHandling() {
     // Protocol registration - must be done before app is ready
     console.log('🔗 [Protocol] Setting up protocol handling...');
     try {
+        // Set app name FIRST before any protocol registration to ensure proper branding
+        app.setName('Leviousa');
+        console.log('🔗 [Protocol] App name set to:', app.getName());
+        
         console.log('🔗 [Protocol] Is default protocol client?', app.isDefaultProtocolClient('leviousa'));
         
-        // Set app name for protocol registration
-        app.setName('Leviousa');
-        
         if (!app.isDefaultProtocolClient('leviousa')) {
-            const success = app.setAsDefaultProtocolClient('leviousa');
+            // On macOS, register with explicit app path to ensure proper branding
+            const success = process.platform === 'darwin' 
+                ? app.setAsDefaultProtocolClient('leviousa', process.execPath, []) 
+                : app.setAsDefaultProtocolClient('leviousa');
+            
             console.log('🔗 [Protocol] Set as default protocol client result:', success);
             if (success) {
                 console.log('🔗 [Protocol] Successfully set as default protocol client for leviousa://');
+                console.log('🔗 [Protocol] App name for protocol:', app.getName());
             } else {
                 console.warn('🔗 [Protocol] Failed to set as default protocol client - this may affect deep linking');
             }
         } else {
             console.log('🔗 [Protocol] Already registered as default protocol client for leviousa://');
+            console.log('🔗 [Protocol] Current app name:', app.getName());
         }
     } catch (error) {
         console.error('[Protocol] Error during protocol registration:', error);
@@ -649,12 +673,23 @@ app.on('before-quit', async (event) => {
         
         // Ollama shutdown removed - local models disabled
         
-        // 4. Close database connections (final cleanup)
+        // 4. Close database connections BEFORE Firebase cleanup to prevent auth service errors
         try {
+            // Mark database as shutting down to prevent new operations
+            global.isShuttingDown = true;
             databaseInitializer.close();
             console.log('[Shutdown] Database connections closed');
         } catch (closeError) {
             console.warn('[Shutdown] Error closing database:', closeError.message);
+        }
+        
+        // 5. Clean up Firebase connections (prevent BloomFilter errors)
+        try {
+            const { cleanupFirebase } = require('./features/common/services/firebaseClient');
+            await cleanupFirebase();
+            console.log('[Shutdown] Firebase cleanup completed');
+        } catch (firebaseError) {
+            console.warn('[Shutdown] Firebase cleanup warning (non-critical):', firebaseError.message);
         }
         
         console.log('[Shutdown] Graceful shutdown completed successfully');

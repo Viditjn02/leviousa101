@@ -97,7 +97,7 @@ class MCPClient extends EventEmitter {
                 maxTokens: 2000,
                 temperature: 0.2,
                 useMCPTools: true,
-                requiresServiceMCP: 'google'
+                requiresServiceMCP: 'paragon'  // FIXED: Use actual server name 'paragon' not 'google'
             },
             
             mcp_data_access: {
@@ -116,7 +116,7 @@ class MCPClient extends EventEmitter {
                 maxTokens: 1500,
                 temperature: 0.3,
                 useMCPTools: true,
-                requiresServiceMCP: 'gmail'
+                requiresServiceMCP: 'paragon'  // FIXED: Use 'paragon' not 'gmail'
             },
             
             // MCP capability questions - explain what the system can do
