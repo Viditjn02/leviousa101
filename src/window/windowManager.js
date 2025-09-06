@@ -974,6 +974,16 @@ function setupIpcHandlers(windowPool, layoutManager) {
         // 레이아웃 업데이트 함수를 새 버전으로 호출
         updateChildWindowLayouts(false);
     });
+
+    // Hide app icon from dock after window creation (macOS only)
+    if (process.platform === 'darwin' && app.dock) {
+        try {
+            app.dock.hide();
+            console.log('[WindowManager] ✅ App icon hidden from dock');
+        } catch (error) {
+            console.warn('[WindowManager] ⚠️ Failed to hide app icon from dock:', error.message);
+        }
+    }
 }
 
 

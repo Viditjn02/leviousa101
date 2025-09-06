@@ -16,6 +16,7 @@ const baseConfig = {
 const entryPoints = [
     { in: 'src/ui/app/HeaderController.js', out: 'public/build/header' },
     { in: 'src/ui/app/LeviousaApp.js', out: 'public/build/content' },
+    { in: 'src/ui/utils/paragonSDK.js', out: 'public/build/paragonSDK' },
 ];
 
 async function build() {

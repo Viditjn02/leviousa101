@@ -580,57 +580,43 @@ function setupBrowserEnvironment() {
   }
 }
 
-// Load Paragon SDK from node_modules (Headless Connect Portal approach)
-let paragonSDK = null;
-try {
-  console.log('[Preload] 🔧 Setting up browser environment for Paragon SDK...');
-  setupBrowserEnvironment();
-  
-  console.log('[Preload] 📦 Loading Paragon SDK from node_modules...');
-  // Import the paragon SDK from the installed npm package
-  const paragonModule = require('@useparagon/connect');
-  paragonSDK = paragonModule.paragon || paragonModule.default || paragonModule;
-  console.log('[Preload] ✅ Paragon SDK loaded successfully from node_modules');
-} catch (error) {
-  console.error('[Preload] ❌ Failed to load Paragon SDK:', error.message);
-  console.error('[Preload] Stack trace:', error.stack);
-}
-
-// Expose Paragon headless SDK to the renderer with safety checks
+// Expose Paragon SDK loader to renderer (browser-compatible approach)
+// The @useparagon/connect package is designed for browser environments, not Node.js require()
 contextBridge.exposeInMainWorld('paragonSDK', {
+  // SDK will be loaded dynamically in the renderer process
+  loadSDK: async () => {
+    console.log('[Preload] 📦 Paragon SDK will be loaded in renderer process');
+    return true;
+  },
+  isAvailable: () => {
+    // Check if SDK is loaded in the renderer's window object
+    return typeof window !== 'undefined' && window.paragon !== undefined;
+  },
+  // Placeholder methods that will be replaced once SDK loads in renderer
   authenticate: async (...args) => {
-    if (!paragonSDK?.authenticate) throw new Error('Paragon SDK not available');
-    return await paragonSDK.authenticate(...args);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   installIntegration: async (...args) => {
-    if (!paragonSDK?.installIntegration) throw new Error('Paragon SDK not available');
-    return await paragonSDK.installIntegration(...args);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   uninstallIntegration: async (...args) => {
-    if (!paragonSDK?.uninstallIntegration) throw new Error('Paragon SDK not available');
-    return await paragonSDK.uninstallIntegration(...args);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   getIntegrationMetadata: async (...args) => {
-    if (!paragonSDK?.getIntegrationMetadata) throw new Error('Paragon SDK not available');
-    return await paragonSDK.getIntegrationMetadata(...args);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   getUser: async () => {
-    if (!paragonSDK?.getUser) throw new Error('Paragon SDK not available');
-    return await paragonSDK.getUser();
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   subscribe: (callback) => {
-    if (!paragonSDK?.subscribe) throw new Error('Paragon SDK not available');
-    return paragonSDK.subscribe(callback);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   unsubscribe: (subscription) => {
-    if (!paragonSDK?.unsubscribe) throw new Error('Paragon SDK not available');
-    return paragonSDK.unsubscribe(subscription);
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
   },
   setHeadless: () => {
-    if (!paragonSDK?.setHeadless) throw new Error('Paragon SDK not available');
-    return paragonSDK.setHeadless(true);
-  },
-  isAvailable: () => !!paragonSDK
+    throw new Error('Paragon SDK not loaded yet. Call loadSDK() first in renderer process.');
+  }
 });
 
 // Expose ElectronAPI for Paragon SDK integration
@@ -659,7 +645,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeBrowserWindow: (deltaWidth, deltaHeight) => ipcRenderer.invoke('browser-window:resize', deltaWidth, deltaHeight)
 });
 
-// OAuth server management for MCP
-ipcRenderer.handle('mcp:startOAuthServer', () => ipcRenderer.invoke('mcp:startOAuthServer'));
-ipcRenderer.handle('mcp:stopOAuthServer', () => ipcRenderer.invoke('mcp:stopOAuthServer'));
-ipcRenderer.handle('mcp:generateOAuthUrl', (params) => ipcRenderer.invoke('mcp:generateOAuthUrl', params));
+// OAuth server management for MCP (expose to renderer via contextBridge)
+// Note: ipcRenderer.handle() doesn't exist - only ipcMain.handle() and ipcRenderer.invoke()
+contextBridge.exposeInMainWorld('mcpOAuth', {
+  startOAuthServer: () => ipcRenderer.invoke('mcp:startOAuthServer'),
+  stopOAuthServer: () => ipcRenderer.invoke('mcp:stopOAuthServer'),
+  generateOAuthUrl: (params) => ipcRenderer.invoke('mcp:generateOAuthUrl', params)
+});
