@@ -230,13 +230,18 @@
                     ontimeupdate="onTimeUpdate()"
                     onended="onVideoEnded()"
                 >
-                    <source src="file:///Users/viditjain/Downloads/Welcome 3.mp4" type="video/mp4">
-                    <p>Your browser doesn't support video playback. Please ensure the video file exists at the specified location.</p>
+                    <source src="../assets/welcome-video.mp4" type="video/mp4">
+                    <source src="../assets/welcome-video.webm" type="video/webm">
+                    <p>Your browser doesn't support video playback. The welcome video should be bundled with the application.</p>
                 </video>
                 
                 <div class="video-error" id="videoError">
-                    <p>⚠️ Video file not found</p>
-                    <p>Please make sure "Welcome 3.mp4" exists in /Users/viditjain/Downloads/</p>
+                    <p>⚠️ Welcome video not available</p>
+                    <p>The tutorial video could not be loaded. Please check your internet connection or contact support.</p>
+                    <button onclick="window.open('https://www.leviousa.com/help', '_blank')" 
+                            style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        View Online Help
+                    </button>
                 </div>
                 
                 <div class="video-controls">

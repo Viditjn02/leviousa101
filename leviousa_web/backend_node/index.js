@@ -110,20 +110,46 @@ function createApp(eventBridge) {
     app.post('/api/subscription/check-access', async (req, res) => {
         try {
             const { featureType } = req.body;
-            const userId = req.user?.uid || req.uid;
-
-            console.log(`[API] 🧪 Testing subscription access for user: ${userId}, featureType: ${featureType}`);
-
-            if (!userId) {
-                return res.status(401).json({
+            
+            if (!featureType) {
+                return res.status(400).json({
                     allowed: false,
-                    message: 'Authentication required',
+                    message: 'Feature type is required',
                     requiresUpgrade: true
                 });
             }
 
-            // 🧪 SIMPLIFIED TEST: Check if this is the Pro user
-            if (userId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2') {
+            // Get Firebase auth token and decode it
+            let userId = 'guest-user';
+            let email = null;
+            
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                try {
+                    const token = authHeader.substring(7);
+                    // Simple JWT decode for user info (same as other endpoints)
+                    const tokenParts = token.split('.');
+                    if (tokenParts.length === 3) {
+                        const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString('utf8'));
+                        userId = payload.user_id || payload.sub || payload.uid || 'guest-user';
+                        email = payload.email || null;
+                        console.log(`[API] 🔑 Subscription check for authenticated user: ${userId} (${email})`);
+                    }
+                } catch (error) {
+                    console.log('[API] ⚠️ Token decode failed, using guest access');
+                }
+            } else {
+                console.log('[API] ⚠️ No auth token provided, using guest access');
+            }
+
+            // Check if this is a special email (gets Pro access)
+            const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
+            const isSpecialEmail = email && specialEmails.includes(email);
+            
+            console.log(`[API] 🧪 Checking access for user: ${userId}, email: ${email}, featureType: ${featureType}, isSpecial: ${isSpecialEmail}`);
+
+            // 🧪 SIMPLIFIED TEST: Check if this is the Pro user or special email
+            if (userId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2' || isSpecialEmail) {
                 console.log('[API] ✅ Pro user detected (viditjn02@gmail.com)');
                 
                 if (featureType === 'integrations') {

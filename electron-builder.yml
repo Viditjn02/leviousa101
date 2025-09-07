@@ -81,8 +81,8 @@ mac:
     type: "distribution"  # Distribution for signed releases
     identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
     # signIgnore patterns removed to fix regex errors - will sign everything
-    # Notarization disabled for local testing
-    notarize: false
+    # Notarization enabled for production release
+    notarize: true
     target:
       - target: dmg
         arch: universal  # Universal binary for both architectures
@@ -111,5 +111,5 @@ dmg:
 # Additional configuration for native modules
 buildDependenciesFromSource: true
 
-# Ensure proper permissions (notarization disabled for local testing)
-# afterSign: scripts/notarize.js
+# Ensure proper permissions and enable notarization
+afterSign: scripts/notarize.js

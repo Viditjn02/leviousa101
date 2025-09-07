@@ -1,0 +1,54 @@
+🚀 Integration Page Test URLs
+
+================================================================================
+TEST 1: Pro User URL (viditjn02@gmail.com)
+
+URL:
+http://localhost:3000/integrations?userId=vqLrzGnqajPGlX9Wzq89SgqVPsN2&token=eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5LWlkIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vbGV2aW91c2EtMTIzNCIsImF1ZCI6ImxldmlvdXNhLTEyMzQiLCJhdXRoX3RpbWUiOjE3NTcyMDU3NTMsInVzZXJfaWQiOiJ2cUxyekducWFqUEdsWDlXenE4OVNncVZQc04yIiwic3ViIjoidnFMcnpHbnFhalBHbFg5V3pxODlTZ3FWUHNOMiIsInVpZCI6InZxTHJ6R25xYWpQR2xYOVd6cTg5U2dxVlBzTjIiLCJpYXQiOjE3NTcyMDU3NTMsImV4cCI6MTc1NzIwOTM1MywiZW1haWwiOiJ2aWRpdGpuMDJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsidmlkaXRqbjAyQGdtYWlsLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.ZHVtbXktc2lnbmF0dXJlLWZvci10ZXN0aW5n
+
+Expected Result: ✅ Should show integrations (Pro user)
+
+================================================================================
+TEST 2: Special Email User URL (shreyabhatia63@gmail.com)
+
+URL:
+http://localhost:3000/integrations?userId=special-user-id-123&token=eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5LWlkIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vbGV2aW91c2EtMTIzNCIsImF1ZCI6ImxldmlvdXNhLTEyMzQiLCJhdXRoX3RpbWUiOjE3NTcyMDU3NTMsInVzZXJfaWQiOiJzcGVjaWFsLXVzZXItaWQtMTIzIiwic3ViIjoic3BlY2lhbC11c2VyLWlkLTEyMyIsInVpZCI6InNwZWNpYWwtdXNlci1pZC0xMjMiLCJpYXQiOjE3NTcyMDU3NTMsImV4cCI6MTc1NzIwOTM1MywiZW1haWwiOiJzaHJleWFiaGF0aWE2M0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJlbWFpbCI6WyJzaHJleWFiaGF0aWE2M0BnbWFpbC5jb20iXX0sInNpZ25faW5fcHJvdmlkZXIiOiJwYXNzd29yZCJ9fQ.ZHVtbXktc2lnbmF0dXJlLWZvci10ZXN0aW5n
+
+Expected Result: ✅ Should show integrations (Special email)
+
+================================================================================
+TEST 3: Free User URL
+
+URL:
+http://localhost:3000/integrations?userId=free-user-123&token=eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5LWlkIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vbGV2aW91c2EtMTIzNCIsImF1ZCI6ImxldmlvdXNhLTEyMzQiLCJhdXRoX3RpbWUiOjE3NTcyMDU3NTMsInVzZXJfaWQiOiJmcmVlLXVzZXItMTIzIiwic3ViIjoiZnJlZS11c2VyLTEyMyIsInVpZCI6ImZyZWUtdXNlci0xMjMiLCJpYXQiOjE3NTcyMDU3NTMsImV4cCI6MTc1NzIwOTM1MywiZW1haWwiOiJmcmVldXNlckBleGFtcGxlLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImZyZWV1c2VyQGV4YW1wbGUuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoicGFzc3dvcmQifX0.ZHVtbXktc2lnbmF0dXJlLWZvci10ZXN0aW5n
+
+Expected Result: ❌ Should show upgrade prompt (Free user)
+
+================================================================================
+TEST 4: Connect Gmail URL (Pro user)
+
+URL:
+http://localhost:3000/integrations?userId=vqLrzGnqajPGlX9Wzq89SgqVPsN2&token=eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5LWlkIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vbGV2aW91c2EtMTIzNCIsImF1ZCI6ImxldmlvdXNhLTEyMzQiLCJhdXRoX3RpbWUiOjE3NTcyMDU3NTMsInVzZXJfaWQiOiJ2cUxyekducWFqUEdsWDlXenE4OVNncVZQc04yIiwic3ViIjoidnFMcnpHbnFhalBHbFg5V3pxODlTZ3FWUHNOMiIsInVpZCI6InZxTHJ6R25xYWpQR2xYOVd6cTg5U2dxVlBzTjIiLCJpYXQiOjE3NTcyMDU3NTMsImV4cCI6MTc1NzIwOTM1MywiZW1haWwiOiJ2aWRpdGpuMDJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsidmlkaXRqbjAyQGdtYWlsLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.ZHVtbXktc2lnbmF0dXJlLWZvci10ZXN0aW5n&service=gmail&action=connect
+
+Expected Result: ✅ Should show integrations and auto-connect Gmail
+
+================================================================================
+🔍 DEBUGGING STEPS:
+1. Open one of the URLs above in your browser
+2. Open browser DevTools (F12)
+3. Check Console tab for logs:
+   - Look for "[useIntegrationsAccess]" logs
+   - Look for "🔑" auth token logs
+   - Look for "🧪 Checking access" logs from API
+4. Check Network tab:
+   - Look for POST to /api/subscription/check-access
+   - Check request/response details
+
+💡 COMMON ISSUES:
+- If getting "free" plan despite pro credentials:
+  * Check console logs for token decode errors
+  * Verify user_id in token matches: vqLrzGnqajPGlX9Wzq89SgqVPsN2
+  * Verify email in token matches: viditjn02@gmail.com
+- If getting CORS errors:
+  * Make sure dev server is running on localhost:3000
+  * Check backend CORS configuration

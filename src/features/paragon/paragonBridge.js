@@ -17,23 +17,36 @@ function initializeParagonBridge() {
             const { BrowserWindow, session } = require('electron');
             const path = require('path');
             
-            // Get current user ID for the integrations page
+            // Get current user ID and Firebase token for the integrations page
             const authService = require('../common/services/authService');
             const userId = authService.getCurrentUserId() || 'default-user';
+            
+            // Get Firebase token for proper auth in BrowserWindow
+            let firebaseToken = null;
+            try {
+                const firebaseUser = authService.getFirebaseUser();
+                if (firebaseUser) {
+                    firebaseToken = await firebaseUser.getIdToken();
+                    console.log('[ParagonBridge] 🔑 Got Firebase token for integrations popup');
+                }
+            } catch (error) {
+                console.warn('[ParagonBridge] ⚠️ Could not get Firebase token:', error.message);
+            }
             
             // Determine web URL based on environment: use localhost in development, else the configured web URL
             const webUrl = process.env.NODE_ENV === 'development'
               ? 'http://localhost:3000'
               : (process.env.leviousa_WEB_URL || 'https://www.leviousa.com');
-            // Include userId for context if available
+            // Include userId and token for context if available
             // Use 'authenticate' parameter to trigger auto-connect instead of manual connect
             const params = new URLSearchParams({ 
                 authenticate: service,  // This triggers auto-connect
                 action: 'connect', 
-                ...(userId ? { userId } : {}) 
+                ...(userId ? { userId } : {}),
+                ...(firebaseToken ? { token: firebaseToken } : {})
             });
             const authUrl = `${webUrl}/integrations?${params.toString()}`;
-            console.log(`[ParagonBridge] 🌐 Opening working Paragon integration in-window: ${authUrl}`);
+            console.log(`[ParagonBridge] 🌐 Opening Paragon integration with auth: ${authUrl.split('token=')[0]}token=***`);
             const connectWin = new BrowserWindow({
               width: 1200,
               height: 800,

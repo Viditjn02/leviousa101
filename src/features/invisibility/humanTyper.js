@@ -357,14 +357,19 @@ class HumanTyper extends EventEmitter {
                 
                 await this.runAppleScript(script);
                 
-                // Longer delay between chunks to prevent system overload
-                await this.delay(150);
+                // Calculate proper delay based on chunk length to ensure AppleScript keystroke completes
+                // Estimate: ~50ms per character for system to process keystrokes
+                const typingDelay = Math.max(500, chunk.length * 50);
+                console.log(`[HumanTyper] Waiting ${typingDelay}ms for chunk ${i + 1}/${chunks.length} to complete typing`);
+                await this.delay(typingDelay);
             } catch (error) {
                 console.error(`[HumanTyper] Failed to type chunk ${i + 1}:`, error.message);
                 // Try character-by-character for this chunk
                 await this.typeCharacterByCharacter(chunk);
             }
         }
+        
+        console.log(`[HumanTyper] All ${chunks.length} chunks completed successfully`);
     }
     
     // NEW: Fallback method - type character by character

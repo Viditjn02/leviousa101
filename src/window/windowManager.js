@@ -422,13 +422,7 @@ const setContentProtection = (status) => {
     console.log(`[Protection] Content protection toggled to: ${isContentProtectionOn}`);
     windowPool.forEach((win, name) => {
         if (win && !win.isDestroyed()) {
-            // 🎯 PRIVACY MODE FIX: Don't apply content protection to header to preserve mouse events
-            if (name === 'header') {
-                win.setContentProtection(false); // Header always has no protection for mouse hover
-                console.log('[Protection] Header content protection kept OFF to preserve mouse hover functionality');
-            } else {
             win.setContentProtection(isContentProtectionOn);
-            }
         }
     });
     
@@ -905,9 +899,7 @@ function createWindows() {
         createFeatureWindows(header, ['listen', 'ask', 'settings', 'shortcut-settings', 'tutorial']);
     }
 
-    // 🎯 PRIVACY MODE FIX: Don't apply content protection to header to preserve mouse events
-    // The header needs mouse events for settings hover, but other windows can have protection
-    header.setContentProtection(false); // Always false to preserve mouse hover functionality
+    header.setContentProtection(isContentProtectionOn);
     header.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     
     // Open DevTools in development builds for debugging
@@ -1156,7 +1148,7 @@ const toggleBrowserWindow = async () => {
                 // Make only non-interactive areas draggable
                 document.body.style.webkitAppRegion = 'no-drag'; // Website content should not be draggable
                 
-                // Add CSS for slider styling and privacy protection
+                // Add CSS for slider styling, privacy protection, and tab scrolling
                 const style = document.createElement('style');
                 style.textContent = 
                     '/* Privacy: Disable all tooltips and cursor changes for screen sharing protection */ ' +
@@ -1177,6 +1169,10 @@ const toggleBrowserWindow = async () => {
                         'background: rgba(255, 255, 255, 0.3); ' +
                         'height: 4px; ' +
                         'border-radius: 2px; ' +
+                    '} ' +
+                    '/* Hide scrollbars in tab container */ ' +
+                    '#tab-container::-webkit-scrollbar { ' +
+                        'display: none; ' +
                     '}';
                 document.head.appendChild(style);
                 
@@ -1192,9 +1188,9 @@ const toggleBrowserWindow = async () => {
                 closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255, 95, 87, 0.8)';
                 closeBtn.onclick = () => window.electronAPI?.closeWindow?.();
                 
-                // Create simple tab container with always-visible + button
+                // Create simple tab container with scrolling support
                 const tabContainer = document.createElement('div');
-                tabContainer.style.cssText = 'display: flex; gap: 4px; -webkit-app-region: no-drag; background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 4px; margin: 0 8px; max-width: 300px;';
+                tabContainer.style.cssText = 'display: flex; gap: 4px; -webkit-app-region: no-drag; background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 4px; margin: 0 8px; max-width: 280px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;';
                 tabContainer.id = 'tab-container';
                 
                 // Create simple tab display - will show multiple tabs horizontally
@@ -1270,7 +1266,7 @@ const toggleBrowserWindow = async () => {
                 
                 // Opacity control slider
                 const opacityControl = document.createElement('div');
-                opacityControl.style.cssText = 'display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag;';
+                opacityControl.style.cssText = 'display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag; flex-shrink: 0;';
                 
                 const opacityLabel = document.createElement('span');
                 opacityLabel.textContent = '⚪';

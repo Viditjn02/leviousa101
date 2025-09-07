@@ -12,7 +12,7 @@ export const welcomeVideoTutorial = {
         onAppStart: true,
         onManual: true, // Can be triggered via Cmd+T
     },
-    videoPath: './src/ui/assets/welcome-video.mp4', // Bundled with app
+    videoPath: '../assets/welcome-video.mp4', // Bundled with app (relative to tutorial HTML)
     autoPlay: true,
 };
 
