@@ -20,7 +20,7 @@ export interface SecureDownloadConfig {
 // Each URL is unique, unguessable, and globally distributed for security and performance
 export const SECURE_DOWNLOAD_URLS: Record<string, SecureDownloadConfig> = {
   'macos-arm64': {
-    url: process.env.BLOB_URL_MACOS_ARM64 || 'https://www.leviousa.com/releases/Leviousa-1.0.0-arm64.dmg',
+    url: process.env.BLOB_URL_MACOS_ARM64 || 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg',
     platform: 'macos',
     architecture: 'arm64',
     description: 'macOS installer for Apple Silicon (M1/M2/M3)',
@@ -32,7 +32,7 @@ export const SECURE_DOWNLOAD_URLS: Record<string, SecureDownloadConfig> = {
   },
   
   'macos-intel': {
-    url: process.env.BLOB_URL_MACOS_INTEL || 'https://www.leviousa.com/releases/Leviousa-1.0.0-intel.dmg',
+    url: process.env.BLOB_URL_MACOS_INTEL || 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg',
     platform: 'macos', 
     architecture: 'intel',
     description: 'macOS installer for Intel processors',

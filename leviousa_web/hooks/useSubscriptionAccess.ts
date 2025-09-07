@@ -114,15 +114,24 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
         if (!token && typeof window !== 'undefined') {
           try {
             const { auth } = await import('../utils/firebase')
+            
+            // Wait for auth state to be ready
+            await new Promise((resolve) => {
+              const unsubscribe = auth.onAuthStateChanged((user) => {
+                unsubscribe()
+                resolve(user)
+              })
+            })
+            
             const currentUser = auth.currentUser
             if (currentUser) {
               token = await currentUser.getIdToken()
-              console.log('🔑 [useIntegrationsAccess] Using Firebase auth token for user:', currentUser.uid)
+              console.log('🔑 [useIntegrationsAccess] Using Firebase auth token for user:', currentUser.uid, currentUser.email)
             } else {
-              console.log('⚠️ [useIntegrationsAccess] No Firebase user authenticated')
+              console.log('⚠️ [useIntegrationsAccess] No Firebase user authenticated - will show free experience')
             }
           } catch (error) {
-            console.log('⚠️ [useIntegrationsAccess] Firebase not available or user not logged in')
+            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error.message)
           }
         }
 

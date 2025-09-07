@@ -286,10 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let macUrl;
   if (isMac) {
     // Using professional notarized version with correct DMG experience
-    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg';
+    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg';
     console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon (ARM64)' : 'Intel (x64)', '- Using FINAL COMPLETE DMG');
   } else {
-    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FIXED-STABLE-1756749295823/Leviousa-1.0.0-STABLE-FINAL.dmg'; // Default to working DMG
+    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg'; // Latest universal DMG
   }
   
   const winUrl = '/downloads/LeviousaSetup.exe';

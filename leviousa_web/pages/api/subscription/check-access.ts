@@ -41,28 +41,39 @@ export default async function handler(
       })
     }
 
-    // Get Firebase auth token and decode it
-    let userId = 'guest-user'
-    let email: string | null = null
-    
-    const authHeader = req.headers.authorization
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7)
-        // Simple JWT decode for user info (same as backend_node logic)
-        const tokenParts = token.split('.')
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString('utf8'))
-          userId = payload.user_id || payload.sub || payload.uid || 'guest-user'
-          email = payload.email || null
-          console.log(`[API] 🔑 Subscription check for authenticated user: ${userId} (${email})`)
-        }
-      } catch (error) {
-        console.log('[API] ⚠️ Token decode failed, using guest access')
-      }
-    } else {
-      console.log('[API] ⚠️ No auth token provided, using guest access')
-    }
+            // Get Firebase auth token and decode it
+            let userId = 'guest-user'
+            let email: string | null = null
+            
+            const authHeader = req.headers.authorization
+            console.log(`[API] 🔍 Auth header present: ${!!authHeader}`)
+            
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                try {
+                    const token = authHeader.substring(7)
+                    console.log(`[API] 🔍 Token length: ${token.length}`)
+                    
+                    // Simple JWT decode for user info (same as backend_node logic)
+                    const tokenParts = token.split('.')
+                    console.log(`[API] 🔍 Token parts: ${tokenParts.length}`)
+                    
+                    if (tokenParts.length === 3) {
+                        const payloadString = Buffer.from(tokenParts[1], 'base64').toString('utf8')
+                        console.log(`[API] 🔍 Payload string: ${payloadString.substring(0, 200)}...`)
+                        
+                        const payload = JSON.parse(payloadString)
+                        userId = payload.user_id || payload.sub || payload.uid || 'guest-user'
+                        email = payload.email || null
+                        
+                        console.log(`[API] 🔑 Decoded token - userId: ${userId}, email: ${email}`)
+                        console.log(`[API] 🔍 Full payload:`, JSON.stringify(payload, null, 2))
+                    }
+                } catch (error) {
+                    console.log('[API] ⚠️ Token decode failed:', error.message, 'using guest access')
+                }
+            } else {
+                console.log('[API] ⚠️ No auth token provided, using guest access')
+            }
 
     // Check if this is a special email (gets Pro access)
     const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']

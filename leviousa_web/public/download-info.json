@@ -3,13 +3,13 @@
   "releaseDate": "2025-01-24T15:20:00.000Z",
   "notarized": true,
   "codeSignedBy": "Developer ID Application: Vidit Jain (8LNUMP84V8)",
-  "vercelBlob": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg",
+  "vercelBlob": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg",
   "allIssuesResolved": true,
   "downloads": {
     "macos-universal": {
-      "url": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg",
-      "filename": "Leviousa.dmg",
-      "size": "376 MB",
+      "url": "https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg",
+      "filename": "Leviousa-1.0.0-universal.dmg",
+      "size": "308 MB",
       "platform": "macOS Universal",
       "architecture": "Universal (Intel + Apple Silicon)",
       "notarized": true,

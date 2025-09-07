@@ -153,24 +153,40 @@ function IntegrationsContentInner() {
               <button 
                 onClick={async () => {
                   try {
+                    console.log('🚀 Upgrade button clicked')
+                    
                     // Get Firebase token (from URL or current auth)
                     let token = firebaseToken
                     if (!token && typeof window !== 'undefined') {
                       try {
                         const { auth } = await import('../../utils/firebase')
+                        
+                        // Wait for auth state
+                        await new Promise((resolve) => {
+                          const unsubscribe = auth.onAuthStateChanged((user) => {
+                            unsubscribe()
+                            resolve(user)
+                          })
+                        })
+                        
                         const currentUser = auth.currentUser
                         if (currentUser) {
                           token = await currentUser.getIdToken()
+                          console.log('🔑 Got Firebase token for checkout:', currentUser.email)
                         }
                       } catch (error) {
-                        console.warn('Could not get Firebase token for checkout')
+                        console.warn('Could not get Firebase token for checkout:', error)
                       }
                     }
 
                     if (!token) {
-                      alert('Please login first to upgrade your subscription')
+                      // Redirect to login if no token
+                      console.log('❌ No auth token - redirecting to login')
+                      window.location.href = '/login?redirect=/integrations'
                       return
                     }
+
+                    console.log('💳 Creating Stripe checkout session...')
 
                     // Create Stripe checkout session
                     const response = await fetch('/api/subscription/checkout', {
@@ -186,19 +202,25 @@ function IntegrationsContentInner() {
                       }),
                     })
 
+                    console.log('📊 Checkout response status:', response.status)
+
                     if (response.ok) {
                       const data = await response.json()
+                      console.log('✅ Checkout session created:', data)
                       if (data.url) {
-                        window.open(data.url, '_blank')
+                        console.log('🔗 Redirecting to Stripe checkout...')
+                        window.location.href = data.url  // Same window instead of new tab
                       } else {
                         alert('Failed to create checkout session - no URL received')
                       }
                     } else {
+                      const errorText = await response.text()
+                      console.error('❌ Checkout failed:', response.status, errorText)
                       alert(`Failed to create checkout session: ${response.status}`)
                     }
                   } catch (error) {
-                    console.error('Error creating checkout session:', error)
-                    alert('Failed to create checkout session')
+                    console.error('❌ Error creating checkout session:', error)
+                    alert('Failed to create checkout session - please try again')
                   }
                 }}
                 className="w-full text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"

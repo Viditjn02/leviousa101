@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let macUrl;
   if (isMac) {
     // PROFESSIONAL NOTARIZED VERSION - Complete solution
-    macUrl = 'https://github.com/Viditjn02/leviousa101/releases/download/1.0.0-FINAL-COMPLETE-1756840180591/Leviousa-v1.01-PROFESSIONAL.dmg';
+    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg';
     console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon' : 'Intel', '- Using FINAL COMPLETE DMG');
   } else {
     macUrl = '/api/downloads/dmg'; // Default to ARM64 for non-Mac users

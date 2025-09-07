@@ -29,8 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     logger.debug(`🎯 Architecture: ${detectedArch} (${arch ? 'specified' : 'auto-detected'})`);
 
-    // Vercel Blob Storage - Fresh Universal DMG
-    const vercelBlobUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa.dmg';
+    // Vercel Blob Storage - Latest Universal Notarized DMG  
+    const vercelBlobUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg';
     
     const downloadUrl = vercelBlobUrl;
     logger.debug(`🔗 Redirecting to notarized DMG: ${downloadUrl}`);
@@ -41,7 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('X-Download-Source', 'vercel-blob-storage');
     res.setHeader('X-Apple-Notarized', 'true');
     res.setHeader('X-Leviousa-Version', 'v1.02');
-    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa.dmg"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa-1.0.0-universal.dmg"');
     
     // Direct redirect to Vercel Blob storage (notarized DMG)
     logger.debug('🚀 Redirecting to fresh notarized DMG via Vercel Blob');
