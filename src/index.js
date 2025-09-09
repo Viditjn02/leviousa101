@@ -1258,6 +1258,70 @@ async function handleOAuthCallback(pathname, params) {
 }
 
 
+// Simple production solution: Start dev server automatically (the working approach!)
+async function startProductionDevServer() {
+  const path = require('path');
+  const { spawn } = require('child_process');
+  
+  const webAppPath = path.join(__dirname, '../leviousa_web');
+  
+  return new Promise((resolve, reject) => {
+    console.log(`[ProductionDev] 🚀 Auto-starting Next.js dev server for production...`);
+    console.log(`[ProductionDev] 📁 Web app path: ${webAppPath}`);
+    
+    const nextCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const nextServer = spawn(nextCommand, ['run', 'dev'], {
+      cwd: webAppPath,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_ENV: 'development' }
+    });
+    
+    let serverReady = false;
+    
+    nextServer.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log('[ProductionDev]', output.trim());
+      
+      if (output.includes('Ready') || output.includes('Local:') || output.includes('localhost:3000')) {
+        if (!serverReady) {
+          serverReady = true;
+          console.log(`✅ [ProductionDev] Next.js dev server ready on http://localhost:3000`);
+          resolve(nextServer);
+        }
+      }
+    });
+    
+    nextServer.stderr.on('data', (data) => {
+      const error = data.toString();
+      console.error('[ProductionDev ERROR]', error.trim());
+      
+      if (error.includes('EADDRINUSE') && error.includes('3000')) {
+        reject(new Error('Port 3000 already in use'));
+      }
+    });
+    
+    nextServer.on('error', (error) => {
+      reject(error);
+    });
+    
+    // Cleanup on app exit
+    app.once('before-quit', () => {
+      console.log('[ProductionDev] Shutting down production Next.js dev server...');
+      nextServer.kill();
+    });
+    
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      if (!serverReady) {
+        nextServer.kill();
+        reject(new Error('Production Next.js dev server startup timeout'));
+      }
+    }, 30000);
+  });
+}
+
+// Clean approach: Just determine the web URL - servers managed by concurrently/dev scripts
+
 async function startWebStack() {
   console.log('NODE_ENV =', process.env.NODE_ENV); 
   const isDev = !app.isPackaged;
@@ -1273,15 +1337,12 @@ async function startWebStack() {
     });
   };
 
-  // Always use Vercel hosting for frontend to avoid OAuth issues
-  let apiPort, frontendPort, webUrl;
+  // Clean architecture: Use localhost for both dev and production
+  const apiPort = 9001;
+  const frontendPort = 3000;
+  const webUrl = process.env.ELECTRON_START_URL || 'http://localhost:3000';
   
-  // Always use Vercel hosting domain for consistent OAuth behavior
-  apiPort = isDev ? 9001 : await getAvailablePort();
-  frontendPort = 3000; // Not used when using Vercel hosting
-  webUrl = 'https://www.leviousa.com'; // Always use custom domain for public web dashboard
-  
-  console.log(`🔧 Using Vercel hosting for all builds: API=${apiPort}`);
+  console.log(`🔧 Clean localhost architecture: Frontend=${frontendPort}, API=${apiPort}`);
   console.log(`🌐 Web URL: ${webUrl}`);
 
   process.env.leviousa_API_PORT = apiPort.toString();
@@ -1297,11 +1358,8 @@ async function startWebStack() {
   const createBackendApp = require('../leviousa_web/backend_node');
   const nodeApi = createBackendApp(eventBridge);
 
-  // No local frontend server needed - always use Vercel hosting
-  console.log(`🔥 Using Vercel hosting at ${webUrl}`);
-  console.log(`📋 Frontend is served from Vercel hosting`);
-  console.log(`📋 API runs locally on http://localhost:${apiPort}`);
-
+  console.log(`🚀 Starting API server on localhost:${apiPort}...`);
+  
   const apiSrv = express();
   apiSrv.use(nodeApi);
 
@@ -1313,9 +1371,22 @@ async function startWebStack() {
 
   console.log(`✅ API server started on http://localhost:${apiPort}`);
 
+  // Auto-start Next.js dev server in production (seamless user experience)
+  if (!isDev) {
+    try {
+      await startProductionDevServer();
+      console.log(`✅ Auto-started Next.js dev server for production users`);
+    } catch (error) {
+      console.error(`❌ Failed to auto-start Next.js dev server: ${error.message}`);
+      console.error(`⚠️ Integrations will not work. Fallback: Start 'npm run dev' manually`);
+    }
+  } else {
+    console.log(`🎯 Next.js server expected at: ${webUrl} (managed by concurrently/dev scripts)`);
+  }
+
   console.log(`🚀 All services ready:
-   Frontend: ${webUrl} (Firebase Hosting)
-   API:      http://localhost:${apiPort} (Local)`);
+   Frontend: ${webUrl} (${isDev ? 'Local Next.js via concurrently' : 'Bundled Next.js server'})
+   API:      http://localhost:${apiPort} (Local Express)`);
 
   return frontendPort;
 }

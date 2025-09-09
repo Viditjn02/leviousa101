@@ -7,7 +7,9 @@
   "scripts": {
     "setup": "npm install && cd leviousa_web && npm install && npm run build && cd .. && npm start",
     "start": "npm run build:renderer && electron .",
-    "dev": "npm run start:with-web",
+    "dev": "concurrently -k -n NEXT,ELECTRON \"npm:dev:next\" \"npm:dev:electron\"",
+    "dev:next": "cd leviousa_web && npm run dev",
+    "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 npm run build:renderer && electron .",
     "start:with-web": "npm run build:renderer && npm run start:web-and-electron",
     "start:web-and-electron": "node scripts/start-with-web.js",
     "package": "npm run build:all && electron-builder --dir",
@@ -81,7 +83,6 @@
     "stripe": "^18.4.0",
     "temp": "^0.9.4",
     "validator": "^13.11.0",
-    "wait-on": "^8.0.3",
     "winston": "^3.17.0",
     "ws": "^8.18.0",
     "zod": "^3.25.76"
@@ -92,6 +93,8 @@
     "@electron/rebuild": "^3.7.2",
     "@typescript-eslint/eslint-plugin": "^8.39.1",
     "@typescript-eslint/parser": "^8.39.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
     "dotenv": "^17.2.1",
     "electron": "^30.5.1",
     "electron-builder": "^26.0.12",
@@ -101,7 +104,8 @@
     "jsdom": "^26.1.0",
     "node-fetch": "^2.6.7",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "wait-on": "^8.0.4"
   },
   "optionalDependencies": {
     "electron-liquid-glass": "^1.0.1"

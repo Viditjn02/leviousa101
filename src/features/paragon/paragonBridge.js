@@ -33,10 +33,9 @@ function initializeParagonBridge() {
                 console.warn('[ParagonBridge] ⚠️ Could not get Firebase token:', error.message);
             }
             
-            // Determine web URL based on environment: use localhost in development, else the configured web URL
-            const webUrl = process.env.NODE_ENV === 'development'
-              ? 'http://localhost:3000'
-              : (process.env.leviousa_WEB_URL || 'https://www.leviousa.com');
+            // Always use localhost for integrations (we start local server in both dev and production)
+            const webUrl = 'http://localhost:3000';
+            console.log('[ParagonBridge] 🏠 Using localhost architecture for secure integrations');
             // Include userId and token for context if available
             // Use 'authenticate' parameter to trigger auto-connect instead of manual connect
             const params = new URLSearchParams({ 
@@ -51,8 +50,8 @@ function initializeParagonBridge() {
               width: 1200,
               height: 800,
               show: true,
-              frame: false, // Frameless like listen overlay
-              transparent: true, // Transparent like listen overlay
+              frame: true, // Proper window frame with controls ✅
+              transparent: false, // Solid window (not overlay) ✅
               webPreferences: {
                 preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                 contextIsolation: true,
@@ -60,15 +59,16 @@ function initializeParagonBridge() {
                 // Use the default session which already has CSP patches
                 session: session.defaultSession
               },
-              // Make it independent overlay like listen system
-              parent: undefined, // No parent relationship like listen
-              modal: false, // Not modal - independent like listen
-              alwaysOnTop: true, // Always on top like listen overlay
-              skipTaskbar: true, // Don't show in taskbar like listen overlay
-              hasShadow: false,
+              // Proper window behavior (not overlay)
+              parent: undefined, // Independent window
+              modal: false, // Not modal - user can switch away
+              alwaysOnTop: false, // Normal layering ✅ (fixes OAuth popup issue)
+              skipTaskbar: false, // Show in taskbar ✅ 
+              hasShadow: true, // Normal window shadow ✅
               resizable: true,
-              minimizable: false,
-              maximizable: false,
+              minimizable: true, // Minimize button ✅
+              maximizable: true, // Maximize button ✅
+              closable: true, // Close button ✅
               focusable: true,
               title: `Connect ${service} - Leviousa`
             });
@@ -83,59 +83,7 @@ function initializeParagonBridge() {
             console.log(`[ParagonBridge] 🔧 Connect window using session with CSP patches`);
             await connectWin.loadURL(authUrl);
             
-            // Add custom close button after page loads
-            connectWin.webContents.once('did-finish-load', () => {
-                connectWin.webContents.executeJavaScript(`
-                    // Create close button container
-                    const closeBtn = document.createElement('div');
-                    closeBtn.id = 'leviousa-close-btn';
-                    closeBtn.innerHTML = '✕';
-                    closeBtn.style.cssText = \`
-                        position: fixed !important;
-                        top: 15px !important;
-                        right: 15px !important;
-                        width: 32px !important;
-                        height: 32px !important;
-                        background: rgba(0, 0, 0, 0.8) !important;
-                        color: white !important;
-                        border: none !important;
-                        border-radius: 50% !important;
-                        cursor: pointer !important;
-                        display: flex !important;
-                        align-items: center !important;
-                        justify-content: center !important;
-                        font-size: 16px !important;
-                        font-weight: bold !important;
-                        z-index: 999999 !important;
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-                        transition: all 0.2s ease !important;
-                    \`;
-                    
-                    // Add hover effects
-                    closeBtn.addEventListener('mouseenter', () => {
-                        closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
-                        closeBtn.style.transform = 'scale(1.1)';
-                    });
-                    
-                    closeBtn.addEventListener('mouseleave', () => {
-                        closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
-                        closeBtn.style.transform = 'scale(1)';
-                    });
-                    
-                    // Close window when clicked
-                    closeBtn.addEventListener('click', () => {
-                        window.electronAPI?.closeWindow?.() || window.close();
-                    });
-                    
-                    // Append to body
-                    document.body.appendChild(closeBtn);
-                    
-                    console.log('[Leviousa] Close button added to popup window');
-                `).catch(err => {
-                    console.error('[ParagonBridge] Failed to inject close button:', err);
-                });
-            });
+            // Native window controls are used - no custom close button needed
             
             // Return success immediately - the external browser will handle the auth
             return { 

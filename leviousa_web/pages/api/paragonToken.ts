@@ -30,10 +30,10 @@ const handler: NextApiHandler = async (req, res) => {
       { algorithm: 'RS256' }
     )
     
-    console.log(`[ParagonToken API] Generated token for user: ${userId}`)
+    // Token generated successfully
     return res.status(200).json({ userToken: token })
   } catch (err) {
-    console.error('[ParagonToken API] Failed to generate token:', err)
+    // Token generation failed (error details logged separately)
     const errorMessage = err instanceof Error ? err.message : 'Unknown error'
     return res.status(500).json({ error: 'Failed to generate token', details: errorMessage })
   }
