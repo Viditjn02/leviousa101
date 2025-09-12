@@ -6,6 +6,17 @@ import ParagonIntegration from '../../components/ParagonIntegration'
 import { useIntegrationsAccess } from '../../hooks/useSubscriptionAccess'
 import { ParagonAuthProvider } from '../../context/ParagonAuthContext'
 
+function IntegrationsContentWithProvider() {
+  const searchParams = useSearchParams()
+  const userId = searchParams?.get('userId') || undefined
+  
+  return (
+    <ParagonAuthProvider userId={userId}>
+      <IntegrationsContentInner />
+    </ParagonAuthProvider>
+  )
+}
+
 function IntegrationsContentInner() {
   const searchParams = useSearchParams()
   const serviceToConnect = searchParams?.get('service')
@@ -548,9 +559,7 @@ export default function IntegrationsPage() {
         </div>
       </div>
     }>
-      <ParagonAuthProvider>
-        <IntegrationsContentInner />
-      </ParagonAuthProvider>
+      <IntegrationsContentWithProvider />
     </Suspense>
   )
 }

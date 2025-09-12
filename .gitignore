@@ -123,6 +123,7 @@ serviceAccountKey.json
 # Electron packaging
 out/ .apple-credentials
 .apple-credentials-secure
+temp_dmg/
 
 # Local backups (keep these safe from git operations)
 backups/

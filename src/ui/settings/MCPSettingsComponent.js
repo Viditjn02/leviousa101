@@ -498,6 +498,28 @@ export class MCPSettingsComponent extends LitElement {
         this.setupPeriodicCleanup();
     }
 
+    getCurrentUserId() {
+        // Try to get user ID from various sources
+        try {
+            // First try from the global auth state
+            if (window.userInfo?.uid) {
+                return window.userInfo.uid;
+            }
+            
+            // Try from URL params (if in integrations context)
+            if (typeof window !== 'undefined') {
+                const urlParams = new URLSearchParams(window.location.search);
+                const userId = urlParams.get('userId');
+                if (userId) return userId;
+            }
+            
+            return null;
+        } catch (error) {
+            console.warn('[MCPSettings] Could not get user ID:', error);
+            return null;
+        }
+    }
+
     // Refresh status when component becomes visible (e.g. invisible overlay)
     connectedCallback() {
         super.connectedCallback();
@@ -681,58 +703,45 @@ export class MCPSettingsComponent extends LitElement {
 
     async loadSupportedServices() {
         try {
-            console.log('[MCPSettings] 🔍 Starting loadSupportedServices...');
-            console.log('[MCPSettings] 🔍 API available:', !!window.api);
-            console.log('[MCPSettings] 🔍 MCP API available:', !!window.api?.mcp);
-            console.log('[MCPSettings] 🔍 getRegistryServices available:', !!window.api?.mcp?.getRegistryServices);
+            console.log('[MCPSettings] 🔍 Getting services directly from Paragon (no fallbacks)...');
             
-            // Load services from the registry
-            const registry = await window.api?.mcp?.getRegistryServices();
-            console.log('[MCPSettings] 📡 Registry response:', registry);
-            console.log('[MCPSettings] 📡 Registry has services:', !!(registry && registry.services));
-            
-            if (registry && registry.services) {
-                // Separate enabled and disabled services
-                const allServices = Object.entries(registry.services)
-                    .filter(([key, service]) => {
-                        // If unified Google service is present, hide individual Google provider entries
-                        if (registry.services['google'] && service.oauth && service.oauth.provider === 'google' && key !== 'google') {
-                            return false;
-                        }
-                        return true;
+            // Get services directly from Paragon MCP server via IPC (same as InvisibilityBridge)
+            if (window.api?.mcp?.getAuthenticatedServices) {
+                // Use current user ID from the app (gets passed dynamically)
+                const userId = this.getCurrentUserId() || 'default-user';
+                
+                const paragonData = await window.api.mcp.getAuthenticatedServices(userId);
+                console.log('[MCPSettings] 📊 Real Paragon data:', paragonData);
+                
+                if (paragonData && paragonData.available_services) {
+                    console.log('[MCPSettings] ✅ Using real Paragon services:', paragonData.available_services);
+                    
+                    this.supportedServices = {};
+                    
+                    // Build services from actual Paragon available_services
+                    paragonData.available_services.forEach(serviceKey => {
+                        this.supportedServices[serviceKey] = {
+                            id: serviceKey,
+                            name: this.formatDisplayName(serviceKey),
+                            displayName: this.formatDisplayName(serviceKey),
+                            isEnabled: paragonData.authenticated_services?.includes(serviceKey) || false,
+                            status: paragonData.authenticated_services?.includes(serviceKey) ? 'connected' : 'disconnected',
+                            authProvider: 'paragon',
+                            capabilities: []
+                        };
                     });
-                console.log('[MCPSettings] 📊 All services from registry:', allServices.length);
-                console.log('[MCPSettings] 📊 Service keys:', allServices.map(([key]) => key));
-                
-                // Exclude all disabled integrations except Paragon (as we decided to use Paragon instead)
-                const excludedServices = [
-                    'slack', 'discord', 'github', 'linkedin', 'notion',
-                    'google', 'google-drive', 'google-docs', 'gmail', 
-                    'google-calendar', 'google-sheets', 'google-tasks'
-                ];
-                const enabledServicesList = allServices.filter(([key]) => !excludedServices.includes(key));
-                
-                console.log('[MCPSettings] 📊 Enabled services after filtering:', enabledServicesList.length);
-                console.log('[MCPSettings] 📊 Enabled service keys:', enabledServicesList.map(([key]) => key));
-
-                this.supportedServices = {};
-                
-                enabledServicesList.forEach(([key, service]) => {
-                    this.supportedServices[key] = {
-                        ...service,
-                        id: key,
-                        displayName: service.name || this.formatDisplayName(key),
-                        isEnabled: service.enabled || false,
-                        status: 'disconnected', // Will be updated by server status
-                        authProvider: service.authProvider || service.oauth?.provider
-                    };
-                });
-                
-                console.log('[MCPSettings] 📊 Final supportedServices:', Object.keys(this.supportedServices));
-                console.log('[MCPSettings] 📊 supportedServices data:', this.supportedServices);
+                    
+                    console.log('[MCPSettings] 📊 Built supportedServices from real Paragon data:', Object.keys(this.supportedServices));
+                } else {
+                    console.warn('[MCPSettings] ⚠️ No Paragon data available, using defaults');
+                    this.supportedServices = this.getDefaultServices();
+                }
+            } else {
+                console.warn('[MCPSettings] ⚠️ IPC not available, using defaults');
+                this.supportedServices = this.getDefaultServices();
             }
             
-            // Load Paragon service status - individual service authentication status
+            // Load Paragon service status for authentication details
             await this.loadServiceStatus();
             
         } catch (error) {
@@ -924,7 +933,7 @@ export class MCPSettingsComponent extends LitElement {
             console.log(`[MCPSettings] Connecting to ${serviceName}...`);
             
             // For Paragon integrations, use Electron BrowserWindow (not external browser)
-            const paragonServices = ['gmail', 'notion', 'slack', 'salesforce', 'hubspot', 'googledrive', 'dropbox', 'outlook'];
+            const paragonServices = ['gmail', 'googleCalendar', 'calendly', 'linkedin', 'notion', 'slack'];
             if (paragonServices.includes(serviceName)) {
                 // Get the current user ID from auth service
                 const currentUser = await window.api.common.getCurrentUser();
@@ -1014,7 +1023,7 @@ export class MCPSettingsComponent extends LitElement {
             console.log(`[MCPSettings] Opening OAuth window for ${provider}:${service}`);
             
             // SOLUTION: Detect known Paragon services by service name and use Electron BrowserWindow
-            const paragonServices = ['gmail', 'notion', 'slack', 'salesforce', 'hubspot', 'googledrive', 'dropbox', 'outlook'];
+            const paragonServices = ['gmail', 'googleCalendar', 'calendly', 'linkedin', 'notion', 'slack'];
             
             if (paragonServices.includes(service)) {
                 console.log(`[MCPSettings] 🌐 Detected Paragon service ${service}, opening Electron BrowserWindow`);
@@ -1698,88 +1707,13 @@ This feature is coming soon! Contact support for help adding custom integrations
                 description: 'Send messages and manage channels',
                 icon: '💬',
                 capabilities: ['slack_send', 'slack_channels'],
-            },
-            hubspot: {
-                name: 'HubSpot',
-                description: 'Manage contacts, deals, and CRM data',
-                icon: '🚀',
-                capabilities: ['hubspot_contacts', 'hubspot_deals'],
-            },
-            salesforce: {
-                name: 'Salesforce',
-                description: 'Access CRM data and manage leads',
-                icon: '☁️',
-                capabilities: ['salesforce_leads', 'salesforce_accounts'],
-            },
-            trello: {
-                name: 'Trello',
-                description: 'Manage boards, cards, and projects',
-                icon: '📋',
-                capabilities: ['trello_boards', 'trello_cards'],
-            },
-            github: {
-                name: 'GitHub',
-                description: 'Manage repositories, issues, and pull requests',
-                icon: '🐙',
-                capabilities: ['github_repos', 'github_issues'],
-            },
-            figma: {
-                name: 'Figma',
-                description: 'Access design files and projects',
-                icon: '🎨',
-                capabilities: ['figma_files', 'figma_projects'],
-            },
-            zoom: {
-                name: 'Zoom',
-                description: 'Schedule and manage meetings',
-                icon: '📹',
-                capabilities: ['zoom_meetings', 'zoom_recordings'],
-            },
-            outlook: {
-                name: 'Microsoft Outlook',
-                description: 'Send and receive emails, manage calendar',
-                icon: '📨',
-                capabilities: ['outlook_send', 'outlook_calendar'],
-            },
-            dropbox: {
-                name: 'Dropbox',
-                description: 'Store and share files in the cloud',
-                icon: '📦',
-                capabilities: ['dropbox_files', 'dropbox_folders'],
-            },
-            onedrive: {
-                name: 'OneDrive',
-                description: 'Microsoft cloud storage and file sharing',
-                icon: '☁️',
-                capabilities: ['onedrive_files', 'onedrive_folders'],
-            },
-            // Removed duplicate googlecalendar alias - using googleCalendar (camelCase) to match backend
-            googledrive: {
-                name: 'Google Drive',
-                description: 'Access files, folders, and documents',
-                icon: '📁',
-                capabilities: ['drive_files'],
-            },
-        };
-
-        // Build services object with configured services only
-        serviceIds.forEach(serviceId => {
-            const definition = serviceDefinitions[serviceId];
-            if (definition) {
-                services[serviceId] = {
-                    ...definition,
-                    status: 'needs_auth',
-                };
-            } else {
-                console.warn(`Unknown service in LIMIT_TO_INTEGRATIONS: ${serviceId}`);
+                status: 'needs_auth'
             }
-        });
-
-        return services;
+        };
     }
 
     getDefaultServices() {
-        // Fallback to default services matching the integrations page
+        // Return ONLY actual Paragon services (no fake services)
         return {
             'gmail': {
                 name: 'Gmail',
@@ -1788,48 +1722,20 @@ This feature is coming soon! Contact support for help adding custom integrations
                 capabilities: ['gmail_send', 'gmail_search'],
                 status: 'needs_auth'
             },
-            'outlook': {
-                name: 'Microsoft Outlook',
-                description: 'Send and receive emails, manage calendar',
-                icon: '📨',
-                capabilities: ['outlook_send', 'outlook_calendar'],
+            'googleCalendar': {
+                name: 'Google Calendar',
+                description: 'Manage events and schedules',
+                icon: '📅',
+                capabilities: ['calendar_events', 'calendar_scheduling'],
                 status: 'needs_auth'
             },
-            'slack': {
-                name: 'Slack',
-                description: 'Send messages and manage channels',
-                icon: '💬',
-                capabilities: ['slack_send', 'slack_channels'],
+            'calendly': {
+                name: 'Calendly',
+                description: 'Schedule and manage meetings',
+                icon: '🗓️',
+                capabilities: ['calendly_events', 'calendly_scheduling'],
                 status: 'needs_auth'
             },
-            'salesforce': {
-                name: 'Salesforce',
-                description: 'Access CRM data and manage leads',
-                icon: '☁️',
-                capabilities: ['salesforce_leads', 'salesforce_accounts'],
-                status: 'needs_auth'
-            },
-            'hubspot': {
-                name: 'HubSpot',
-                description: 'Manage contacts, deals, and CRM data',
-                icon: '🚀',
-                capabilities: ['hubspot_contacts', 'hubspot_deals'],
-                status: 'needs_auth'
-            },
-            'notion': {
-                name: 'Notion',
-                description: 'Access pages, databases, and content',
-                icon: '📝',
-                capabilities: ['notion_pages'],
-                status: 'needs_auth'
-            },
-                    'googleCalendar': {  // Fixed: Use camelCase to match backend
-            name: 'Google Calendar',
-            description: 'Manage events and schedules',
-            icon: '📅',
-            capabilities: ['calendar_events'],
-            status: 'needs_auth'
-        },
             'linkedin': {
                 name: 'LinkedIn',
                 description: 'Access professional network and posts',
@@ -1837,25 +1743,11 @@ This feature is coming soon! Contact support for help adding custom integrations
                 capabilities: ['linkedin_posts', 'linkedin_connections'],
                 status: 'needs_auth'
             },
-            'googledrive': {
-                name: 'Google Drive',
-                description: 'Access files, folders, and documents',
-                icon: '📁',
-                capabilities: ['drive_files'],
-                status: 'needs_auth'
-            },
-            'dropbox': {
-                name: 'Dropbox',
-                description: 'Store and share files in the cloud',
-                icon: '📦',
-                capabilities: ['dropbox_files', 'dropbox_folders'],
-                status: 'needs_auth'
-            },
-            'onedrive': {
-                name: 'OneDrive',
-                description: 'Microsoft cloud storage and file sharing',
-                icon: '☁️',
-                capabilities: ['onedrive_files', 'onedrive_folders'],
+            'notion': {
+                name: 'Notion',
+                description: 'Access pages, databases, and content',
+                icon: '📝',
+                capabilities: ['notion_pages', 'notion_databases'],
                 status: 'needs_auth'
             }
         };

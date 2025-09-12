@@ -2,14 +2,15 @@
   "name": "leviousa",
   "productName": "Leviousa",
   "version": "1.0.0",
-  "description": "Leviousa - Commercial AI Meeting Assistant with Pre-configured API Keys",
+  "description": "Leviousa - Your Invisible Upgrade",
   "main": "src/index.js",
   "scripts": {
     "setup": "npm install && cd leviousa_web && npm install && npm run build && cd .. && npm start",
     "start": "npm run build:renderer && electron .",
     "dev": "concurrently -k -n NEXT,ELECTRON \"npm:dev:next\" \"npm:dev:electron\"",
     "dev:next": "cd leviousa_web && npm run dev",
-    "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 npm run build:renderer && electron .",
+    "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=https://www.leviousa.com npm run build:renderer && electron .",
+    "dev:local": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 npm run build:renderer && electron .",
     "start:with-web": "npm run build:renderer && npm run start:web-and-electron",
     "start:web-and-electron": "node scripts/start-with-web.js",
     "package": "npm run build:all && electron-builder --dir",
@@ -24,7 +25,7 @@
     "build:web": "cd leviousa_web && npm run build && cd ..",
     "build:all": "npm run build:renderer && npm run build:web",
     "watch:renderer": "node build.js --watch",
-    "build:dev-dmg": "LEVIOUSA_DEV_BUILD=true npm run build:all && electron-builder --config electron-builder.yml --publish never",
+    "build:prod": "LEVIOUSA_DEV_BUILD=false npm run build:all && electron-builder --config electron-builder.yml --publish never",
     "start:prod": "cross-env NODE_ENV=production electron ."
   },
   "keywords": [

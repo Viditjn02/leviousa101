@@ -600,6 +600,10 @@ app.whenReady().then(async () => {
         if (isDev) {
             console.log('🔥 Development mode: Frontend served via Firebase hosting at', process.env.leviousa_WEB_URL);
             console.log('🔧 API server listening on localhost:' + process.env.leviousa_API_PORT);
+            
+            // Start development auth polling for browser-Electron auth bridge
+            console.log('>>> [index.js] Starting development auth bridge polling...');
+            authService.startDevelopmentAuthPolling();
         } else {
             console.log('📱 Production mode: Web front-end listening on', WEB_PORT);
         }

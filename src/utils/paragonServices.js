@@ -59,152 +59,36 @@ const SERVICE_DEFINITIONS = {
     icon: '💬',
     capabilities: ['slack_send', 'slack_channels'],
   },
-  hubspot: {
-    name: 'HubSpot',
-    description: 'Manage contacts, deals, and CRM data',
-    icon: '🚀',
-    capabilities: ['hubspot_contacts', 'hubspot_deals'],
-  },
-  salesforce: {
-    name: 'Salesforce',
-    description: 'Access CRM data and manage leads',
-    icon: '☁️',
-    capabilities: ['salesforce_leads', 'salesforce_accounts'],
-  },
-  trello: {
-    name: 'Trello',
-    description: 'Manage boards, cards, and projects',
-    icon: '📋',
-    capabilities: ['trello_boards', 'trello_cards'],
-  },
-  github: {
-    name: 'GitHub',
-    description: 'Manage repositories, issues, and pull requests',
-    icon: '🐙',
-    capabilities: ['github_repos', 'github_issues'],
-  },
-  figma: {
-    name: 'Figma',
-    description: 'Access design files and projects',
-    icon: '🎨',
-    capabilities: ['figma_files', 'figma_projects'],
-  },
-  zoom: {
-    name: 'Zoom',
+  calendly: {
+    name: 'Calendly',
     description: 'Schedule and manage meetings',
-    icon: '📹',
-    capabilities: ['zoom_meetings', 'zoom_recordings'],
-  },
-  outlook: {
-    name: 'Microsoft Outlook',
-    description: 'Send and receive emails, manage calendar',
-    icon: '📨',
-    capabilities: ['outlook_send', 'outlook_calendar'],
-  },
-  dropbox: {
-    name: 'Dropbox',
-    description: 'Store and share files in the cloud',
-    icon: '📦',
-    capabilities: ['dropbox_files', 'dropbox_folders'],
-  },
-  onedrive: {
-    name: 'OneDrive',
-    description: 'Microsoft cloud storage and file sharing',
-    icon: '☁️',
-    capabilities: ['onedrive_files', 'onedrive_folders'],
-  },
-  // Aliases for naming consistency with integrations page
-  googlecalendar: {
-    name: 'Google Calendar',
-    description: 'Manage events and schedules',
-    icon: '📅',
-    capabilities: ['calendar_events'],
-  },
-  googledrive: {
-    name: 'Google Drive',
-    description: 'Access files, folders, and documents',
-    icon: '📁',
-    capabilities: ['drive_files'],
-  },
+    icon: '🗓️',
+    capabilities: ['calendly_events', 'calendly_scheduling'],
+  }
 };
 
 /**
- * Get available services from LIMIT_TO_INTEGRATIONS environment variable
- * This function works in both Node.js and browser environments
+ * Get available services (simplified - returns only real Paragon services)
  */
 function getAvailableServices() {
-  try {
-    let limitToIntegrations = null;
-    
-    // Try to get from environment (Node.js environment)
-    if (typeof process !== 'undefined' && process.env) {
-      limitToIntegrations = process.env.PARAGON_LIMIT_TO_INTEGRATIONS || 
-                           process.env.LIMIT_TO_INTEGRATIONS;
-    }
-    
-    // If running in browser, try to get from a global variable or default
-    if (!limitToIntegrations && typeof window !== 'undefined') {
-      limitToIntegrations = window.PARAGON_LIMIT_TO_INTEGRATIONS;
-    }
-    
-    let availableServiceIds;
-    
-    if (limitToIntegrations) {
-      // Parse comma-separated list
-      availableServiceIds = limitToIntegrations
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-    } else {
-      // Fallback to default services (matching integrations page)
-      availableServiceIds = [
-        'gmail', 'outlook', 'slack', 'salesforce', 'hubspot', 
-        'notion', 'googlecalendar', 'linkedin', 'googledrive', 
-        'dropbox', 'onedrive'
-      ];
-    }
-    
-    // Build services object with definitions
-    const services = {};
-    
-    availableServiceIds.forEach(serviceId => {
-      const definition = SERVICE_DEFINITIONS[serviceId];
-      if (!definition) {
-        console.warn(`Unknown service in LIMIT_TO_INTEGRATIONS: ${serviceId}`);
-        return;
-      }
-      
+  // Return only real Paragon services (no fake services, no environment dependencies)
+  const services = {};
+  const realParagonServices = ['gmail', 'googleCalendar', 'calendly', 'linkedin', 'notion'];
+  
+  realParagonServices.forEach(serviceId => {
+    const definition = SERVICE_DEFINITIONS[serviceId];
+    if (definition) {
       services[serviceId] = {
         ...definition,
         status: 'needs_auth',
       };
-    });
-    
-    console.log(`Loaded ${Object.keys(services).length} available Paragon services:`, 
-                Object.keys(services).join(', '));
-    
-    return services;
-    
-  } catch (error) {
-    console.error('Error loading Paragon services configuration:', error);
-    
-    // Fallback to default services on error (matching integrations page)
-    const defaultServices = {};
-    const defaultServiceIds = [
-      'gmail', 'outlook', 'slack', 'salesforce', 'hubspot', 
-      'notion', 'googlecalendar', 'linkedin', 'googledrive', 
-      'dropbox', 'onedrive'
-    ];
-    
-    defaultServiceIds.forEach(serviceId => {
-      defaultServices[serviceId] = {
-        ...SERVICE_DEFINITIONS[serviceId],
-        status: 'needs_auth',
-      };
-    });
-    
-    return defaultServices;
-  }
+    }
+  });
+  
+  console.log(`Loaded ${Object.keys(services).length} available Paragon services:`, 
+              Object.keys(services).join(', '));
+  
+  return services;
 }
 
 /**

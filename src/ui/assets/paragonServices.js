@@ -162,11 +162,9 @@ function getAvailableServices() {
         .map(s => s.trim())
         .filter(s => s.length > 0);
     } else {
-      // Fallback to default services (matching integrations page)
+      // Fallback to default services (only real Paragon services)
       availableServiceIds = [
-        'gmail', 'outlook', 'slack', 'salesforce', 'hubspot', 
-        'notion', 'googlecalendar', 'linkedin', 'googledrive', 
-        'dropbox', 'onedrive'
+        'gmail', 'googleCalendar', 'calendly', 'linkedin', 'notion', 'slack'
       ];
     }
     

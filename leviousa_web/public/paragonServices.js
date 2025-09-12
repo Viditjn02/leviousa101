@@ -53,85 +53,12 @@ const SERVICE_DEFINITIONS = {
     icon: '💼',
     capabilities: ['linkedin_posts', 'linkedin_connections'],
   },
-  slack: {
-    name: 'Slack',
-    description: 'Send messages and manage channels',
-    icon: '💬',
-    capabilities: ['slack_send', 'slack_channels'],
-  },
-  hubspot: {
-    name: 'HubSpot',
-    description: 'Manage contacts, deals, and CRM data',
-    icon: '🚀',
-    capabilities: ['hubspot_contacts', 'hubspot_deals'],
-  },
-  salesforce: {
-    name: 'Salesforce',
-    description: 'Access CRM data and manage leads',
-    icon: '☁️',
-    capabilities: ['salesforce_leads', 'salesforce_accounts'],
-  },
-  trello: {
-    name: 'Trello',
-    description: 'Manage boards, cards, and projects',
-    icon: '📋',
-    capabilities: ['trello_boards', 'trello_cards'],
-  },
-  github: {
-    name: 'GitHub',
-    description: 'Manage repositories, issues, and pull requests',
-    icon: '🐙',
-    capabilities: ['github_repos', 'github_issues'],
-  },
-  figma: {
-    name: 'Figma',
-    description: 'Access design files and projects',
-    icon: '🎨',
-    capabilities: ['figma_files', 'figma_projects'],
-  },
-  zoom: {
-    name: 'Zoom',
-    description: 'Schedule and manage meetings',
-    icon: '📹',
-    capabilities: ['zoom_meetings', 'zoom_recordings'],
-  },
-  outlook: {
-    name: 'Microsoft Outlook',
-    description: 'Send and receive emails, manage calendar',
-    icon: '📨',
-    capabilities: ['outlook_send', 'outlook_calendar'],
-  },
-  dropbox: {
-    name: 'Dropbox',
-    description: 'Store and share files in the cloud',
-    icon: '📦',
-    capabilities: ['dropbox_files', 'dropbox_folders'],
-  },
-  onedrive: {
-    name: 'OneDrive',
-    description: 'Microsoft cloud storage and file sharing',
-    icon: '☁️',
-    capabilities: ['onedrive_files', 'onedrive_folders'],
-  },
-  // Aliases for naming consistency with integrations page
-  googlecalendar: {
-    name: 'Google Calendar',
-    description: 'Manage events and schedules',
-    icon: '📅',
-    capabilities: ['calendar_events'],
-  },
-  googledrive: {
-    name: 'Google Drive',
-    description: 'Access files, folders, and documents',
-    icon: '📁',
-    capabilities: ['drive_files'],
-  },
   calendly: {
     name: 'Calendly',
-    description: 'Schedule meetings and manage events',
+    description: 'Schedule and manage meetings',
     icon: '🗓️',
     capabilities: ['calendly_events', 'calendly_scheduling'],
-  },
+  }
 };
 
 /**
