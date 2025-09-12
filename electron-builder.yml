@@ -89,13 +89,14 @@ mac:
     # type: "distribution"  # Distribution for signed releases
     # identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
     # signIgnore patterns removed to fix regex errors - will sign everything
-    # Notarization DISABLED for testing
-    notarize: false
+    # Notarization settings (Apple requirement for no warnings)
+    notarize:
+        teamId: "8LNUMP84V8"  # Your Apple Developer Team ID
     target:
       - target: dmg
-        arch: universal  # Universal binary for both architectures
+        arch: [x64, arm64, universal]  # Intel, Apple Silicon, and Universal
       - target: zip
-        arch: universal
+        arch: [x64, arm64, universal]
 
 # DMG specific configuration
 dmg:
@@ -121,5 +122,3 @@ buildDependenciesFromSource: true
 
 # Ensure proper permissions and enable notarization
 afterSign: scripts/notarize.js
-# Ensure proper permissions and enable notarization (DISABLED for testing)
-# afterSign: scripts/notarize.js
