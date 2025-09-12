@@ -1262,6 +1262,107 @@ async function handleOAuthCallback(pathname, params) {
 }
 
 
+// Packaged app server: Use built-in Node.js HTTP server for reliability
+async function startPackagedServer() {
+  const path = require('path');
+  const http = require('http');
+  const fs = require('fs');
+  
+  // In packaged apps, .next is extracted to Resources directory
+  const resourcesPath = process.resourcesPath;
+  const nextDir = path.join(resourcesPath, '.next');
+  
+  return new Promise((resolve, reject) => {
+    console.log(`[PackagedServer] 🚀 Starting built-in HTTP server for packaged app...`);
+    console.log(`[PackagedServer] 📁 Resources path: ${resourcesPath}`);
+    console.log(`[PackagedServer] 📁 Next.js build path: ${nextDir}`);
+    
+    // Check if .next directory exists
+    if (!fs.existsSync(nextDir)) {
+      reject(new Error(`Next.js build directory not found: ${nextDir}`));
+      return;
+    }
+    
+    // HTTP server to serve the actual Next.js build
+    const server = http.createServer((req, res) => {
+      const url = new URL(req.url, 'http://localhost:3000');
+      let filePath = url.pathname;
+      
+      console.log(`[PackagedServer] 📄 Request: ${req.url}`);
+      
+      // Route /integrations to the actual built page
+      if (filePath.startsWith('/integrations')) {
+        const integrationFile = path.join(nextDir, 'server/app/integrations.html');
+        if (fs.existsSync(integrationFile)) {
+          console.log(`[PackagedServer] ✅ Serving integrations page: ${integrationFile}`);
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          fs.createReadStream(integrationFile).pipe(res);
+          return;
+        }
+      }
+      
+      // Serve static assets from .next/static
+      if (filePath.startsWith('/_next/static/')) {
+        const staticPath = path.join(nextDir, filePath.replace('/_next/', ''));
+        if (fs.existsSync(staticPath)) {
+          console.log(`[PackagedServer] 📄 Serving static: ${staticPath}`);
+          res.writeHead(200);
+          fs.createReadStream(staticPath).pipe(res);
+          return;
+        }
+      }
+      
+      // Serve built-in chunks and assets
+      if (filePath.startsWith('/_next/')) {
+        const assetPath = path.join(nextDir, filePath.replace('/_next/', ''));
+        if (fs.existsSync(assetPath)) {
+          console.log(`[PackagedServer] 📄 Serving asset: ${assetPath}`);
+          res.writeHead(200);
+          fs.createReadStream(assetPath).pipe(res);
+          return;
+        }
+      }
+      
+      // Default: Serve basic success page to confirm server is working
+      console.log(`[PackagedServer] 📄 Serving default for: ${req.url}`);
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Leviousa Server Ready</title></head>
+        <body>
+          <h1>✅ Leviousa Packaged Server is Working!</h1>
+          <p><strong>Server:</strong> localhost:3000</p>
+          <p><strong>Build:</strong> ${nextDir}</p>
+          <p><a href="/integrations">→ Go to Integrations</a></p>
+        </body>
+        </html>
+      `);
+    });
+    
+    server.listen(3000, 'localhost', () => {
+      console.log(`✅ [PackagedServer] Built-in HTTP server ready on http://localhost:3000`);
+      console.log(`✅ [PackagedServer] Serving Next.js build from: ${nextDir}`);
+      resolve(server);
+    });
+    
+    server.on('error', (error) => {
+      console.error('[PackagedServer] Server error:', error);
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error('Port 3000 already in use'));
+      } else {
+        reject(error);
+      }
+    });
+    
+    // Cleanup on app exit
+    app.once('before-quit', () => {
+      console.log('[PackagedServer] Shutting down built-in HTTP server...');
+      server.close();
+    });
+  });
+}
+
 // Simple production solution: Start dev server automatically (the working approach!)
 async function startProductionDevServer() {
   const path = require('path');
@@ -1440,10 +1541,22 @@ async function startWebStack() {
   console.log(`🔍 [DEBUG] Environment: NODE_ENV=${process.env.NODE_ENV}, isDev=${isDev}, app.isPackaged=${app.isPackaged}`);
   
   try {
-    await startProductionDevServer();
-    console.log(`✅ [STARTUP] Next.js dev server started successfully on localhost:3000`);
+    console.log(`🔍 [DEBUG] app.isPackaged = ${app.isPackaged}`);
+    console.log(`🔍 [DEBUG] Choosing server type...`);
+    
+    if (app.isPackaged) {
+      // Use optimized packaged server for production DMG
+      console.log(`🔍 [DEBUG] PACKAGED MODE: Starting packaged server...`);
+      await startPackagedServer();
+      console.log(`✅ [STARTUP] Packaged Next.js server started successfully on localhost:3000`);
+    } else {
+      // Use existing development server (don't change this!)
+      console.log(`🔍 [DEBUG] DEVELOPMENT MODE: Starting dev server...`);
+      await startProductionDevServer();
+      console.log(`✅ [STARTUP] Next.js dev server started successfully on localhost:3000`);
+    }
   } catch (error) {
-    console.error(`❌ [STARTUP] Failed to auto-start Next.js dev server: ${error.message}`);
+    console.error(`❌ [STARTUP] Failed to auto-start Next.js server: ${error.message}`);
     console.error(`🚨 [STARTUP] CRITICAL: Integrations will not work without localhost:3000 server`);
     console.error(`💡 [STARTUP] Manual fallback: Run 'cd leviousa_web && npm run dev' in separate terminal`);
   }
