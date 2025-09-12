@@ -507,7 +507,14 @@ export class SummaryView extends LitElement {
         console.log('[SummaryView] MCP action triggered:', action);
 
         // Check if this is an email action that should show the composer
-        if (action.type === 'email.send' || action.label?.includes('Email') || action.id?.includes('email')) {
+        const isEmailAction = action.type === 'email.send' || 
+                             action.label?.includes('Email') || 
+                             action.label?.includes('email') ||
+                             action.id?.includes('email') ||
+                             (typeof action === 'string' && action.includes('email')) ||
+                             (action.text && action.text.includes('email'));
+                             
+        if (isEmailAction) {
             console.log('[SummaryView] 📧 Email action detected, showing composer...');
             
             // Pre-populate email data from action context
@@ -521,6 +528,150 @@ export class SummaryView extends LitElement {
             
             this.showEmailForm = true;
             this.requestUpdate();
+            return;
+        }
+
+        // Check if this is a calendar action
+        const isCalendarAction = action.type === 'calendar.book' || 
+                                action.label?.includes('Calendar') || 
+                                action.label?.includes('calendar') ||
+                                action.id?.includes('calendar') ||
+                                (typeof action === 'string' && action.includes('Calendar')) ||
+                                (typeof action === 'string' && action.includes('📅')) ||
+                                (action.text && action.text.includes('Calendar'));
+
+        // Check if this is a Notion action
+        const isNotionAction = action.type === 'notion.save' || 
+                              action.label?.includes('Notion') || 
+                              action.label?.includes('notion') ||
+                              action.id?.includes('notion') ||
+                              (typeof action === 'string' && action.includes('Notion')) ||
+                              (typeof action === 'string' && action.includes('📝')) ||
+                              (action.text && action.text.includes('Notion'));
+                                
+        if (isCalendarAction) {
+            console.log('[SummaryView] 📅 Calendar action detected, booking with conversation context...');
+            
+            try {
+                // Use existing structured conversation data
+                const data = this.structuredData || {};
+                let conversationContext = '';
+                
+                // Build context from existing summary data
+                if (data.topic?.header) {
+                    conversationContext += `Topic: ${data.topic.header}. `;
+                }
+                
+                if (data.summary && data.summary.length > 0) {
+                    conversationContext += `Key points: ${data.summary.slice(0, 3).join(', ')}. `;
+                }
+                
+                if (data.topic?.bullets && data.topic.bullets.length > 0) {
+                    conversationContext += `Details: ${data.topic.bullets.slice(0, 2).join(', ')}. `;
+                }
+                
+                // Create detailed calendar booking prompt with conversation context
+                const calendarPrompt = `Please book a calendar meeting based on our conversation. 
+
+CONVERSATION CONTEXT:
+${conversationContext}
+
+FULL CONVERSATION SUMMARY:
+Topic: ${data.topic?.header || 'Meeting discussion'}
+Key Points: ${data.summary?.join(', ') || 'Discussion points'}
+Details: ${data.topic?.bullets?.join(', ') || 'Meeting details'}
+
+INSTRUCTIONS:
+- If specific date, time, or attendees were mentioned in the conversation, use those details
+- If no specific date/time provided, suggest a follow-up meeting for next week
+- If no attendees mentioned, create a general follow-up meeting
+- Include the conversation topic in the meeting title
+- Add key discussion points in the meeting description`;
+                
+                console.log('[SummaryView] 📅 Sending calendar booking request with existing summary context');
+                
+                // Send to ask service to handle calendar booking (reuse existing LLM + MCP flow)
+                const result = await window.api.askService.processMessage(calendarPrompt);
+                
+                if (result.success) {
+                    console.log('[SummaryView] ✅ Calendar event booked successfully');
+                } else {
+                    console.error('[SummaryView] ❌ Calendar booking failed:', result.error);
+                }
+            } catch (error) {
+                console.error('[SummaryView] ❌ Calendar action failed:', error);
+            }
+            
+            return;
+        }
+
+        if (isNotionAction) {
+            console.log('[SummaryView] 📝 Notion action detected, saving conversation to Notion...');
+            
+            try {
+                // Use existing structured conversation data
+                const data = this.structuredData || {};
+                
+                // Create specific page title from actual conversation content
+                const actualTopic = data.topic?.header ? 
+                    data.topic.header.replace(/[:\-\s]+$/, '') : // Remove trailing colons/dashes
+                    (data.summary?.[0] || 'Discussion'); // Use first summary point if no topic
+                    
+                const pageTitle = `Leviousa - ${actualTopic} - ${new Date().toLocaleDateString()}`;
+                
+                let pageContent = `# Meeting Summary\n\n`;
+                
+                // Add topic
+                if (data.topic?.header) {
+                    pageContent += `**Topic:** ${data.topic.header}\n\n`;
+                }
+                
+                // Add key points
+                if (data.summary && data.summary.length > 0) {
+                    pageContent += `## Key Points\n`;
+                    data.summary.forEach(point => {
+                        pageContent += `• ${point}\n`;
+                    });
+                    pageContent += `\n`;
+                }
+                
+                // Add details
+                if (data.topic?.bullets && data.topic.bullets.length > 0) {
+                    pageContent += `## Discussion Details\n`;
+                    data.topic.bullets.forEach(bullet => {
+                        pageContent += `• ${bullet}\n`;
+                    });
+                    pageContent += `\n`;
+                }
+                
+                // Add actions if any
+                if (data.actions && data.actions.length > 0) {
+                    pageContent += `## Next Steps\n`;
+                    data.actions.forEach(action => {
+                        pageContent += `• ${action}\n`;
+                    });
+                    pageContent += `\n`;
+                }
+                
+                pageContent += `\n---\n*Generated by Leviousa AI on ${new Date().toLocaleString()}*`;
+                
+                // Create Notion page request that will use hierarchical organization
+                const notionPrompt = `Save this meeting summary to Notion: Title "${pageTitle}" with content: ${pageContent}`;
+                
+                console.log('[SummaryView] 📝 Sending Notion page creation request with structured content');
+                
+                // Send to ask service to handle Notion page creation (reuse existing LLM + MCP flow)
+                const result = await window.api.askService.processMessage(notionPrompt);
+                
+                if (result.success) {
+                    console.log('[SummaryView] ✅ Notion page created successfully');
+                } else {
+                    console.error('[SummaryView] ❌ Notion page creation failed:', result.error);
+                }
+            } catch (error) {
+                console.error('[SummaryView] ❌ Notion action failed:', error);
+            }
+            
             return;
         }
 
@@ -557,6 +708,8 @@ export class SummaryView extends LitElement {
         const data = this.structuredData;
         let content = `Hi,\n\nHere's a summary of our meeting:\n\n`;
         
+        let hasContent = false;
+        
         // Add summary if available
         if (data?.summary && data.summary.length > 0) {
             content += `**Key Points:**\n`;
@@ -564,6 +717,7 @@ export class SummaryView extends LitElement {
                 content += `• ${point}\n`;
             });
             content += `\n`;
+            hasContent = true;
         }
         
         // Add topic insights if available
@@ -573,9 +727,86 @@ export class SummaryView extends LitElement {
                 content += `• ${bullet}\n`;
             });
             content += `\n`;
+            hasContent = true;
+        }
+
+        // CRITICAL FIX: If no structured data available, generate from conversation context
+        if (!hasContent) {
+            // Try to get conversation context from global listen service if available
+            try {
+                if (window.api?.listen?.getCurrentSessionData) {
+                    const sessionData = window.api.listen.getCurrentSessionData();
+                    if (sessionData?.conversationHistory && sessionData.conversationHistory.length > 0) {
+                        content += `**Discussion Summary:**\n`;
+                        const recentTurns = sessionData.conversationHistory.slice(-6); // Last 6 turns
+                        recentTurns.forEach((turn, index) => {
+                            if (turn && turn.trim()) {
+                                content += `• ${turn.trim()}\n`;
+                            }
+                        });
+                        content += `\n`;
+                        hasContent = true;
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not get session data for email:', error.message);
+            }
+        }
+
+        // If still no content, provide a basic template but with context indication
+        if (!hasContent) {
+            content += `We had a productive discussion. Key points and next steps were covered.\n\n`;
         }
         
-        content += `Best regards`;
+        content += `Looking forward to our continued collaboration.\n\nBest regards`;
+        return content;
+    }
+
+    /**
+     * Generate email content specifically from the analyzed conversation
+     */
+    generateConversationEmailContent() {
+        const data = this.structuredData;
+        let content = `Hi,\n\nI wanted to share a summary of our conversation:\n\n`;
+        
+        // Add the actual analyzed summary
+        if (data?.summary && data.summary.length > 0) {
+            content += `**Key Discussion Points:**\n`;
+            data.summary.forEach(point => {
+                content += `• ${point}\n`;
+            });
+            content += `\n`;
+        }
+        
+        // Add topic insights from our conversation
+        if (data?.topic && data.topic.header && data.topic.bullets.length > 0) {
+            content += `**${data.topic.header}**\n`;
+            data.topic.bullets.forEach(bullet => {
+                content += `• ${bullet}\n`;
+            });
+            content += `\n`;
+        }
+        
+        // Add next steps based on analysis
+        if (data?.actions && data.actions.length > 1) { // Skip the default "What should I say next"
+            const actionableItems = data.actions.filter(a => 
+                !a.includes('What should I say next') && 
+                !a.includes('email') && 
+                !a.includes('✉️')
+            );
+            if (actionableItems.length > 0) {
+                content += `**Follow-up thoughts from our discussion:**\n`;
+                actionableItems.forEach(action => {
+                    const cleanAction = action.replace('❓ ', '').replace('?', '');
+                    content += `• ${cleanAction}\n`;
+                });
+                content += `\n`;
+            }
+        }
+        
+        content += `Thanks for the great conversation!\n\nBest regards`;
+        
+        console.log('[SummaryView] 📧 Generated conversation-specific email content:', content.substring(0, 150) + '...');
         return content;
     }
 
@@ -692,6 +923,29 @@ export class SummaryView extends LitElement {
     async handleRequestClick(requestText) {
         console.log('🔥 Analysis request clicked:', requestText);
 
+        // CRITICAL FIX: Check if this is an email action that should show the composer
+        if (requestText && (requestText.includes('email') || requestText.includes('✉️') || requestText.includes('Email') || requestText.includes('summary'))) {
+            console.log('[SummaryView] 📧 Email action detected - showing LISTEN MODE email composer with conversation content...');
+            
+            // Generate conversation-specific email content
+            const emailBody = this.generateConversationEmailContent();
+            
+            this.emailData = {
+                to: '',
+                subject: `Conversation Summary: ${this.structuredData?.topic?.header?.replace(':', '') || 'Discussion'}`,
+                body: emailBody,
+                cc: '',
+                bcc: ''
+            };
+            
+            this.showEmailForm = true;
+            this.requestUpdate();
+            
+            console.log('[SummaryView] 📧 Email composer opened with ACTUAL conversation content');
+            console.log('[SummaryView] 📧 Email body preview:', this.emailData.body.substring(0, 200) + '...');
+            return;
+        }
+
         if (window.api) {
             try {
                 const result = await window.api.summaryView.sendQuestionFromSummary(requestText);
@@ -715,23 +969,79 @@ export class SummaryView extends LitElement {
             const searchMatch = searchText.match(/🔍\s+(?:Look up|Search for|Research)\s+(.+?)(?:\s+(?:on web|info))?$/);
             const searchTerm = searchMatch ? searchMatch[1] : searchText.replace(/🔍\s+/, '');
             
-            // Create search URL
-            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`;
+            // Create intelligent search query with conversation context
+            const conversationContext = this.getSummaryText();
+            const contextualQuery = this.buildContextualSearchQuery(searchTerm, conversationContext);
             
-            // Use Electron's shell to open in browser
-            if (window.api?.shell?.openExternal) {
-                await window.api.shell.openExternal(searchUrl);
-                console.log('✅ Opened web search for:', searchTerm);
-            } else if (window.api?.openExternalUrl) {
-                await window.api.openExternalUrl(searchUrl);
-                console.log('✅ Opened web search for:', searchTerm);
+            // Send to Ask service instead of opening browser
+            if (window.api?.summaryView?.sendQuestionFromSummary) {
+                const result = await window.api.summaryView.sendQuestionFromSummary(contextualQuery);
+                
+                if (result.success) {
+                    console.log('✅ Search query sent to AskView:', contextualQuery);
+                    // Show Ask window to display results
+                    if (window.api?.ask?.toggleAskButton) {
+                        await window.api.ask.toggleAskButton();
+                    }
+                } else {
+                    console.error('❌ Failed to send search query to AskView:', result.error);
+                    // Fallback to basic request click
+                    await this.handleRequestClick(`Tell me about ${searchTerm}`);
+                }
             } else {
-                // Fallback: open in current window
-                window.open(searchUrl, '_blank');
+                console.warn('⚠️ AskView API not available, using fallback');
+                // Fallback to request click
+                await this.handleRequestClick(`Tell me about ${searchTerm}`);
             }
         } catch (error) {
-            console.error('❌ Error opening search:', error);
+            console.error('❌ Error in handleSearchClick:', error);
+            // Fallback: try basic question
+            try {
+                await this.handleRequestClick(`What is ${searchText.replace(/🔍\s+/, '')}?`);
+            } catch (fallbackError) {
+                console.error('❌ Fallback also failed:', fallbackError);
+            }
         }
+    }
+
+    /**
+     * Build contextual search query that includes conversation context for better LLM responses
+     */
+    buildContextualSearchQuery(searchTerm, conversationContext) {
+        // Determine query type based on patterns
+        const isCompany = /\b(Inc|Corp|LLC|Ltd|Co|Company|Technologies|Tech|Systems|Solutions|Labs|AI|Software|Services)\b/i.test(searchTerm);
+        const isTechnology = /\b(AI|ML|API|SaaS|React|Python|JavaScript|Node|GraphQL|REST|PostgreSQL|MongoDB|Redis|AWS|Azure|GCP|blockchain|cryptocurrency|DevOps|microservices|kubernetes|docker)\b/i.test(searchTerm);
+        const isPerson = /^(Mr\.|Ms\.|Dr\.)?\s*[A-Z][a-z]+\s+[A-Z][a-z]+/.test(searchTerm);
+        
+        // Create context-aware query
+        let baseQuery = '';
+        
+        if (isCompany) {
+            baseQuery = `Tell me about the company ${searchTerm}. What do they do, who founded them, recent news, and how they might relate to our discussion`;
+        } else if (isTechnology) {
+            baseQuery = `Explain ${searchTerm} in the context of technology. What is it, how does it work, current trends, and why it might be relevant to our conversation`;
+        } else if (isPerson) {
+            baseQuery = `Who is ${searchTerm}? Provide background, notable achievements, and why they might be mentioned in a business context`;
+        } else {
+            // Check if it needs real-time information
+            const needsRealTime = /\b(news|recent|latest|current|today|price|stock|update|announcement)\b/i.test(conversationContext);
+            if (needsRealTime) {
+                baseQuery = `Use web search to find the latest information about ${searchTerm}. Focus on recent news, updates, or current status`;
+            } else {
+                baseQuery = `Provide comprehensive information about ${searchTerm}`;
+            }
+        }
+        
+        // Add conversation context for better relevance
+        if (conversationContext && conversationContext.length > 50) {
+            const contextSummary = conversationContext.length > 500 
+                ? conversationContext.substring(0, 500) + '...'
+                : conversationContext;
+            
+            baseQuery += `\n\nContext from our conversation:\n${contextSummary}\n\nPlease relate your answer to the topics we've been discussing.`;
+        }
+        
+        return baseQuery;
     }
 
     getSummaryText() {
@@ -774,14 +1084,35 @@ export class SummaryView extends LitElement {
             followUps: []
         };
         
-        // Ensure actions are always available, even if empty from data
+        // CRITICAL FIX: Move email to actions array for conversation-specific email composer
         if (!data.actions || data.actions.length === 0) {
             data.actions = ['✨ What should I say next?'];
         }
         
-        // Ensure followUps are available when recording is completed
-        if (this.hasCompletedRecording && (!data.followUps || data.followUps.length === 0)) {
-            data.followUps = ['✉️ Send a follow-up email'];
+        // FORCE email action into actions array (conversation-specific) when recording completed
+        if (this.hasCompletedRecording) {
+            // Remove any existing email actions from actions first
+            data.actions = data.actions.filter(a => 
+                !a.includes('email') && !a.includes('✉️') && !a.includes('Email')
+            );
+            // Add email action at the TOP of actions array for conversation-specific email
+            data.actions.unshift('✉️ Send conversation summary');
+            
+            console.log('[SummaryView] 📧 FORCED email action into actions array for conversation-specific composer');
+        }
+        
+        // Remove email from followUps completely - use actions array instead
+        if (data.followUps && data.followUps.length > 0) {
+            data.followUps = data.followUps.filter(f => 
+                !f.includes('email') && !f.includes('✉️') && !f.includes('Email')
+            );
+        }
+        
+        // Keep followUps for MCP actions only (calendar, notion, etc.)
+        if (this.hasCompletedRecording) {
+            if (!data.followUps || data.followUps.length === 0) {
+                data.followUps = ['📅 Book Calendar', '📝 Save to Notion'];
+            }
         }
 
         const hasAnyContent = data.summary.length > 0 || data.topic.bullets.length > 0 || data.actions.length > 0;

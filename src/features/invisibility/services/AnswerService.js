@@ -49,7 +49,7 @@ const ANSWER_STRATEGIES = {
         maxTokens: 2000,
         temperature: 0.2,
         useMCPTools: true,
-        requiresServiceMCP: 'notion'
+        requiresServiceMCP: 'paragon'  // FIXED: Use actual server name 'paragon' not 'notion'
     },
     
     slack_data_access: {
@@ -321,6 +321,13 @@ class AnswerService extends EventEmitter {
             (lowerQuestion.includes('page') || 
              lowerQuestion.includes('database') || 
              lowerQuestion.includes('workspace'))) {
+            return 'notion_data_access';
+        }
+        
+        // Notion page creation requests (from listen mode button)
+        if ((lowerQuestion.includes('create') || lowerQuestion.includes('save') || lowerQuestion.includes('add')) && 
+            (lowerQuestion.includes('notion') || 
+             (lowerQuestion.includes('page') && (lowerQuestion.includes('based on') || lowerQuestion.includes('conversation'))))) {
             return 'notion_data_access';
         }
         
@@ -707,6 +714,99 @@ ${calendarLink ? `🔗 **View in Calendar:** ${calendarLink}` : ''}`;
             }
         }
         
+        // Pre-execute Notion page creation for notion_data_access strategy
+        if (strategy.requiresServiceMCP === 'notion' && context.questionType === 'notion_data_access' && this.mcpToolInvoker) {
+            try {
+                logger.info('Notion strategy detected, checking for page creation request', { 
+                    query: prompt.userPrompt,
+                    strategyRequires: strategy.requiresServiceMCP,
+                    hasMcpInvoker: !!this.mcpToolInvoker
+                });
+                
+                const lowerPrompt = prompt.userPrompt.toLowerCase();
+                const isPageCreation = lowerPrompt.includes('create') && (lowerPrompt.includes('page') || lowerPrompt.includes('note')) ||
+                                     lowerPrompt.includes('save') && (lowerPrompt.includes('notion') || lowerPrompt.includes('page')) ||
+                                     lowerPrompt.includes('add') && lowerPrompt.includes('notion');
+                
+                if (isPageCreation) {
+                    logger.info('Notion page creation request detected', { 
+                        originalQuery: prompt.userPrompt 
+                    });
+                    
+                    // Get main Leviousa page ID (find existing or create new)
+                    const mainPageId = await this.getLeviousaMainPageId(context.userId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2');
+                    
+                    // Extract page details from prompt
+                    const pageRequest = this.parseNotionPageRequest(prompt.userPrompt, context);
+                    
+                    if (pageRequest) {
+                        // Set up page creation with proper hierarchy
+                        const toolArgs = {
+                            user_id: context.userId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+                            parent: mainPageId ? { page_id: mainPageId } : { type: 'workspace', workspace: true },
+                            properties: {
+                                title: {
+                                    title: [{ text: { content: pageRequest.title } }]
+                                }
+                            },
+                            children: pageRequest.content ? [{
+                                object: 'block',
+                                type: 'paragraph',
+                                paragraph: {
+                                    rich_text: [{ type: 'text', text: { content: pageRequest.content } }]
+                                }
+                            }] : []
+                        };
+                        
+                        logger.info('Calling notion_create_page tool', { toolArgs });
+                        const notionResult = await this.mcpToolInvoker.invokeTool('notion_create_page', toolArgs);
+                        
+                        if (notionResult && notionResult.content) {
+                            logger.info('Notion page created successfully', { 
+                                resultLength: JSON.stringify(notionResult).length 
+                            });
+                            
+                            // Extract page URL from response
+                            let pageUrl = null;
+                            try {
+                                if (notionResult.content && notionResult.content[0] && notionResult.content[0].text) {
+                                    const responseData = JSON.parse(notionResult.content[0].text);
+                                    pageUrl = responseData.page?.output?.url;
+                                }
+                            } catch (e) {
+                                logger.warn('Failed to parse Notion response for URL extraction', { error: e.message });
+                            }
+                            
+                            // Return clean, user-friendly response
+                            return `✅ **Notion page created successfully!**
+
+📝 **Page Details:**
+• **Title:** ${pageRequest.title}
+• **Location:** ${mainPageId ? 'Under main Leviousa page (sub-page)' : 'Notion workspace root'}
+• **Content:** ${pageRequest.content ? 'Added' : 'Ready for content'}
+
+The page has been created${mainPageId ? ' as a sub-page under your main Leviousa page' : ' in your Notion workspace'}.
+
+${pageUrl ? `🔗 **View Page:** ${pageUrl}` : ''}`;
+                        } else {
+                            logger.warn('Notion tool returned no content', { notionResult });
+                        }
+                    } else {
+                        logger.warn('Could not parse Notion page request', { 
+                            query: prompt.userPrompt 
+                        });
+                    }
+                }
+            } catch (error) {
+                logger.error('Failed to execute Notion action', { 
+                    error: error.message,
+                    stack: error.stack,
+                    query: prompt.userPrompt
+                });
+                // Continue with LLM generation if Notion execution fails
+            }
+        }
+        
         // Set the system prompt in llmOptions AFTER all processing is complete
         llmOptions.systemPrompt = prompt.systemPrompt;
         
@@ -999,6 +1099,130 @@ ${calendarLink ? `🔗 **View in Calendar:** ${calendarLink}` : ''}`;
             
         } catch (error) {
             console.error('Error parsing calendar request:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Find existing Leviousa main page ID or create one
+     * Returns page ID for use as parent in sub-page creation
+     */
+    async getLeviousaMainPageId(userId) {
+        try {
+            logger.info('Looking for existing Leviousa main page', { userId });
+            
+            // List databases to search for existing Leviousa pages
+            const listResult = await this.mcpToolInvoker.invokeTool('notion_list_databases', { user_id: userId });
+            
+            if (listResult && listResult.content && listResult.content[0]) {
+                const listData = JSON.parse(listResult.content[0].text);
+                
+                // Search through pages/databases for existing Leviousa page
+                if (listData.databases && listData.databases.length > 0) {
+                    const leviousaPage = listData.databases.find(db => 
+                        db.title && (
+                            db.title.toLowerCase().includes('leviousa') ||
+                            db.title.toLowerCase() === 'leviousa workspace'
+                        )
+                    );
+                    
+                    if (leviousaPage && leviousaPage.id) {
+                        logger.info('Found existing Leviousa page', { pageId: leviousaPage.id });
+                        return leviousaPage.id;
+                    }
+                }
+            }
+            
+            // If no main page found, create a simple one at workspace root
+            logger.info('No existing Leviousa page found, creating new main page');
+            const mainPageArgs = {
+                user_id: userId,
+                parent: { type: 'workspace', workspace: true },
+                properties: {
+                    title: {
+                        title: [{ text: { content: 'Leviousa Main' } }]
+                    }
+                },
+                children: [{
+                    object: 'block',
+                    type: 'paragraph',
+                    paragraph: {
+                        rich_text: [{ type: 'text', text: { content: '🚀 Main workspace for Leviousa AI content' } }]
+                    }
+                }]
+            };
+            
+            const createResult = await this.mcpToolInvoker.invokeTool('notion_create_page', mainPageArgs);
+            
+            if (createResult && createResult.content) {
+                const responseData = JSON.parse(createResult.content[0].text);
+                if (responseData.success && responseData.page?.output?.id) {
+                    const newPageId = responseData.page.output.id;
+                    logger.info('Created new main Leviousa page', { pageId: newPageId });
+                    return newPageId;
+                }
+            }
+            
+            // Fallback: return null to use workspace root
+            logger.warn('Could not create main page, will use workspace root');
+            return null;
+            
+        } catch (error) {
+            logger.error('Failed to get Leviousa main page ID', { error: error.message });
+            return null;
+        }
+    }
+
+    /**
+     * Parse Notion page creation request from natural language
+     */
+    parseNotionPageRequest(prompt, context) {
+        try {
+            const lowerPrompt = prompt.toLowerCase();
+            
+            // Extract title from prompt
+            let title = 'New Page';
+            
+            // Look for "create page called/titled/named X"
+            const titleMatch = prompt.match(/(?:create|add|save).*?(?:page|note).*?(?:called|titled|named|with title)\s*['""]?([^'""\n]+)['""]?/i);
+            if (titleMatch) {
+                title = titleMatch[1].trim();
+            } else {
+                // Look for quotes around title
+                const quotedMatch = prompt.match(/['""]([^'""]+)['""]/) ;
+                if (quotedMatch) {
+                    title = quotedMatch[1].trim();
+                }
+            }
+            
+            // Extract content if available
+            let content = '';
+            if (context.summary) {
+                // Use conversation summary from listen mode
+                content = `Meeting Summary\n\nTopic: ${context.topic || 'Discussion'}\n\nKey Points:\n`;
+                if (Array.isArray(context.summary)) {
+                    context.summary.forEach(point => {
+                        content += `• ${point}\n`;
+                    });
+                } else if (typeof context.summary === 'string') {
+                    content += context.summary;
+                }
+            } else if (prompt.includes('content') || prompt.includes('with')) {
+                // Extract content from prompt
+                const contentMatch = prompt.match(/content[:\s]+(.+?)(?:\.|$)/i);
+                if (contentMatch) {
+                    content = contentMatch[1].trim();
+                }
+            }
+            
+            return {
+                title,
+                content,
+                parent: null // Will use Leviousa main page as parent
+            };
+            
+        } catch (error) {
+            logger.error('Error parsing Notion page request', { error: error.message });
             return null;
         }
     }
