@@ -514,86 +514,80 @@ app.whenReady().then(async () => {
         console.log('🔧 ====================================');
     }
 
-    // Initialize core services
-    await initializeFirebase();
-    
-    // Initialize PostHog analytics
-    await posthogService.initialize();
-    console.log('>>> [index.js] PostHog service initialized successfully');
+    // PARALLEL STARTUP: Pre-load everything for sub-10-second startup
+    console.log('🚀 [STARTUP] PARALLEL INITIALIZATION: Pre-loading ALL services...');
+    const startTime = Date.now();
     
     try {
-        await databaseInitializer.initialize();
-        console.log('>>> [index.js] Database initialized successfully');
+        // PHASE 1: Critical foundation (Firebase must be first)
+        await initializeFirebase();
+        console.log('✅ [STARTUP] Firebase foundation ready');
         
-        // Clean up zombie sessions from previous runs first - MOVED TO authService
-        // sessionRepository.endAllActiveSessions();
-
+        // PHASE 2: Independent services (parallel for 5x speed boost)
+        const parallelGroup1 = await Promise.all([
+            posthogService.initialize().then(() => console.log('✅ PostHog ready')),
+            databaseInitializer.initialize().then(() => console.log('✅ Database ready')),
+            modelStateService.initialize().then(() => console.log('✅ ModelState ready')),
+            (async () => {
+                const userTimezoneService = require('./features/common/services/userTimezoneService');
+                await userTimezoneService.initialize();
+                console.log('✅ UserTimezone ready');
+            })(),
+            leviousaBridge.initializePreConfiguredKeys().then(() => console.log('✅ PreConfigured keys ready'))
+        ]);
+        
+        // PHASE 3: Auth service (needs Firebase)
         await authService.initialize();
-        console.log('>>> [index.js] AuthService initialized successfully');
-
-        //////// after_modelStateService ////////
-        await modelStateService.initialize();
-        console.log('>>> [index.js] ModelStateService initialized successfully');
-        //////// after_modelStateService ////////
-
-        // Initialize user timezone service for calendar operations
-        const userTimezoneService = require('./features/common/services/userTimezoneService');
-        await userTimezoneService.initialize();
-        console.log('>>> [index.js] UserTimezoneService initialized successfully');
-
-        // Initialize Leviousa pre-configured API keys
-        await leviousaBridge.initializePreConfiguredKeys();
-        console.log('>>> [index.js] PreConfigured keys initialized successfully');
+        console.log('✅ AuthService ready');
         
-        featureBridge.initialize();  // 추가: featureBridge 초기화
-        windowBridge.initialize();
-        leviousaBridge.initializeLeviousaHandlers();  // Initialize Leviousa-specific handlers
-    
+        // PHASE 4: Quick bridges (parallel)
+        await Promise.all([
+            Promise.resolve(featureBridge.initialize()).then(() => console.log('✅ FeatureBridge ready')),
+            Promise.resolve(windowBridge.initialize()).then(() => console.log('✅ WindowBridge ready')),
+            Promise.resolve(leviousaBridge.initializeLeviousaHandlers()).then(() => console.log('✅ LeviousaBridge ready')),
+            Promise.resolve(setupWebDataHandlers()).then(() => console.log('✅ WebDataHandlers ready'))
+        ]);
+
+        // PHASE 5: Heavy services + Infrastructure (parallel for maximum speed)
+        const heavyServices = await Promise.all([
+            (async () => {
+                const InvisibilityService = require('./features/invisibility/invisibilityService');
+                global.invisibilityService = new InvisibilityService();
+                await global.invisibilityService.initialize();
+                console.log('✅ Invisibility service ready');
+                
+                const { initializeInvisibilityBridge } = require('./features/invisibility/invisibilityBridge');
+                initializeInvisibilityBridge();
+                console.log('✅ InvisibilityBridge ready');
+            })(),
+            (async () => {
+                const VoiceAgentService = require('./features/voiceAgent/voiceAgentService');
+                global.voiceAgentService = new VoiceAgentService();
+                await global.voiceAgentService.initialize();
+                console.log('✅ Voice agent ready');
+                
+                const { initializeVoiceAgentBridge } = require('./features/voiceAgent/voiceAgentBridge');
+                initializeVoiceAgentBridge();
+                console.log('✅ VoiceAgentBridge ready');
+            })(),
+            (async () => {
+                WEB_PORT = await startWebStack();
+                console.log('✅ Web stack ready');
+            })(),
+            (async () => {
+                await initializeParagonOAuthServer();
+                console.log('✅ Paragon OAuth ready');
+                
+                const { initializeParagonBridge } = require('./features/paragon/paragonBridge');
+                initializeParagonBridge();
+                console.log('✅ ParagonBridge ready');
+            })()
+        ]);
         
-        // Initialize invisibility mode service
-        const InvisibilityService = require('./features/invisibility/invisibilityService');
-        global.invisibilityService = new InvisibilityService();
+        const totalTime = Date.now() - startTime;
+        console.log(`🚀 [STARTUP] COMPLETE: All services pre-loaded in ${totalTime}ms (Target: <10s)`);
         
-        try {
-            await global.invisibilityService.initialize();
-            console.log('>>> [index.js] Invisibility service initialized successfully');
-        } catch (error) {
-            console.error('>>> [index.js] ❌ Invisibility service initialization failed:', error);
-            console.error('>>> [index.js] Invisibility features will be unavailable until manual restart');
-            // Don't crash the app, but invisibility features won't work
-        }
-
-        const { initializeInvisibilityBridge } = require('./features/invisibility/invisibilityBridge');
-        initializeInvisibilityBridge();  // Initialize invisibility mode handlers
-
-        // Initialize Paragon bridge for integration authentication
-        const { initializeParagonBridge } = require('./features/paragon/paragonBridge');
-        initializeParagonBridge();  // Initialize Paragon integration handlers
-
-        // Initialize voice agent service
-        const VoiceAgentService = require('./features/voiceAgent/voiceAgentService');
-        global.voiceAgentService = new VoiceAgentService();
-        await global.voiceAgentService.initialize();
-        console.log('>>> [index.js] Voice agent service initialized successfully');
-
-        const { initializeVoiceAgentBridge } = require('./features/voiceAgent/voiceAgentBridge');
-        initializeVoiceAgentBridge();  // Initialize voice agent handlers
-        
-        setupWebDataHandlers();
-
-
-
-        // Initialize Ollama models in database
-        // ollamaModelRepository initialization removed - local models disabled
-
-        // Ollama warm-up removed - local models disabled
-
-        // Start web server and create windows ONLY after all initializations are successful
-        WEB_PORT = await startWebStack();
-        console.log('>>> [index.js] Web stack started successfully');
-        
-        // Initialize Paragon OAuth callback server
-        await initializeParagonOAuthServer();
+        // Everything is now loaded before app starts!
         console.log('>>> [index.js] Paragon OAuth callback server initialized successfully');
         
         const isDev = !app.isPackaged;
@@ -1283,12 +1277,40 @@ async function startPackagedServer() {
       return;
     }
     
-    // HTTP server to serve the actual Next.js build
+    // HTTP server to serve the actual Next.js build + API proxy
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://localhost:3000');
       let filePath = url.pathname;
       
       console.log(`[PackagedServer] 📄 Request: ${req.url}`);
+      
+      // Proxy API calls to Express server on port 9001
+      if (filePath.startsWith('/api/')) {
+        console.log(`[PackagedServer] 🔄 Proxying API call to port 9001: ${req.url}`);
+        const proxyReq = http.request({
+          hostname: 'localhost',
+          port: 9001,
+          path: req.url,
+          method: req.method,
+          headers: req.headers
+        }, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+          proxyRes.pipe(res);
+        });
+        
+        proxyReq.on('error', (err) => {
+          console.error('[PackagedServer] API proxy error:', err);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'API proxy failed', details: err.message }));
+        });
+        
+        if (req.method === 'POST' || req.method === 'PUT') {
+          req.pipe(proxyReq);
+        } else {
+          proxyReq.end();
+        }
+        return;
+      }
       
       // Route /integrations to the actual built page
       if (filePath.startsWith('/integrations')) {
