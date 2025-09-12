@@ -19,62 +19,71 @@ export default function useParagonAuth(userId?: string): {
   const [error, setError] = useState<Error | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Debug logging for userId
-  useEffect(() => {
-    console.log('🔍 [useParagonAuth] Hook initialized with userId:', userId || 'undefined')
-  }, []);
+  // Hook initialized for Paragon authentication
 
   // Get token on mount - but wait for Firebase persistence first
   useEffect(() => {
-    console.log('🔍 [useParagonAuth] Generating token with userId:', userId || 'undefined')
+    // Generating token for authentication
     
     // CRITICAL: Wait for Firebase auth persistence to be ready
     // This prevents auth state loss during OAuth flows
     authPersistenceReady
       .then(() => {
-        console.log('✅ [useParagonAuth] Firebase persistence ready, generating token...')
+        // Firebase persistence ready
         // Clear any expired tokens first
         clearExpiredTokens();
         return generateParagonToken(userId);
       })
       .then((token) => {
-        console.log('✅ [useParagonAuth] Token generated successfully')
-        console.log('🔍 [useParagonAuth] Token payload (decoded):', 
-          JSON.parse(atob(token.split('.')[1])))
+        // Token generated successfully
         setToken(token)
       })
       .catch((err) => {
-        console.error('❌ [useParagonAuth] Token generation failed:', err)
+        // Token generation failed
         setError(err)
       })
       .finally(() => setIsLoading(false));
   }, [userId]);
 
-  // Listen for account state changes and persist them
+  // Get authentication status from Electron app via IPC
   useEffect(() => {
-    const listener = () => {
-      if (paragon) {
-        const authedUser = paragon.getUser();
-        if (authedUser.authenticated) {
-          setUser(authedUser);
+    const checkElectronAuthStatus = async () => {
+      if (typeof window !== 'undefined' && (window as any).api?.mcp?.getAuthenticatedServices) {
+        try {
+          // Getting auth status from Electron app
+          const services = await (window as any).api.mcp.getAuthenticatedServices(userId || 'default-user');
+          // Received auth status from Electron
           
-          // Persist the authentication state
-          if (userId && authedUser.integrations) {
-            paragonAuthStorage.updateUserAuth(userId, authedUser.integrations);
+          if (services && services.authenticated_services) {
+            // Convert Electron auth status to Paragon user format
+            const integrations: any = {};
+            
+            // Mark all authenticated services as enabled
+            services.authenticated_services.forEach((service: string) => {
+              integrations[service] = { enabled: true };
+            });
+            
+            const mockUser: AuthenticatedConnectUser = {
+              authenticated: true,
+              integrations: integrations
+            };
+            
+            // Created user from Electron status
+            setUser(mockUser);
           }
+        } catch (error) {
+          // Failed to get Electron auth status
         }
+      } else {
+        // Electron IPC API not available, using browser SDK
       }
     };
 
-    if (typeof paragon !== 'undefined') {
-      paragon.subscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
-      paragon.subscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
-      
-      return () => {
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
-      };
-    }
+    // Check status immediately and then periodically
+    checkElectronAuthStatus();
+    const interval = setInterval(checkElectronAuthStatus, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(interval);
   }, [userId]);
 
   // Authenticate when token is available

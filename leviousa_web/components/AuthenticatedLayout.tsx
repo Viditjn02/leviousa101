@@ -1,7 +1,7 @@
 'use client'
 
 import ClientLayout from '@/components/ClientLayout'
-import ReferralDetector from '@/components/ReferralDetector'
+import ReferralDetector from '@/components/ReferralWrapper'
 import { useAuth } from '@/utils/auth'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'

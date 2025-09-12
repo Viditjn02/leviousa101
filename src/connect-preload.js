@@ -5,11 +5,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 // SDK configuration will be handled in the renderer process where it belongs
 console.log('[ConnectPreload] 🔄 Paragon SDK will be loaded in browser context (renderer process)');
 
-// Expose necessary IPC methods for authentication notifications
+// Expose necessary IPC methods for authentication notifications and status
 contextBridge.exposeInMainWorld('api', {
   mcp: {
     notifyAuthenticationComplete: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationComplete', data),
-    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data)
+    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data),
+    getParagonServiceStatus: () => ipcRenderer.invoke('mcp:getParagonServiceStatus'),
+    getAuthenticatedServices: (userId) => ipcRenderer.invoke('mcp:getAuthenticatedServices', userId)
   }
 });
 

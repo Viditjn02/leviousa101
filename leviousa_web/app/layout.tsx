@@ -1,7 +1,7 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/utils/auth'
-import { PostHogProvider } from '@/components/PostHogProvider'
+import { PostHogProvider } from '@/components/PostHogWrapper'
 import '@/utils/urlParams'  // Initialize URL parameter preservation
 
 const inter = Inter({ subsets: ['latin'] })

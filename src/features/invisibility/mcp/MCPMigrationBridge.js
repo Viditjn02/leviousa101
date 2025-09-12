@@ -449,11 +449,36 @@ class MCPMigrationBridge extends EventEmitter {
     }
 
     /**
-     * Get supported services (old API)
+     * Get supported services (dynamically loaded from Paragon configuration)
      */
     getSupportedServices() {
         try {
-            // Return predefined services that the system supports
+            // Load services dynamically from Paragon configuration
+            const { getAvailableServices } = require('../../utils/paragonServices');
+            const availableServices = getAvailableServices();
+            
+            // Convert to expected format for backward compatibility
+            const supportedServices = {};
+            
+            Object.entries(availableServices).forEach(([key, service]) => {
+                supportedServices[key] = {
+                    name: service.name,
+                    authType: 'oauth',
+                    scopes: service.capabilities || ['default'],
+                    description: service.description
+                };
+            });
+            
+            logger.info('Loaded supported services dynamically from Paragon', { 
+                serviceCount: Object.keys(supportedServices).length,
+                services: Object.keys(supportedServices)
+            });
+            
+            return supportedServices;
+        } catch (error) {
+            logger.error('Failed to get supported services from Paragon, using fallback', { error: error.message });
+            
+            // Fallback to hardcoded services if dynamic loading fails
             return {
                 github: {
                     name: 'GitHub',
@@ -490,11 +515,14 @@ class MCPMigrationBridge extends EventEmitter {
                     authType: 'oauth',
                     scopes: ['identify', 'guilds'],
                     description: 'Access Discord servers and user info'
+                },
+                calendly: {
+                    name: 'Calendly',
+                    authType: 'oauth',
+                    scopes: ['default'],
+                    description: 'Access Calendly events and scheduling'
                 }
             };
-        } catch (error) {
-            logger.error('Failed to get supported services', { error: error.message });
-            return {};
         }
     }
 

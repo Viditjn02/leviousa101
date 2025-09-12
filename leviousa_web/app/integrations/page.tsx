@@ -18,31 +18,8 @@ function IntegrationsContentInner() {
   const connectService = searchParams?.get('connect')
   const triggerAuthRef = useRef<{ [key: string]: () => void }>({})
 
-  // Debug logging for user ID and token
-  useEffect(() => {
-    console.log('🔍 [IntegrationsContent] URL params debug:')
-    console.log('  serviceToConnect:', serviceToConnect)
-    console.log('  action:', action)
-    console.log('  userId:', userId)
-    console.log('  firebaseToken:', firebaseToken ? 'Present' : 'Missing')
-    console.log('  authenticateService:', authenticateService)
-    console.log('  connectService:', connectService)
-    
-    if (userId) {
-      console.log('✅ [IntegrationsContent] User ID received from Electron:', userId)
-    } else {
-      console.warn('⚠️ [IntegrationsContent] No user ID received - authentication will use default-user')
-    }
-
-    if (firebaseToken) {
-      console.log('🔑 [IntegrationsContent] Firebase token received from Electron for auth')
-    } else {
-      console.warn('⚠️ [IntegrationsContent] No Firebase token received - will try local auth')
-    }
-  }, [serviceToConnect, action, userId, firebaseToken, authenticateService, connectService])
-
   const handleSuccess = (service: string) => {
-    console.log(`✅ ${service} connected successfully!`)
+    // Service connected successfully
     // You could add toast notifications or other success handling here
     
     // Clear URL parameters after successful connection
@@ -559,9 +536,6 @@ function IntegrationsContentInner() {
 }
 
 export default function IntegrationsPage() {
-  const searchParams = useSearchParams();
-  const userIdParam = searchParams?.get('userId') || undefined;
-
   return (
     <Suspense fallback={
       <div className="min-h-screen py-8 flex items-center justify-center" style={{background: 'linear-gradient(135deg, #905151 0%, #f2e9e9 100%)'}}>
@@ -574,9 +548,9 @@ export default function IntegrationsPage() {
         </div>
       </div>
     }>
-      <ParagonAuthProvider userId={userIdParam}>
-      <IntegrationsContentInner />
-    </ParagonAuthProvider>
+      <ParagonAuthProvider>
+        <IntegrationsContentInner />
+      </ParagonAuthProvider>
     </Suspense>
   )
 }

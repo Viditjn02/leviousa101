@@ -8,8 +8,8 @@ const nextConfig = {
   },
   reactStrictMode: true,
   swcMinify: true,
-  // Disable static export for Vercel (Vercel handles dynamic Next.js apps)
-  // ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
+  // Dynamic app for Electron production (no static export)
+  // output: 'export', // Removed - we need SSR for integrations/auth
   
   // Skip problematic pages during build for OAuth verification
   async generateBuildId() {

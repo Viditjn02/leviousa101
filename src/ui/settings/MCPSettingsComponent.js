@@ -567,13 +567,13 @@ export class MCPSettingsComponent extends LitElement {
             // Load the ParagonServices utility script
             if (!window.ParagonServices) {
                 const script = document.createElement('script');
-                script.src = '../utils/paragonServices.js';
+                script.src = '../assets/paragonServices.js';
                 script.onload = () => {
-                    console.log('ParagonServices utility loaded successfully');
+                    // ParagonServices utility loaded successfully
                     this.requestUpdate(); // Trigger re-render with dynamic services
                 };
                 script.onerror = (error) => {
-                    console.warn('Failed to load ParagonServices utility:', error);
+                    // Failed to load ParagonServices utility (error suppressed for production)
                 };
                 document.head.appendChild(script);
             }

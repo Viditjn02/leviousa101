@@ -1180,6 +1180,55 @@ function initializeInvisibilityBridge() {
             return { success: false, error: error.message };
         }
     });
+
+    // Paragon authentication status IPC handlers
+    ipcMain.handle('mcp:getParagonServiceStatus', async () => {
+        try {
+            console.log('[InvisibilityBridge] 🔍 IPC request for Paragon service status');
+            
+            if (!global.mcpClient) {
+                console.warn('[InvisibilityBridge] No MCP client available for service status');
+                return {};
+            }
+            
+            // Get the service status that's already computed
+            const serviceStatus = await global.mcpClient.getParagonServiceStatus();
+            console.log('[InvisibilityBridge] 📊 Returning service status via IPC:', serviceStatus);
+            
+            return serviceStatus;
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting Paragon service status via IPC:', error);
+            return {};
+        }
+    });
+
+    ipcMain.handle('mcp:getAuthenticatedServices', async (event, userId) => {
+        try {
+            console.log(`[InvisibilityBridge] 🔍 IPC request for authenticated services, userId: ${userId}`);
+            
+            if (!global.mcpClient) {
+                console.warn('[InvisibilityBridge] No MCP client available for authenticated services');
+                return { authenticated_services: [], available_services: [] };
+            }
+
+            // Call the get_authenticated_services tool
+            const result = await global.mcpClient.invokeTool('get_authenticated_services', { 
+                user_id: userId || 'default-user' 
+            });
+            
+            console.log('[InvisibilityBridge] 📊 Authenticated services result via IPC:', result);
+            
+            if (result && result.content && result.content[0] && result.content[0].text) {
+                const services = JSON.parse(result.content[0].text);
+                return services;
+            }
+            
+            return { authenticated_services: [], available_services: [] };
+        } catch (error) {
+            console.error('[InvisibilityBridge] Error getting authenticated services via IPC:', error);
+            return { authenticated_services: [], available_services: [] };
+        }
+    });
     
     ipcMain.handle('mcp:ui:removeResource', async (event, resourceId) => {
         try {
