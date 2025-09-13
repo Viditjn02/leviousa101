@@ -1312,6 +1312,48 @@ async function startPackagedServer() {
         return;
       }
       
+      // Serve runtime-config.json (CRITICAL for Paragon NEXT_PUBLIC_PARAGON_PROJECT_ID)
+      if (filePath === '/runtime-config.json') {
+        console.log('[PackagedServer] 🔑 Serving runtime-config.json for Paragon project ID');
+        const runtimeConfig = {
+          NEXT_PUBLIC_PARAGON_PROJECT_ID: "270db720-6ead-460b-ae94-5ea9bec3f1e2"
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(runtimeConfig));
+        return;
+      }
+      
+      // Serve paragonServices.js (CRITICAL for Paragon service definitions)
+      if (filePath === '/paragonServices.js') {
+        console.log('[PackagedServer] 🔑 Serving paragonServices.js for Paragon services');
+        const paragonServicesContent = 
+          '// Service definitions with full metadata\n' +
+          'const SERVICE_DEFINITIONS = {\n' +
+          '  gmail: { name: "Gmail", description: "Send and search emails", icon: "📧", capabilities: ["gmail_send", "gmail_search"] },\n' +
+          '  googleCalendar: { name: "Google Calendar", description: "Manage events and schedules", icon: "📅", capabilities: ["calendar_events"] },\n' +
+          '  calendly: { name: "Calendly", description: "Schedule and manage meetings", icon: "🗓️", capabilities: ["calendly_events"] },\n' +
+          '  linkedin: { name: "LinkedIn", description: "Professional networking and posts", icon: "💼", capabilities: ["linkedin_posts"] },\n' +
+          '  notion: { name: "Notion", description: "Notes, databases, and workspace management", icon: "📝", capabilities: ["notion_pages"] }\n' +
+          '};\n\n' +
+          'function getAvailableServices() {\n' +
+          '  const realParagonServices = ["gmail", "googleCalendar", "calendly", "linkedin", "notion"];\n' +
+          '  const services = {};\n' +
+          '  realParagonServices.forEach(serviceId => {\n' +
+          '    if (SERVICE_DEFINITIONS[serviceId]) {\n' +
+          '      services[serviceId] = SERVICE_DEFINITIONS[serviceId];\n' +
+          '    }\n' +
+          '  });\n' +
+          '  console.log("Loaded", Object.keys(services).length, "available Paragon services:", Object.keys(services).join(", "));\n' +
+          '  return services;\n' +
+          '}\n\n' +
+          'if (typeof module !== "undefined" && module.exports) {\n' +
+          '  module.exports = { getAvailableServices, SERVICE_DEFINITIONS };\n' +
+          '}';
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end(paragonServicesContent);
+        return;
+      }
+      
       // Route /integrations to the actual built page
       if (filePath.startsWith('/integrations')) {
         const integrationFile = path.join(nextDir, 'server/app/integrations.html');
