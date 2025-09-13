@@ -587,6 +587,30 @@ app.whenReady().then(async () => {
         const totalTime = Date.now() - startTime;
         console.log(`🚀 [STARTUP] COMPLETE: All services pre-loaded in ${totalTime}ms (Target: <10s)`);
         
+        // CRITICAL: Ensure HTTP servers are fully ready before creating windows
+        console.log('⏱️ [STARTUP] Waiting for HTTP servers to be fully ready...');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second safety delay
+        
+        // Verify servers are responding before creating windows
+        const http = require('http');
+        const testServerReady = () => new Promise((resolve) => {
+            const req = http.request({ hostname: 'localhost', port: 3000, path: '/runtime-config.json' }, (res) => {
+                console.log('✅ [STARTUP] Frontend server verified ready');
+                resolve(true);
+            });
+            req.on('error', () => {
+                console.log('⏳ [STARTUP] Frontend server not ready yet, waiting...');
+                setTimeout(() => resolve(false), 500);
+            });
+            req.end();
+        });
+        
+        // Wait up to 10 seconds for server to be ready
+        for (let i = 0; i < 20; i++) {
+            if (await testServerReady()) break;
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
         // Everything is now loaded before app starts!
         console.log('>>> [index.js] Paragon OAuth callback server initialized successfully');
         
