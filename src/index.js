@@ -1256,37 +1256,38 @@ async function handleOAuthCallback(pathname, params) {
 }
 
 
-// Packaged app server: Use built-in Node.js HTTP server for reliability
+// Packaged app server: Simple HTTP server for Next.js static files (DoltHub approach)
 async function startPackagedServer() {
-  const path = require('path');
   const http = require('http');
+  const path = require('path');
   const fs = require('fs');
   
-  // In packaged apps, .next is extracted to Resources directory
+  // In packaged apps, .next static build is extracted to Resources directory
   const resourcesPath = process.resourcesPath;
-  const nextDir = path.join(resourcesPath, '.next');
+  const nextStaticPath = path.join(resourcesPath, '.next');
   
   return new Promise((resolve, reject) => {
-    console.log(`[PackagedServer] 🚀 Starting built-in HTTP server for packaged app...`);
+    console.log(`[PackagedServer] 🚀 Starting simple HTTP server with Next.js static build...`);
     console.log(`[PackagedServer] 📁 Resources path: ${resourcesPath}`);
-    console.log(`[PackagedServer] 📁 Next.js build path: ${nextDir}`);
+    console.log(`[PackagedServer] 📁 Next.js static path: ${nextStaticPath}`);
     
-    // Check if .next directory exists
-    if (!fs.existsSync(nextDir)) {
-      reject(new Error(`Next.js build directory not found: ${nextDir}`));
+    // Check if .next static build exists
+    if (!fs.existsSync(nextStaticPath)) {
+      reject(new Error(`Next.js static build not found: ${nextStaticPath}`));
       return;
     }
     
-    // HTTP server to serve the actual Next.js build + API proxy
+    // Create simple HTTP server (no Express dependencies)
     const server = http.createServer((req, res) => {
       const url = new URL(req.url, 'http://localhost:3000');
       let filePath = url.pathname;
       
       console.log(`[PackagedServer] 📄 Request: ${req.url}`);
       
-      // Proxy API calls to Express server on port 9001
+      // 1. API Proxy - Forward all /api/* requests to existing Express server on port 9001
       if (filePath.startsWith('/api/')) {
-        console.log(`[PackagedServer] 🔄 Proxying API call to port 9001: ${req.url}`);
+        console.log(`[PackagedServer] 🔄 Proxying API: ${req.method} ${req.url} -> http://localhost:9001`);
+        
         const proxyReq = http.request({
           hostname: 'localhost',
           port: 9001,
@@ -1299,7 +1300,7 @@ async function startPackagedServer() {
         });
         
         proxyReq.on('error', (err) => {
-          console.error('[PackagedServer] API proxy error:', err);
+          console.error(`[PackagedServer] ❌ API Proxy Error: ${err.message}`);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'API proxy failed', details: err.message }));
         });
@@ -1312,7 +1313,7 @@ async function startPackagedServer() {
         return;
       }
       
-      // Serve runtime-config.json (CRITICAL for Paragon NEXT_PUBLIC_PARAGON_PROJECT_ID)
+      // 2. Serve runtime-config.json (CRITICAL for Paragon authentication)
       if (filePath === '/runtime-config.json') {
         console.log('[PackagedServer] 🔑 Serving runtime-config.json for Paragon project ID');
         const runtimeConfig = {
@@ -1323,95 +1324,120 @@ async function startPackagedServer() {
         return;
       }
       
-      // Serve paragonServices.js (CRITICAL for Paragon service definitions)
+      // 3. Serve paragonServices.js (CRITICAL for Paragon service definitions)
       if (filePath === '/paragonServices.js') {
         console.log('[PackagedServer] 🔑 Serving paragonServices.js for Paragon services');
-        const paragonServicesContent = 
-          '// Service definitions with full metadata\n' +
-          'const SERVICE_DEFINITIONS = {\n' +
-          '  gmail: { name: "Gmail", description: "Send and search emails", icon: "📧", capabilities: ["gmail_send", "gmail_search"] },\n' +
-          '  googleCalendar: { name: "Google Calendar", description: "Manage events and schedules", icon: "📅", capabilities: ["calendar_events"] },\n' +
-          '  calendly: { name: "Calendly", description: "Schedule and manage meetings", icon: "🗓️", capabilities: ["calendly_events"] },\n' +
-          '  linkedin: { name: "LinkedIn", description: "Professional networking and posts", icon: "💼", capabilities: ["linkedin_posts"] },\n' +
-          '  notion: { name: "Notion", description: "Notes, databases, and workspace management", icon: "📝", capabilities: ["notion_pages"] }\n' +
-          '};\n\n' +
-          'function getAvailableServices() {\n' +
-          '  const realParagonServices = ["gmail", "googleCalendar", "calendly", "linkedin", "notion"];\n' +
-          '  const services = {};\n' +
-          '  realParagonServices.forEach(serviceId => {\n' +
-          '    if (SERVICE_DEFINITIONS[serviceId]) {\n' +
-          '      services[serviceId] = SERVICE_DEFINITIONS[serviceId];\n' +
-          '    }\n' +
-          '  });\n' +
-          '  console.log("Loaded", Object.keys(services).length, "available Paragon services:", Object.keys(services).join(", "));\n' +
-          '  return services;\n' +
-          '}\n\n' +
-          'if (typeof module !== "undefined" && module.exports) {\n' +
-          '  module.exports = { getAvailableServices, SERVICE_DEFINITIONS };\n' +
-          '}';
+        const paragonServicesContent = `
+// Service definitions with full metadata
+const SERVICE_DEFINITIONS = {
+  gmail: { name: "Gmail", description: "Send and search emails", icon: "📧", capabilities: ["gmail_send", "gmail_search"] },
+  googleCalendar: { name: "Google Calendar", description: "Manage events and schedules", icon: "📅", capabilities: ["calendar_events"] },
+  calendly: { name: "Calendly", description: "Schedule and manage meetings", icon: "🗓️", capabilities: ["calendly_events"] },
+  linkedin: { name: "LinkedIn", description: "Professional networking and posts", icon: "💼", capabilities: ["linkedin_posts"] },
+  notion: { name: "Notion", description: "Notes, databases, and workspace management", icon: "📝", capabilities: ["notion_pages"] },
+  slack: { name: "Slack", description: "Team communication and workflow", icon: "💬", capabilities: ["slack_messages"] }
+};
+
+function getAvailableServices() {
+  const realParagonServices = ["gmail", "googleCalendar", "calendly", "linkedin", "notion", "slack"];
+  const services = {};
+  realParagonServices.forEach(serviceId => {
+    if (SERVICE_DEFINITIONS[serviceId]) {
+      services[serviceId] = SERVICE_DEFINITIONS[serviceId];
+    }
+  });
+  console.log("Loaded", Object.keys(services).length, "available Paragon services:", Object.keys(services).join(", "));
+  return services;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { getAvailableServices, SERVICE_DEFINITIONS };
+}`;
         res.writeHead(200, { 'Content-Type': 'application/javascript' });
         res.end(paragonServicesContent);
         return;
       }
       
-      // Route /integrations to the actual built page
-      if (filePath.startsWith('/integrations')) {
-        const integrationFile = path.join(nextDir, 'server/app/integrations.html');
-        if (fs.existsSync(integrationFile)) {
-          console.log(`[PackagedServer] ✅ Serving integrations page: ${integrationFile}`);
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          fs.createReadStream(integrationFile).pipe(res);
-          return;
-        }
-      }
-      
-      // Serve static assets from .next/static
+      // 4. Serve Next.js static assets (_next/static/*)
       if (filePath.startsWith('/_next/static/')) {
-        const staticPath = path.join(nextDir, filePath.replace('/_next/', ''));
-        if (fs.existsSync(staticPath)) {
-          console.log(`[PackagedServer] 📄 Serving static: ${staticPath}`);
-          res.writeHead(200);
-          fs.createReadStream(staticPath).pipe(res);
-          return;
-        }
-      }
-      
-      // Serve built-in chunks and assets
-      if (filePath.startsWith('/_next/')) {
-        const assetPath = path.join(nextDir, filePath.replace('/_next/', ''));
+        const assetPath = path.join(nextStaticPath, filePath.replace('/_next/', ''));
         if (fs.existsSync(assetPath)) {
-          console.log(`[PackagedServer] 📄 Serving asset: ${assetPath}`);
+          console.log(`[PackagedServer] 📄 Serving static asset: ${assetPath}`);
           res.writeHead(200);
           fs.createReadStream(assetPath).pipe(res);
           return;
         }
       }
       
-      // Default: Serve basic success page to confirm server is working
-      console.log(`[PackagedServer] 📄 Serving default for: ${req.url}`);
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>Leviousa Server Ready</title></head>
-        <body>
-          <h1>✅ Leviousa Packaged Server is Working!</h1>
-          <p><strong>Server:</strong> localhost:3000</p>
-          <p><strong>Build:</strong> ${nextDir}</p>
-          <p><a href="/integrations">→ Go to Integrations</a></p>
-        </body>
-        </html>
-      `);
+      // 5. Serve other Next.js assets (_next/*)
+      if (filePath.startsWith('/_next/')) {
+        const assetPath = path.join(nextStaticPath, filePath.replace('/_next/', ''));
+        if (fs.existsSync(assetPath)) {
+          console.log(`[PackagedServer] 📄 Serving Next.js asset: ${assetPath}`);
+          res.writeHead(200);
+          fs.createReadStream(assetPath).pipe(res);
+          return;
+        }
+      }
+      
+      // 6. Serve integrations page (CRITICAL route)
+      if (filePath.startsWith('/integrations')) {
+        const integrationFile = path.join(nextStaticPath, 'server/app/integrations.html');
+        if (fs.existsSync(integrationFile)) {
+          console.log(`[PackagedServer] ✅ Serving integrations page: ${integrationFile}`);
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          fs.createReadStream(integrationFile).pipe(res);
+          return;
+        } else {
+          console.error(`[PackagedServer] ❌ Integrations page not found: ${integrationFile}`);
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Integrations page not found');
+          return;
+        }
+      }
+      
+      // 7. Serve root page
+      if (filePath === '/') {
+        const indexFile = path.join(nextStaticPath, 'server/app/index.html');
+        if (fs.existsSync(indexFile)) {
+          console.log(`[PackagedServer] ✅ Serving index page: ${indexFile}`);
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          fs.createReadStream(indexFile).pipe(res);
+          return;
+        } else {
+          // Fallback success page
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Leviousa Ready</title></head>
+            <body>
+              <h1>✅ Leviousa Simple HTTP Server Ready!</h1>
+              <p><strong>Server:</strong> localhost:3000</p>
+              <p><strong>Architecture:</strong> Simple HTTP + Next.js Static Export</p>
+              <p><a href="/integrations">→ Go to Integrations</a></p>
+            </body>
+            </html>
+          `);
+          return;
+        }
+      }
+      
+      // 8. Fallback for other routes
+      console.log(`[PackagedServer] 📄 Fallback route: ${req.url}`);
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Page not found');
     });
     
+    // Start the simple HTTP server
     server.listen(3000, 'localhost', () => {
-      console.log(`✅ [PackagedServer] Built-in HTTP server ready on http://localhost:3000`);
-      console.log(`✅ [PackagedServer] Serving Next.js build from: ${nextDir}`);
+      console.log(`✅ [PackagedServer] Simple HTTP server ready on http://localhost:3000`);
+      console.log(`✅ [PackagedServer] Architecture: Simple HTTP + Next.js Static Export + API Proxy`);
       resolve(server);
     });
     
     server.on('error', (error) => {
-      console.error('[PackagedServer] Server error:', error);
+      console.error('[PackagedServer] HTTP server error:', error);
       if (error.code === 'EADDRINUSE') {
         reject(new Error('Port 3000 already in use'));
       } else {
@@ -1421,7 +1447,7 @@ async function startPackagedServer() {
     
     // Cleanup on app exit
     app.once('before-quit', () => {
-      console.log('[PackagedServer] Shutting down built-in HTTP server...');
+      console.log('[PackagedServer] Shutting down simple HTTP server...');
       server.close();
     });
   });

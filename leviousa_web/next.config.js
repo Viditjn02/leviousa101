@@ -8,8 +8,9 @@ const nextConfig = {
   },
   reactStrictMode: true,
   swcMinify: true,
-  // Dynamic app for Electron production (no static export)
-  // output: 'export', // Removed - we need SSR for integrations/auth
+  // CRITICAL: Static export for Electron production builds
+  // Express server will handle API routes, not Next.js SSR
+  output: 'export',
   
   // Skip problematic pages during build for OAuth verification
   async generateBuildId() {

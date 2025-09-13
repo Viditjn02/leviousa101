@@ -50,10 +50,8 @@ function initializeParagonBridge() {
               width: 1200,
               height: 800,
               show: true,
-              frame: false, // Frameless like listen overlay
-              transparent: true, // Transparent like listen overlay
-              frame: true, // Proper window frame with controls ✅
-              transparent: false, // Solid window (not overlay) ✅
+              frame: true, // Proper window frame with controls
+              transparent: false, // Solid window (not overlay)
               webPreferences: {
                 preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                 contextIsolation: true,
@@ -61,24 +59,16 @@ function initializeParagonBridge() {
                 // Use the default session which already has CSP patches
                 session: session.defaultSession
               },
-              // Make it independent overlay like listen system
-              parent: undefined, // No parent relationship like listen
-              modal: false, // Not modal - independent like listen
-              alwaysOnTop: true, // Always on top like listen overlay
-              skipTaskbar: true, // Don't show in taskbar like listen overlay
-              hasShadow: false,
-              // Proper window behavior (not overlay)
+              // Proper window behavior for OAuth
               parent: undefined, // Independent window
               modal: false, // Not modal - user can switch away
-              alwaysOnTop: false, // Normal layering ✅ (fixes OAuth popup issue)
-              skipTaskbar: false, // Show in taskbar ✅ 
-              hasShadow: true, // Normal window shadow ✅
+              alwaysOnTop: false, // Normal layering (fixes OAuth popup issue)
+              skipTaskbar: false, // Show in taskbar
+              hasShadow: true, // Normal window shadow
               resizable: true,
-              minimizable: false,
-              maximizable: false,
-              minimizable: true, // Minimize button ✅
-              maximizable: true, // Maximize button ✅
-              closable: true, // Close button ✅
+              minimizable: true, // Minimize button
+              maximizable: true, // Maximize button
+              closable: true, // Close button
               focusable: true,
               title: `Connect ${service} - Leviousa`
             });
