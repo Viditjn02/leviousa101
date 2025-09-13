@@ -26,6 +26,7 @@ files:
     - package.json
     - leviousa_web/**/*
     - services/**/*
+    - runtime-config.json
     - '!**/node_modules/electron/**'
     - '!leviousa_web/node_modules/.cache/**'
     - public/build/**/*
@@ -35,6 +36,8 @@ extraResources:
     - from: leviousa_web/.next
       to: .next
       filter: ["**/*"]
+    - from: runtime-config.json
+      to: runtime-config.json
 # Note: leviousa_web directory is included in files section for production dev server
 
 asarUnpack:

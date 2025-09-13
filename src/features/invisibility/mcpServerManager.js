@@ -71,7 +71,17 @@ class MCPServerManager extends EventEmitter {
             },
             paragon: {
                 command: '/Users/viditjain/.nvm/versions/node/v22.17.1/bin/node',
-                args: [path.join(__dirname, '../../../services/paragon-mcp/dist/index.mjs')],
+                args: [(() => {
+                    // CRITICAL FIX: Use proper path for packaged apps
+                    const { app } = require('electron');
+                    if (app.isPackaged) {
+                        // In packaged apps, use unpacked directory
+                        return path.join(process.resourcesPath, 'app.asar.unpacked/services/paragon-mcp/dist/index.mjs');
+                    } else {
+                        // In development, use relative path
+                        return path.join(__dirname, '../../../services/paragon-mcp/dist/index.mjs');
+                    }
+                })()],
                 description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
                 tools: [], // Will be dynamically populated from Paragon
                 envVars: ['PARAGON_PROJECT_ID', 'PARAGON_SIGNING_KEY'],

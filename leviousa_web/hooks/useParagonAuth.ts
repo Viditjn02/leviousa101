@@ -89,26 +89,50 @@ export default function useParagonAuth(userId?: string): {
   // Authenticate when token is available
   useEffect(() => {
     if (token && !error) {
-      const projectId = process.env.NEXT_PUBLIC_PARAGON_PROJECT_ID;
-      if (!projectId) {
-        setError(new Error('NEXT_PUBLIC_PARAGON_PROJECT_ID not configured'));
-        return;
-      }
+      // CRITICAL FIX: Use IPC to get runtime config instead of process.env (which doesn't work in static export)
+      const initializeParagon = async () => {
+        try {
+          let projectId;
+          
+          // Try to get project ID from runtime config via IPC (packaged app)
+          if (typeof window !== 'undefined' && window.api?.getRuntimeConfig) {
+            console.log('[useParagonAuth] 🔍 Getting runtime config via IPC...');
+            const config = await window.api.getRuntimeConfig();
+            projectId = config.PARAGON_PROJECT_ID;
+            console.log('[useParagonAuth] ✅ Got project ID from runtime config:', projectId);
+          } else {
+            // Fallback for development or if IPC not available
+            projectId = process.env.NEXT_PUBLIC_PARAGON_PROJECT_ID || "270db720-6ead-460b-ae94-5ea9bec3f1e2";
+            console.log('[useParagonAuth] 🔄 Using fallback project ID:', projectId);
+          }
+          
+          if (!projectId) {
+            throw new Error('PARAGON_PROJECT_ID not available via runtime config or environment');
+          }
 
-      paragon
-        .authenticate(projectId, token)
-        .then(() => {
+          console.log('[useParagonAuth] 🚀 Authenticating with Paragon...', { projectId: projectId.substring(0, 20) + '...', hasToken: !!token });
+          
+          await paragon.authenticate(projectId, token);
+          
           const authedUser = paragon.getUser();
           if (authedUser.authenticated) {
+            console.log('[useParagonAuth] ✅ Paragon authentication successful');
             setUser(authedUser);
             
             // Persist the authentication state
             if (userId && authedUser.integrations) {
               paragonAuthStorage.updateUserAuth(userId, authedUser.integrations);
             }
+          } else {
+            console.warn('[useParagonAuth] ⚠️ Paragon authenticate() succeeded but user not authenticated');
           }
-        })
-        .catch(setError);
+        } catch (authError) {
+          console.error('[useParagonAuth] ❌ Paragon authentication failed:', authError);
+          setError(authError as Error);
+        }
+      };
+      
+      initializeParagon();
     }
   }, [token, error, userId]);
 

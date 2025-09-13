@@ -482,6 +482,57 @@ function setupCSPInterception() {
 }
 
 app.whenReady().then(async () => {
+    // Set up runtime config IPC handler FIRST
+    const { ipcMain } = require('electron');
+    const fs = require('fs');
+    const path = require('path');
+    
+    // CRITICAL: IPC handler for runtime config (fixes Paragon authentication)
+    ipcMain.handle('app:get-runtime-config', async () => {
+        try {
+            let configPath;
+            if (app.isPackaged) {
+                // In packaged apps, look in Resources directory
+                configPath = path.join(process.resourcesPath, 'runtime-config.json');
+            } else {
+                // In development, look in app root
+                configPath = path.join(__dirname, '../runtime-config.json');
+            }
+            
+            console.log('[IPC] Reading runtime config from:', configPath);
+            const configData = fs.readFileSync(configPath, 'utf-8');
+            const config = JSON.parse(configData);
+            console.log('[IPC] ✅ Runtime config loaded successfully');
+            return config;
+        } catch (error) {
+            console.error('[IPC] ❌ Failed to load runtime config:', error.message);
+            // Fallback config
+            return {
+                PARAGON_PROJECT_ID: "270db720-6ead-460b-ae94-5ea9bec3f1e2",
+                CONNECT_OPEN_IN_SYSTEM_BROWSER: true,
+                REDIRECT_URI: "leviousa://paragon/callback"
+            };
+        }
+    });
+    
+    // Set up deep link handling for OAuth callbacks
+    if (!app.isDefaultProtocolClient('leviousa')) {
+        app.setAsDefaultProtocolClient('leviousa');
+        console.log('✅ [MAIN] Registered leviousa:// protocol handler');
+    }
+    
+    // Handle deep link URLs (OAuth callbacks)
+    app.on('open-url', async (event, url) => {
+        event.preventDefault();
+        console.log('[DeepLink] 🔗 Received deep link:', url);
+        
+        // Send to all renderer processes to handle Paragon OAuth callback
+        const { BrowserWindow } = require('electron');
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('deeplink:paragon', { url });
+        });
+    });
+    
     // Set up CSP interception FIRST, before any other session configuration
     console.log('🚀 [MAIN] App ready, calling setupCSPInterception()...');
     setupCSPInterception();
@@ -571,8 +622,28 @@ app.whenReady().then(async () => {
                 console.log('✅ VoiceAgentBridge ready');
             })(),
             (async () => {
-                WEB_PORT = await startWebStack();
-                console.log('✅ Web stack ready');
+                // Simplified web stack: Just start API server (no HTTP server needed for static export)
+                const express = require('express');
+                const createBackendApp = require('../leviousa_web/backend_node');
+                const eventBridge = {
+                    send: (eventName, data) => {
+                        console.log(`[EventBridge] Sending event: ${eventName}`, data);
+                        const { BrowserWindow } = require('electron');
+                        BrowserWindow.getAllWindows().forEach(window => {
+                            window.webContents.send(eventName, data);
+                        });
+                    }
+                };
+                
+                const nodeApi = createBackendApp(eventBridge);
+                const apiSrv = express();
+                apiSrv.use(nodeApi);
+                apiSrv.listen(9001, () => {
+                    console.log('✅ Express API server ready on http://localhost:9001');
+                });
+                
+                WEB_PORT = 3000; // Static export doesn't need actual server
+                console.log('✅ Web stack ready (static export mode)');
             })(),
             (async () => {
                 await initializeParagonOAuthServer();
@@ -587,29 +658,8 @@ app.whenReady().then(async () => {
         const totalTime = Date.now() - startTime;
         console.log(`🚀 [STARTUP] COMPLETE: All services pre-loaded in ${totalTime}ms (Target: <10s)`);
         
-        // CRITICAL: Ensure HTTP servers are fully ready before creating windows
-        console.log('⏱️ [STARTUP] Waiting for HTTP servers to be fully ready...');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second safety delay
-        
-        // Verify servers are responding before creating windows
-        const http = require('http');
-        const testServerReady = () => new Promise((resolve) => {
-            const req = http.request({ hostname: 'localhost', port: 3000, path: '/runtime-config.json' }, (res) => {
-                console.log('✅ [STARTUP] Frontend server verified ready');
-                resolve(true);
-            });
-            req.on('error', () => {
-                console.log('⏳ [STARTUP] Frontend server not ready yet, waiting...');
-                setTimeout(() => resolve(false), 500);
-            });
-            req.end();
-        });
-        
-        // Wait up to 10 seconds for server to be ready
-        for (let i = 0; i < 20; i++) {
-            if (await testServerReady()) break;
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
+        // All services ready - no HTTP server verification needed for static export
+        console.log('✅ [STARTUP] All services ready - using static export with IPC for config');
         
         // Everything is now loaded before app starts!
         console.log('>>> [index.js] Paragon OAuth callback server initialized successfully');

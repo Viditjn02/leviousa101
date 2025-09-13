@@ -60,7 +60,17 @@ const LEGACY_SERVER_DEFINITIONS = {
     },
     paragon: {
         command: 'node',
-        args: [path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs')],
+        args: [(() => {
+            // CRITICAL FIX: Use proper path for packaged apps
+            const { app } = require('electron');
+            if (app.isPackaged) {
+                // In packaged apps, use unpacked directory
+                return path.join(process.resourcesPath, 'app.asar.unpacked/services/paragon-mcp/dist/index.mjs');
+            } else {
+                // In development, use relative path
+                return path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs');
+            }
+        })()],
         description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
         capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],
         transport: 'stdio',
@@ -459,7 +469,15 @@ class ServerRegistry extends EventEmitter {
         
         return new Promise((resolve, reject) => {
             // Load Paragon .env file and merge with environment
-            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            const { app } = require('electron');
+            let paragonEnvPath;
+            if (app.isPackaged) {
+                // In packaged apps, use unpacked directory
+                paragonEnvPath = path.join(process.resourcesPath, 'app.asar.unpacked/services/paragon-mcp/.env');
+            } else {
+                // In development, use relative path
+                paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            }
             const dotenv = require('dotenv');
             const paragonEnv = dotenv.config({ path: paragonEnvPath });
             
@@ -485,7 +503,14 @@ class ServerRegistry extends EventEmitter {
                 logger.warn(`No process to kill on port ${port}: ${err.message}`);
             }
             // Start the Paragon server process with correct working directory
-            const paragonCwd = path.join(__dirname, '../../../../services/paragon-mcp');
+            let paragonCwd;
+            if (app.isPackaged) {
+                // In packaged apps, use unpacked directory
+                paragonCwd = path.join(process.resourcesPath, 'app.asar.unpacked/services/paragon-mcp');
+            } else {
+                // In development, use relative path
+                paragonCwd = path.join(__dirname, '../../../../services/paragon-mcp');
+            }
             const serverProcess = spawn(config.command, config.args, {
                 env: processEnv,
                 cwd: paragonCwd,

@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('api', {
     platform: process.platform
   },
 
+  // Runtime configuration for packaged apps (CRITICAL for Paragon authentication)
+  getRuntimeConfig: () => ipcRenderer.invoke('app:get-runtime-config'),
+
   // MCP (Model Context Protocol) Integration API
   mcp: {
     // Server management
