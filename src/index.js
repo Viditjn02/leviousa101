@@ -1358,7 +1358,27 @@ if (typeof module !== "undefined" && module.exports) {
         return;
       }
       
-      // 4. Serve Next.js static assets (_next/static/*)
+      // 4. Serve browser-init.js (CRITICAL for browser initialization)
+      if (filePath === '/browser-init.js') {
+        console.log('[PackagedServer] 🔑 Serving browser-init.js for browser initialization');
+        const browserInitContent = `
+// Browser initialization for Paragon SDK and Electron environment
+console.log('✅ [BrowserInit] Browser initialization script loaded');
+
+// Initialize Paragon environment if available
+if (typeof window !== 'undefined') {
+  window.paragonReady = true;
+  console.log('✅ [BrowserInit] Paragon environment ready');
+  
+  // Dispatch ready event for components waiting for initialization
+  window.dispatchEvent(new CustomEvent('paragonInit'));
+}`;
+        res.writeHead(200, { 'Content-Type': 'application/javascript' });
+        res.end(browserInitContent);
+        return;
+      }
+      
+      // 5. Serve Next.js static assets (_next/static/*)
       if (filePath.startsWith('/_next/static/')) {
         const assetPath = path.join(nextStaticPath, filePath.replace('/_next/', ''));
         if (fs.existsSync(assetPath)) {
@@ -1369,7 +1389,7 @@ if (typeof module !== "undefined" && module.exports) {
         }
       }
       
-      // 5. Serve other Next.js assets (_next/*)
+      // 6. Serve other Next.js assets (_next/*)
       if (filePath.startsWith('/_next/')) {
         const assetPath = path.join(nextStaticPath, filePath.replace('/_next/', ''));
         if (fs.existsSync(assetPath)) {
@@ -1380,7 +1400,7 @@ if (typeof module !== "undefined" && module.exports) {
         }
       }
       
-      // 6. Serve integrations page (CRITICAL route)
+      // 7. Serve integrations page (CRITICAL route)
       if (filePath.startsWith('/integrations')) {
         const integrationFile = path.join(nextStaticPath, 'server/app/integrations.html');
         if (fs.existsSync(integrationFile)) {
@@ -1396,7 +1416,7 @@ if (typeof module !== "undefined" && module.exports) {
         }
       }
       
-      // 7. Serve root page
+      // 8. Serve root page
       if (filePath === '/') {
         const indexFile = path.join(nextStaticPath, 'server/app/index.html');
         if (fs.existsSync(indexFile)) {
@@ -1423,7 +1443,7 @@ if (typeof module !== "undefined" && module.exports) {
         }
       }
       
-      // 8. Fallback for other routes
+      // 9. Fallback for other routes
       console.log(`[PackagedServer] 📄 Fallback route: ${req.url}`);
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Page not found');
