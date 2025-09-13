@@ -98,6 +98,49 @@ function createApp(eventBridge) {
         }
     });
 
+    // Paragon token generation route (CRITICAL - must be BEFORE auth middleware)
+    app.get('/api/paragonToken', async (req, res) => {
+        const jwt = require('jsonwebtoken');
+        
+        let signingKey = process.env.PARAGON_SIGNING_KEY || process.env.SIGNING_KEY;
+        const projectId = process.env.PARAGON_PROJECT_ID || process.env.PROJECT_ID;
+        
+        if (!signingKey || !projectId) {
+            return res.status(500).json({ error: 'Paragon not configured' });
+        }
+        
+        // Process the signing key - remove quotes and fix newlines
+        if (signingKey.startsWith('"') && signingKey.endsWith('"')) {
+            signingKey = signingKey.slice(1, -1);
+        }
+        signingKey = signingKey.replace(/\\n/g, '\n');
+        
+        const userId = Array.isArray(req.query.userId) ? req.query.userId[0] : req.query.userId || 'default-user';
+        const now = Math.floor(Date.now() / 1000);
+        
+        try {
+            const token = jwt.sign(
+                {
+                    sub: userId,
+                    aud: `useparagon.com/${projectId}`, // Required audience for Paragon headless connect portal
+                    iat: now,
+                    exp: now + (24 * 60 * 60), // 24 hours for better persistence
+                },
+                signingKey,
+                { algorithm: 'RS256' }
+            );
+            
+            // Token generated successfully
+            console.log(`[API] ✅ Generated Paragon token for user: ${userId}`);
+            return res.status(200).json({ userToken: token });
+        } catch (err) {
+            // Token generation failed
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            console.error(`[API] ❌ Paragon token generation failed:`, errorMessage);
+            return res.status(500).json({ error: 'Failed to generate token', details: errorMessage });
+        }
+    });
+
     // Apply authentication middleware to other API routes
     app.use('/api', identifyUser);
 

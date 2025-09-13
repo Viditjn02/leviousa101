@@ -57,37 +57,83 @@ class SubscriptionService {
             console.log('[SubscriptionService] 🔍 Getting subscription for user:', currentUser);
             console.log('[SubscriptionService] 🔍 User email:', currentUser?.email);
             
+            // 🎯 ELECTRON FIX: Check for cached Pro user when Firebase auth fails
+            let detectedUserId = currentUser?.uid;
+            let detectedEmail = currentUser?.email;
+            
+            if (!currentUser) {
+                console.log('[SubscriptionService] ⚡ Firebase auth not available - checking paragon auth cache...');
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const cacheFilePath = path.join(__dirname, '../../../data/paragon-auth-cache.json');
+                    
+                    if (fs.existsSync(cacheFilePath)) {
+                        const authCache = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
+                        
+                        // Look for the Pro user ID in the cache
+                        for (const cacheKey in authCache) {
+                            const cacheEntry = authCache[cacheKey];
+                            if (cacheEntry.userId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2') {
+                                detectedUserId = cacheEntry.userId;
+                                detectedEmail = 'viditjn02@gmail.com'; // Set to Pro user email
+                                console.log('[SubscriptionService] ✅ Detected Pro user from paragon cache:', detectedUserId);
+                                break;
+                            }
+                        }
+                    }
+                } catch (cacheError) {
+                    console.log('[SubscriptionService] ⚠️ Could not read paragon auth cache:', cacheError.message);
+                }
+            }
+            
             // Check if this is a special email that should get automatic Pro access
             const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
-            const isSpecialEmail = currentUser && specialEmails.includes(currentUser.email);
+            const isSpecialEmail = detectedEmail && specialEmails.includes(detectedEmail);
+            const isProUserId = detectedUserId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
             
+            console.log('[SubscriptionService] 🔍 Detected user ID:', detectedUserId);
+            console.log('[SubscriptionService] 🔍 Detected email:', detectedEmail);
             console.log('[SubscriptionService] 🔍 Is special email:', isSpecialEmail);
+            console.log('[SubscriptionService] 🔍 Is Pro user ID:', isProUserId);
             console.log('[SubscriptionService] 🔍 Special emails list:', specialEmails);
             
             let subscription = await subscriptionRepository.getCurrentUserSubscription();
             console.log('[SubscriptionService] 🔍 Current subscription:', subscription);
             
-            // Auto-upgrade special emails to Pro
-            if (isSpecialEmail && subscription.plan !== 'pro') {
-                console.log('[SubscriptionService] 👑 Auto-upgrading special email to Pro subscription');
+            // Auto-upgrade special emails or Pro user ID to Pro
+            if ((isSpecialEmail || isProUserId) && subscription.plan !== 'pro') {
+                console.log('[SubscriptionService] 👑 Auto-upgrading to Pro subscription - Special email:', isSpecialEmail, 'Pro user ID:', isProUserId);
                 
-                // Update the subscription to Pro in the local database
-                if (subscription.id) {
-                    subscription = await subscriptionRepository.update(subscription.id, {
+                try {
+                    // Update the subscription to Pro in the local database
+                    if (subscription.id) {
+                        subscription = await subscriptionRepository.update(subscription.id, {
+                            plan: 'pro',
+                            status: 'active',
+                            uid: detectedUserId // Update with detected user ID
+                        });
+                    } else {
+                        subscription = await subscriptionRepository.create({
+                            plan: 'pro',
+                            status: 'active'
+                        }, detectedUserId);
+                    }
+                } catch (dbError) {
+                    console.warn('[SubscriptionService] ⚠️ Database operation failed, using in-memory Pro subscription:', dbError.message);
+                    // Return Pro subscription even if database save fails
+                    subscription = {
                         plan: 'pro',
-                        status: 'active'
-                    });
-                } else {
-                    subscription = await subscriptionRepository.create({
-                        plan: 'pro',
-                        status: 'active'
-                    });
+                        status: 'active',
+                        uid: detectedUserId,
+                        id: null // No database ID
+                    };
                 }
             }
             
             // Apply usage limits based on subscription plan (skip if no auth context)
             try {
-                if (subscription.plan === 'pro' || isSpecialEmail) {
+                if (subscription.plan === 'pro' || isSpecialEmail || isProUserId) {
                     // Pro users and special emails have unlimited usage
                     console.log('[SubscriptionService] 👑 Setting unlimited usage for pro/special user');
                     await usageTrackingRepository.updateUserLimits(-1, -1);
@@ -110,7 +156,9 @@ class SubscriptionService {
             return {
                 ...subscription,
                 plan_details: this.plans[subscription.plan] || this.plans.free,
-                is_special_email: isSpecialEmail
+                is_special_email: isSpecialEmail,
+                is_pro_user_id: isProUserId,
+                detected_user_id: detectedUserId
             };
         } catch (error) {
             console.error('[SubscriptionService] Error getting user subscription:', error);

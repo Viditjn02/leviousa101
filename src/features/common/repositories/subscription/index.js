@@ -33,11 +33,14 @@ function getRepository() {
     */
 }
 
-async function create(subscriptionData) {
-    const uid = authService.getCurrentUserId();
+async function create(subscriptionData, providedUserId = null) {
+    // Use provided user ID (for cached Pro user detection) or get from auth service
+    const uid = providedUserId || authService.getCurrentUserId();
     if (!uid) {
         throw new Error('User must be authenticated to create subscription');
     }
+    
+    console.log('[SubscriptionRepository] Creating subscription for user:', uid, 'Plan:', subscriptionData.plan);
     
     const repository = getRepository();
     return await repository.create(uid, subscriptionData);

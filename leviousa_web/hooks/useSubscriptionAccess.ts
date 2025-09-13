@@ -27,6 +27,53 @@ export function useSubscriptionAccess(featureType: 'integrations' | 'cmd_l' | 'b
       try {
         setAccess(prev => ({ ...prev, loading: true }))
 
+        // 🎯 ELECTRON DETECTION: Check if running in Electron environment
+        const isElectron = typeof window !== 'undefined' && 
+                          (window as any).api && 
+                          (window as any).api.settingsView && 
+                          (window as any).api.settingsView.getSubscription
+
+        if (isElectron) {
+          console.log('🖥️ [useSubscriptionAccess] Electron environment detected - using native subscription service')
+          
+          try {
+            // Use Electron-native subscription service
+            const subscriptionData = await (window as any).api.settingsView.getSubscription()
+            console.log('📊 [useSubscriptionAccess] Electron subscription data:', subscriptionData)
+            
+            // Convert Electron subscription format to web format
+            const isPro = subscriptionData?.plan === 'pro'
+            let allowed = false
+            
+            // Check access based on feature type and plan
+            if (featureType === 'integrations') {
+              allowed = isPro
+            } else {
+              // For cmd_l and browser, assume unlimited for pro, limited for free
+              allowed = true // Both plans get access, just different limits
+            }
+            
+            setAccess({
+              allowed,
+              plan: subscriptionData?.plan || 'free',
+              message: isPro 
+                ? `Pro subscription - ${featureType} access granted` 
+                : `Limited ${featureType} access - upgrade for unlimited`,
+              requiresUpgrade: featureType === 'integrations' ? !isPro : false,
+              loading: false
+            })
+            
+            console.log(`✅ [useSubscriptionAccess] Electron ${featureType} check: ${isPro ? 'PRO ACCESS' : 'FREE USER'}`)
+            return
+            
+          } catch (electronError) {
+            console.error('❌ [useSubscriptionAccess] Electron subscription check failed:', electronError)
+            // Fall through to web API as fallback
+          }
+        }
+
+        console.log('🌐 [useSubscriptionAccess] Using web API for subscription check')
+
         // Get Firebase auth token for user identification
         let authHeaders: HeadersInit = {
           'Content-Type': 'application/json'
@@ -104,6 +151,59 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
       try {
         setAccess(prev => ({ ...prev, loading: true }))
 
+        // 🎯 ELECTRON DETECTION: Check if running in Electron environment
+        const isElectron = typeof window !== 'undefined' && 
+                          ((window as any).api || 
+                           (window as any).electronAPI || 
+                           navigator.userAgent.includes('Electron'))
+
+        if (isElectron) {
+          console.log('🖥️ [useIntegrationsAccess] Electron environment detected - using native subscription service')
+          
+          try {
+            // Use Electron-native subscription service - try multiple APIs
+            let subscriptionData = null
+            
+            if ((window as any).api?.settingsView?.getSubscription) {
+              console.log('📞 [useIntegrationsAccess] Using api.settingsView.getSubscription')
+              subscriptionData = await (window as any).api.settingsView.getSubscription()
+            } else if ((window as any).api?.subscription?.getCurrentUser) {
+              console.log('📞 [useIntegrationsAccess] Using api.subscription.getCurrentUser')
+              subscriptionData = await (window as any).api.subscription.getCurrentUser()
+            } else if ((window as any).electronAPI) {
+              console.log('📞 [useIntegrationsAccess] Using electronAPI fallback')
+              // Try a generic IPC call
+              subscriptionData = await (window as any).electronAPI.invoke('subscription:getCurrentUser')
+            }
+            
+            console.log('📊 [useIntegrationsAccess] Electron subscription data:', subscriptionData)
+            
+            if (subscriptionData) {
+              // Convert Electron subscription format to web format
+              const isPro = subscriptionData?.plan === 'pro'
+              
+              setAccess({
+                allowed: isPro,
+                plan: subscriptionData?.plan || 'free',
+                message: isPro ? 'Pro subscription - integrations access granted' : 'Integration access requires Leviousa Pro',
+                requiresUpgrade: !isPro,
+                loading: false
+              })
+              
+              console.log(`✅ [useIntegrationsAccess] Electron subscription check: ${isPro ? 'PRO ACCESS' : 'FREE USER'}`)
+              return
+            } else {
+              console.log('⚠️ [useIntegrationsAccess] No subscription data from Electron APIs, falling back to web API')
+            }
+            
+          } catch (electronError) {
+            console.error('❌ [useIntegrationsAccess] Electron subscription check failed:', electronError)
+            // Fall through to web API as fallback
+          }
+        }
+
+        console.log('🌐 [useIntegrationsAccess] Using web API for subscription check')
+
         // Get Firebase auth token for user identification
         let authHeaders: HeadersInit = {
           'Content-Type': 'application/json'
@@ -131,7 +231,7 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
               console.log('⚠️ [useIntegrationsAccess] No Firebase user authenticated - will show free experience')
             }
           } catch (error) {
-            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error.message)
+            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error instanceof Error ? error.message : 'Unknown error')
           }
         }
 

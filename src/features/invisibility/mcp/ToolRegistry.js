@@ -225,11 +225,21 @@ class ToolRegistry extends EventEmitter {
     async invokeTool(fullName, args) {
         // 🔒 Check subscription access for integration tools
         if (this.isIntegrationTool(fullName)) {
+            console.log(`[ToolRegistry] 🔍 CHECKING INTEGRATION ACCESS for tool: ${fullName}`);
+            
             const subscriptionService = require('../../common/services/subscriptionService');
             const accessCheck = await subscriptionService.checkIntegrationsAccess();
             
+            console.log(`[ToolRegistry] 📊 ACCESS CHECK RESULT:`, {
+                allowed: accessCheck.allowed,
+                plan: accessCheck.plan,
+                message: accessCheck.message,
+                requiresUpgrade: accessCheck.requiresUpgrade
+            });
+            
             if (!accessCheck.allowed) {
                 console.log(`[ToolRegistry] 🚫 Integration tool blocked: ${fullName} (${accessCheck.plan} plan)`);
+                console.log(`[ToolRegistry] 🚨 SHOWING UPGRADE DIALOG`);
                 
                 // Show custom upgrade dialog for integration access
                 const customDialogService = require('../../common/services/customDialogService');
@@ -247,6 +257,7 @@ class ToolRegistry extends EventEmitter {
             }
             
             console.log(`[ToolRegistry] ✅ Integration tool access granted: ${fullName} (${accessCheck.plan} plan)`);
+            console.log(`[ToolRegistry] 🎉 ALLOWING INTEGRATION TOOL TO PROCEED`);
         }
 
         let toolInfo = this.tools.get(fullName);

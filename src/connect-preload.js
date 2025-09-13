@@ -12,10 +12,15 @@ contextBridge.exposeInMainWorld('api', {
     notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data),
     getParagonServiceStatus: () => ipcRenderer.invoke('mcp:getParagonServiceStatus'),
     getAuthenticatedServices: (userId) => ipcRenderer.invoke('mcp:getAuthenticatedServices', userId)
+  },
+  
+  // 🔒 Subscription API for pro detection on web integration page
+  subscription: {
+    getCurrentUser: () => ipcRenderer.invoke('subscription:getCurrentUser')
   }
 });
 
-console.log('[ConnectPreload] ✅ Exposed IPC methods for authentication notifications');
+console.log('[ConnectPreload] ✅ Exposed IPC methods for authentication notifications and subscription access');
 
 // Defensive meta CSP removal
 function scrubCSPMeta() {
