@@ -622,7 +622,7 @@ app.whenReady().then(async () => {
                 console.log('✅ VoiceAgentBridge ready');
             })(),
             (async () => {
-                // Simplified web stack: Just start API server (no HTTP server needed for static export)
+                // CRITICAL: Start both API server AND frontend server for static export
                 const express = require('express');
                 const createBackendApp = require('../leviousa_web/backend_node');
                 const eventBridge = {
@@ -635,6 +635,7 @@ app.whenReady().then(async () => {
                     }
                 };
                 
+                // Start Express API server on port 9001
                 const nodeApi = createBackendApp(eventBridge);
                 const apiSrv = express();
                 apiSrv.use(nodeApi);
@@ -642,8 +643,19 @@ app.whenReady().then(async () => {
                     console.log('✅ Express API server ready on http://localhost:9001');
                 });
                 
-                WEB_PORT = 3000; // Static export doesn't need actual server
-                console.log('✅ Web stack ready (static export mode)');
+                // Start frontend server for static export (CRITICAL for /integrations navigation)
+                if (app.isPackaged) {
+                    console.log('🔍 [DEBUG] PACKAGED MODE: Starting frontend server for static export...');
+                    await startPackagedServer();
+                    console.log('✅ [STARTUP] Frontend server ready on localhost:3000');
+                } else {
+                    console.log('🔍 [DEBUG] DEVELOPMENT MODE: Starting dev server...');
+                    await startProductionDevServer();
+                    console.log('✅ [STARTUP] Development server ready on localhost:3000');
+                }
+                
+                WEB_PORT = 3000;
+                console.log('✅ Web stack ready (complete frontend + API architecture)');
             })(),
             (async () => {
                 await initializeParagonOAuthServer();
