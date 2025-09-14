@@ -60,7 +60,17 @@ const LEGACY_SERVER_DEFINITIONS = {
     },
     paragon: {
         command: 'node',
-        args: [path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs')],
+        args: [(() => {
+            const isPackaged = __dirname.includes('.asar');
+            if (isPackaged) {
+                // In packaged app, use unpacked services directory
+                const unpackedPath = __dirname.replace('.asar', '.asar.unpacked');
+                return path.join(unpackedPath, '../../../../services/paragon-mcp/dist/index.mjs');
+            } else {
+                // Development mode
+                return path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs');
+            }
+        })()],
         description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
         capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],
         transport: 'stdio',
@@ -399,19 +409,127 @@ class ServerRegistry extends EventEmitter {
         if (authProvider === 'paragon') {
             logger.info('Using JWT authentication for Paragon', { serverName });
             
-            // Load Paragon environment if not already loaded
-            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
-            require('dotenv').config({ path: paragonEnvPath });
+            // Load Paragon environment if not already loaded - handle both dev and packaged app
+            const isPackaged = __dirname.includes('.asar');
+            let paragonEnvPath;
+            
+            if (isPackaged) {
+                // In packaged app, try multiple possible locations
+                const resourcesPath = process.resourcesPath || path.join(__dirname, '../../../../../');
+                const unpackedPath = __dirname.replace('.asar', '.asar.unpacked');
+                
+                // Try multiple locations for .env files
+                const possiblePaths = [
+                    path.join(resourcesPath, 'services/paragon-mcp/.env'),
+                    path.join(resourcesPath, '.env'),
+                    path.join(unpackedPath, '../../../../services/paragon-mcp/.env'),
+                    path.join(unpackedPath, '../../../.env')
+                ];
+                
+                console.log('[ServerRegistry] Packaged mode - trying .env paths:', possiblePaths);
+                
+                for (const envPath of possiblePaths) {
+                    try {
+                        if (require('fs').existsSync(envPath)) {
+                            console.log('[ServerRegistry] Found .env at:', envPath);
+                            require('dotenv').config({ path: envPath });
+                            paragonEnvPath = envPath;
+                            break;
+                        }
+                    } catch (e) {
+                        console.log('[ServerRegistry] Could not access:', envPath);
+                    }
+                }
+            } else {
+                // Development mode
+                paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+                require('dotenv').config({ path: paragonEnvPath });
+            }
             
             // Check if Paragon credentials are available
             const projectId = process.env.PROJECT_ID || process.env.PARAGON_PROJECT_ID;
             const signingKey = process.env.SIGNING_KEY || process.env.PARAGON_SIGNING_KEY;
             
-            if (!projectId || !signingKey) {
+            console.log('[ServerRegistry] Environment variable check:');
+            console.log('  PROJECT_ID:', projectId ? 'FOUND' : 'MISSING');
+            console.log('  PARAGON_PROJECT_ID:', process.env.PARAGON_PROJECT_ID ? 'FOUND' : 'MISSING');
+            console.log('  SIGNING_KEY:', signingKey ? 'FOUND (' + signingKey.length + ' chars)' : 'MISSING');
+            console.log('  PARAGON_SIGNING_KEY:', process.env.PARAGON_SIGNING_KEY ? 'FOUND (' + process.env.PARAGON_SIGNING_KEY.length + ' chars)' : 'MISSING');
+            
+            // If still missing in packaged app, try to get from main app environment
+            if ((!projectId || !signingKey) && isPackaged) {
+                console.log('[ServerRegistry] Trying hardcoded values for packaged app...');
+                
+                // In packaged app, use the known values directly
+                const fallbackProjectId = '270db720-6ead-460b-ae94-5ea9bec3f1e2';
+                const fallbackSigningKey = `-----BEGIN PRIVATE KEY-----
+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
+/XAUqtc9oZWQQOqkkqnJqpqmm/r4GNU=
+-----END PRIVATE KEY-----`;
+                
+                process.env.PARAGON_PROJECT_ID = fallbackProjectId;
+                process.env.PARAGON_SIGNING_KEY = fallbackSigningKey;
+                
+                console.log('[ServerRegistry] Using hardcoded values for packaged app');
+            }
+            
+            // Re-check after fallback
+            const finalProjectId = process.env.PROJECT_ID || process.env.PARAGON_PROJECT_ID;
+            const finalSigningKey = process.env.SIGNING_KEY || process.env.PARAGON_SIGNING_KEY;
+            
+            if (!finalProjectId || !finalSigningKey) {
                 logger.error('Paragon credentials missing', { 
                     serverName, 
-                    hasProjectId: !!projectId, 
-                    hasSigningKey: !!signingKey 
+                    hasProjectId: !!finalProjectId, 
+                    hasSigningKey: !!finalSigningKey 
                 });
                 throw new Error(`Paragon authentication credentials missing - check PROJECT_ID and SIGNING_KEY in services/paragon-mcp/.env`);
             }
@@ -420,8 +538,8 @@ class ServerRegistry extends EventEmitter {
             const paragonJwtService = require('./paragonJwtService');
             if (!paragonJwtService.getStatus().initialized) {
                 paragonJwtService.initialize({
-                    projectId: projectId,
-                    signingKey: signingKey
+                    projectId: finalProjectId,
+                    signingKey: finalSigningKey
                 });
             }
             

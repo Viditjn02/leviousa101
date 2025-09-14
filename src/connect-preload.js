@@ -10,6 +10,17 @@ contextBridge.exposeInMainWorld('api', {
   mcp: {
     notifyAuthenticationComplete: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationComplete', data),
     notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data)
+  },
+  // Expose event listeners for Paragon auth state
+  on: (channel, callback) => {
+    if (channel === 'paragon:final-auth-state') {
+      ipcRenderer.on(channel, callback);
+    }
+  },
+  removeListener: (channel, callback) => {
+    if (channel === 'paragon:final-auth-state') {
+      ipcRenderer.removeListener(channel, callback);
+    }
   }
 });
 

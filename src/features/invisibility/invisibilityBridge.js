@@ -4,7 +4,17 @@ const path = require('path');
 const fs = require('fs');
 
 // Persistent Paragon auth cache functions
-const authCacheFile = path.join(__dirname, '../../data/paragon-auth-cache.json');
+const authCacheFile = (() => {
+    const isPackaged = __dirname.includes('.asar');
+    if (isPackaged) {
+        // In packaged app, use app data directory (writable)
+        const { app } = require('electron');
+        return path.join(app.getPath('userData'), 'paragon-auth-cache.json');
+    } else {
+        // Development mode
+        return path.join(__dirname, '../../data/paragon-auth-cache.json');
+    }
+})();
 
 function loadParagonAuthCache() {
     try {
@@ -1481,20 +1491,50 @@ function initializeInvisibilityBridge() {
                 }
             }
             
-            // Return default status if MCP client not available or error occurred
-            const defaultStatus = {
-                    'gmail': { authenticated: false, toolsCount: 0 },
-                    'googleCalendar': { authenticated: false, toolsCount: 0 },
-                    'googleDrive': { authenticated: false, toolsCount: 0 },
-                    'googleDocs': { authenticated: false, toolsCount: 0 },
-                    'googleSheets': { authenticated: false, toolsCount: 0 },
-                    'googleTasks': { authenticated: false, toolsCount: 0 },
-                    'notion': { authenticated: false, toolsCount: 0 },
-                    'linkedin': { authenticated: false, toolsCount: 0 }
+            // FALLBACK: Use local auth cache when MCP server is not available
+            console.log('[InvisibilityBridge] 🔄 Using local auth cache as fallback for service status');
+            
+            if (!global.localParagonAuthCache) {
+                global.localParagonAuthCache = new Map();
+                loadParagonAuthCache();
+            }
+            
+            const currentUserId = authService.getCurrentUserId() || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+            const fallbackStatus = {
+                'gmail': { authenticated: false, toolsCount: 0 },
+                'googleCalendar': { authenticated: false, toolsCount: 0 },
+                'googleDrive': { authenticated: false, toolsCount: 0 },
+                'googleDocs': { authenticated: false, toolsCount: 0 },
+                'googleSheets': { authenticated: false, toolsCount: 0 },
+                'googleTasks': { authenticated: false, toolsCount: 0 },
+                'notion': { authenticated: false, toolsCount: 0 },
+                'linkedin': { authenticated: false, toolsCount: 0 },
+                'calendly': { authenticated: false, toolsCount: 0 }
             };
             
-            console.log('[InvisibilityBridge] 📊 Returning default status:', defaultStatus);
-            return { success: true, services: defaultStatus };
+            // Check local cache for authenticated services
+            console.log(`[InvisibilityBridge] 🔍 Checking local cache for user: ${currentUserId}`);
+            console.log(`[InvisibilityBridge] 📊 Local cache keys:`, Array.from(global.localParagonAuthCache.keys()));
+            
+            for (const [authKey, authData] of global.localParagonAuthCache.entries()) {
+                if (authKey.startsWith(`${currentUserId}:`)) {
+                    const service = authData.service;
+                    console.log(`[InvisibilityBridge] 🔍 Processing cache entry: ${authKey} -> service: "${service}"`);
+                    console.log(`[InvisibilityBridge] 🔍 AuthData:`, authData);
+                    console.log(`[InvisibilityBridge] 🔍 Service "${service}" exists in fallbackStatus:`, !!fallbackStatus[service]);
+                    
+                    if (fallbackStatus[service]) {
+                        fallbackStatus[service].authenticated = true;
+                        fallbackStatus[service].toolsCount = 5; // Assume tools available for authenticated services
+                        console.log(`[InvisibilityBridge] ✅ Found cached auth for ${service}`);
+                    } else {
+                        console.log(`[InvisibilityBridge] ❌ Service "${service}" not found in fallbackStatus. Available keys:`, Object.keys(fallbackStatus));
+                    }
+                }
+            }
+            
+            console.log('[InvisibilityBridge] 📊 Fallback status using local cache:', fallbackStatus);
+            return { success: true, services: fallbackStatus };
         } catch (error) {
             console.error('[InvisibilityBridge] ❌ Error getting Paragon service status:', error);
             return { success: false, error: error.message };

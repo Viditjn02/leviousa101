@@ -131,7 +131,7 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
               console.log('⚠️ [useIntegrationsAccess] No Firebase user authenticated - will show free experience')
             }
           } catch (error) {
-            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error.message)
+            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error instanceof Error ? error.message : String(error))
           }
         }
 

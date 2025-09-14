@@ -5,7 +5,7 @@ const fs = require('fs');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 // Test Paragon ActionKit API directly
-const PROJECT_ID = 'f7e139ca-5ef0-4211-9118-2d65154fc2a6';
+const PROJECT_ID = '270db720-6ead-460b-ae94-5ea9bec3f1e2';
 const USER_ID = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
 
 // Read and parse the signing key properly
