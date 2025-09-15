@@ -19,16 +19,19 @@ protocols:
     schemes: 
         - leviousa
 
-# List of files to be included in the app package (includes full web app for production dev server)
+# List of files to be included in the app package
 files:
     - src/**/*
     - package.json
-    - leviousa_web/**/*
+    - leviousa_web/backend_node/**/*
     - '!**/node_modules/electron/**'
-    - '!leviousa_web/node_modules/.cache/**'
     - public/build/**/*
 
-# Note: leviousa_web directory is included in files section for production dev server
+# Additional resources to be copied into the app's resources directory
+extraResources:
+    - from: leviousa_web/.next
+      to: .next
+      filter: ["**/*"]
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"
@@ -77,12 +80,12 @@ mac:
     gatekeeperAssess: false
     entitlements: entitlements.plist
     entitlementsInherit: entitlements.plist
-    # Code signing DISABLED for testing
-    # type: "distribution"  # Distribution for signed releases
-    # identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
+    # Code signing with Developer ID - Apple's official process
+    type: "distribution"  # Distribution for signed releases
+    identity: "Vidit Jain (8LNUMP84V8)"  # Your actual certificate (prefix removed as per electron-builder requirement)
     # signIgnore patterns removed to fix regex errors - will sign everything
-    # Notarization DISABLED for testing
-    notarize: false
+    # Notarization enabled for production release
+    notarize: true
     target:
       - target: dmg
         arch: universal  # Universal binary for both architectures
@@ -111,5 +114,5 @@ dmg:
 # Additional configuration for native modules
 buildDependenciesFromSource: true
 
-# Ensure proper permissions and enable notarization (DISABLED for testing)
-# afterSign: scripts/notarize.js
+# Ensure proper permissions and enable notarization
+afterSign: scripts/notarize.js

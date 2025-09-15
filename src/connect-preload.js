@@ -1,9 +1,18 @@
 // connect-preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-// NOTE: @useparagon/connect is browser-only and cannot be required in preload context
-// SDK configuration will be handled in the renderer process where it belongs
-console.log('[ConnectPreload] 🔄 Paragon SDK will be loaded in browser context (renderer process)');
+// Configure Paragon SDK globally first (before it initializes)
+try {
+  const { paragon } = require('@useparagon/connect');
+  paragon.configureGlobal({
+    host: 'useparagon.com',
+    apiHost: 'https://api.useparagon.com',
+    connectHost: 'https://connect.useparagon.com',
+  });
+  console.log('[ConnectPreload] ✅ Paragon SDK configured globally');
+} catch (error) {
+  console.warn('[ConnectPreload] ⚠️ Failed to configure Paragon SDK:', error);
+}
 
 // Expose necessary IPC methods for authentication notifications
 contextBridge.exposeInMainWorld('api', {

@@ -46,44 +46,44 @@ export default async function handler(
             let email: string | null = null
             
             const authHeader = req.headers.authorization
-            // Auth header check (logs removed for production)
+            console.log(`[API] 🔍 Auth header present: ${!!authHeader}`)
             
             if (authHeader && authHeader.startsWith('Bearer ')) {
                 try {
                     const token = authHeader.substring(7)
-                    // Token processing
+                    console.log(`[API] 🔍 Token length: ${token.length}`)
                     
                     // Simple JWT decode for user info (same as backend_node logic)
                     const tokenParts = token.split('.')
-                    // JWT parts validation
+                    console.log(`[API] 🔍 Token parts: ${tokenParts.length}`)
                     
                     if (tokenParts.length === 3) {
                         const payloadString = Buffer.from(tokenParts[1], 'base64').toString('utf8')
-                        // Payload extraction
+                        console.log(`[API] 🔍 Payload string: ${payloadString.substring(0, 200)}...`)
                         
                         const payload = JSON.parse(payloadString)
                         userId = payload.user_id || payload.sub || payload.uid || 'guest-user'
                         email = payload.email || null
                         
-                        // Token decoded successfully
-                        // Full payload processed
+                        console.log(`[API] 🔑 Decoded token - userId: ${userId}, email: ${email}`)
+                        console.log(`[API] 🔍 Full payload:`, JSON.stringify(payload, null, 2))
                     }
                 } catch (error) {
-                    // Token decode failed, using guest access
+                    console.log('[API] ⚠️ Token decode failed:', error.message, 'using guest access')
                 }
             } else {
-                // No auth token provided, using guest access
+                console.log('[API] ⚠️ No auth token provided, using guest access')
             }
 
     // Check if this is a special email (gets Pro access)
     const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
     const isSpecialEmail = email && specialEmails.includes(email)
     
-    // Access check for user (logs removed for production)
+    console.log(`[API] 🧪 Checking access for user: ${userId}, email: ${email}, featureType: ${featureType}, isSpecial: ${isSpecialEmail}`)
 
     // 🧪 SIMPLIFIED TEST: Check if this is the Pro user or special email
     if (userId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2' || isSpecialEmail) {
-      // Pro user access granted
+      console.log('[API] ✅ Pro user detected (viditjn02@gmail.com)')
       
       if (featureType === 'integrations') {
         // Grant Pro user full integration access
@@ -92,7 +92,7 @@ export default async function handler(
           plan: 'pro',
           message: 'Pro user - integration access granted',
           requiresUpgrade: false,
-          specialEmail: !!isSpecialEmail,
+          specialEmail: isSpecialEmail,
           testMode: true
         })
       } else {
@@ -109,7 +109,7 @@ export default async function handler(
         })
       }
     } else {
-      // Free user detected
+      console.log('[API] 🆓 Free user detected')
       
       if (featureType === 'integrations') {
         // Block free users from integrations
