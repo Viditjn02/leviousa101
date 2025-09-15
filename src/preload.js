@@ -43,20 +43,6 @@ contextBridge.exposeInMainWorld('api', {
         // Return cleanup function
         return () => ipcRenderer.removeListener('paragon:oauth-callback-received', wrappedCallback);
       },
-      // Listen for final auth state events from main process
-      onFinalAuthState: (callback) => {
-        const wrappedCallback = (event, data) => callback(data);
-        ipcRenderer.on('paragon:final-auth-state', wrappedCallback);
-        // Return cleanup function
-        return () => ipcRenderer.removeListener('paragon:final-auth-state', wrappedCallback);
-      },
-      // Listen for force refresh events
-      onForceRefresh: (callback) => {
-        const wrappedCallback = (event, data) => callback(data);
-        ipcRenderer.on('paragon:force-refresh', wrappedCallback);
-        // Return cleanup function
-        return () => ipcRenderer.removeListener('paragon:force-refresh', wrappedCallback);
-      },
     },
     
     // Authentication

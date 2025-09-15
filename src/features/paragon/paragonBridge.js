@@ -14,7 +14,7 @@ function initializeParagonBridge() {
             console.log('[ParagonBridge] Starting Paragon authentication for service:', service);
             
             // Open integrations flow in-app to allow CSP patching
-            const { BrowserWindow, session, app } = require('electron');
+            const { BrowserWindow, session } = require('electron');
             const path = require('path');
             
             // Get current user ID and Firebase token for the integrations page
@@ -33,10 +33,9 @@ function initializeParagonBridge() {
                 console.warn('[ParagonBridge] ⚠️ Could not get Firebase token:', error.message);
             }
             
-            // Use localhost for dev, production domain for packaged app
-            const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-            const webUrl = isDev ? 'http://localhost:3000' : 'https://leviousa.com';
-            console.log(`[ParagonBridge] 🌐 Using ${isDev ? 'localhost (dev)' : 'production domain (packaged)'} for integrations: ${webUrl}`);
+            // Always use localhost for integrations (we start local server in both dev and production)
+            const webUrl = 'http://localhost:3000';
+            console.log('[ParagonBridge] 🏠 Using localhost architecture for secure integrations');
             // Include userId and token for context if available
             // Use 'authenticate' parameter to trigger auto-connect instead of manual connect
             const params = new URLSearchParams({ 
@@ -80,97 +79,6 @@ function initializeParagonBridge() {
                     connectWin.close();
                 }
             });
-            
-            // Add beforeunload and close hooks to capture final connected state
-            connectWin.webContents.once('will-navigate', async (event, navigationUrl) => {
-                console.log('[ParagonBridge] Integration window navigating, checking for final auth state...');
-                
-                // If navigating away from integrations (like after OAuth), capture final state
-                if (!navigationUrl.includes('/integrations')) {
-                    setTimeout(async () => {
-                        await captureAndBroadcastFinalAuthState();
-                    }, 500);
-                }
-            });
-            
-            connectWin.on('closed', async () => {
-                console.log('[ParagonBridge] Integration window closed, capturing final auth state...');
-                setTimeout(async () => {
-                    await captureAndBroadcastFinalAuthState();
-                }, 500);
-            });
-            
-            // Function to capture and broadcast final auth state
-            const captureAndBroadcastFinalAuthState = async () => {
-                try {
-                    const allWindows = require('electron').BrowserWindow.getAllWindows();
-                    
-                    // Find any window with integrations URL that has Paragon SDK loaded
-                    for (const window of allWindows) {
-                        if (window.isDestroyed()) continue;
-                        
-                        const url = window.webContents.getURL();
-                        console.log(`[ParagonBridge] Checking window for auth state: ${url}`);
-                        
-                        // Try to get final auth state from this window
-                        try {
-                            const result = await window.webContents.executeJavaScript(`
-                                (function() {
-                                    try {
-                                        if (typeof paragon !== 'undefined' && paragon.getUser) {
-                                            const user = paragon.getUser();
-                                            console.log('[ParagonBridge] Final auth state from window:', user);
-                                            return {
-                                                success: true,
-                                                user: user,
-                                                authenticated: user.authenticated,
-                                                integrations: user.integrations || {},
-                                                windowUrl: window.location.href
-                                            };
-                                        } else {
-                                            return { success: false, error: 'Paragon SDK not available', windowUrl: window.location.href };
-                                        }
-                                    } catch (error) {
-                                        return { success: false, error: error.message, windowUrl: window.location.href };
-                                    }
-                                })();
-                            `);
-                            
-                            console.log(`[ParagonBridge] Auth state from ${url}:`, result);
-                            
-                            // If we got valid integration data, broadcast it
-                            if (result && result.success) {
-                                console.log('[ParagonBridge] Broadcasting final auth state to all windows');
-                                allWindows.forEach(targetWindow => {
-                                    if (!targetWindow.isDestroyed()) {
-                                        console.log(`[ParagonBridge] Sending refresh event to: ${targetWindow.webContents.getURL()}`);
-                                        targetWindow.webContents.send('paragon:final-auth-state', {
-                                            service,
-                                            user: result.user,
-                                            integrations: result.integrations || {},
-                                            sourceWindow: url,
-                                            timestamp: new Date().toISOString()
-                                        });
-                                        
-                                        // Also send a simple refresh trigger
-                                        targetWindow.webContents.send('paragon:force-refresh', {
-                                            service,
-                                            timestamp: new Date().toISOString()
-                                        });
-                                    }
-                                });
-                                return; // Success, exit function
-                            }
-                        } catch (jsError) {
-                            console.log(`[ParagonBridge] JavaScript execution failed in ${url}:`, jsError.message);
-                        }
-                    }
-                    
-                    console.log('[ParagonBridge] Could not capture final auth state from any window');
-                } catch (error) {
-                    console.error('[ParagonBridge] Error capturing final auth state:', error);
-                }
-            };
             
             console.log(`[ParagonBridge] 🔧 Connect window using session with CSP patches`);
             await connectWin.loadURL(authUrl);
