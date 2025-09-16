@@ -505,11 +505,6 @@ class InvisibilityService extends EventEmitter {
             return;
         }
 
-        if (!this.isInvisibilityModeActive) {
-            console.log('[InvisibilityService] Invisibility mode not active, ignoring trigger');
-            return;
-        }
-
         return await this._executeQuestionProcessing();
     }
 

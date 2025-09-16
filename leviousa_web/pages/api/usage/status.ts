@@ -21,7 +21,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const tokenParts = token.split('.')
       if (tokenParts.length === 3) {
-        const payload = JSON.parse(atob(tokenParts[1]))
+        // Handle URL-safe base64 encoding (Firebase JWTs use this)
+        let base64Payload = tokenParts[1]
+        base64Payload = base64Payload.replace(/-/g, '+').replace(/_/g, '/')
+        
+        // Add padding if needed
+        while (base64Payload.length % 4) {
+          base64Payload += '='
+        }
+        
+        const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString())
         const userIdFromToken = payload.user_id || payload.sub || payload.uid || 'test-uid'
         const emailFromToken = payload.email || 'test@test.com'
         uid = userIdFromToken.toString()
@@ -29,15 +38,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('✅ Token decoded successfully for user:', uid, email)
       }
     } catch (error) {
-      console.log('⚠️ Token decode failed, using defaults for testing')
+      console.log('⚠️ Token decode failed:', error.message, 'using defaults for testing')
     }
 
     console.log('📊 Getting usage status for user:', uid)
 
-    // Check if this is a special email (gets unlimited access)
-    const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
-    const isSpecialEmail = specialEmails.includes(email)
-    
     // Get today's date for usage tracking
     const today: string = new Date().toISOString().split('T')[0];
     
@@ -46,40 +51,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { findSubscriptionByUserId } = await import('../../../utils/repositories/subscription')
     const { calculateDailyBonusLimits } = await import('../../../utils/repositories/referralBonus')
     
-    // Get user's subscription and upgrade special emails to Pro automatically
-    const { createSubscription, updateSubscription } = await import('../../../utils/repositories/subscription')
+    // Get user's subscription from database
     let subscription = await findSubscriptionByUserId(uid)
     
-    // For special emails, ensure they have a Pro subscription in the database
-    if (isSpecialEmail) {
-      console.log('👑 Special email detected, ensuring Pro subscription exists')
-      
-      if (!subscription) {
-        // Create Pro subscription for special email
-        subscription = await createSubscription(uid, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year permanent access
-        })
-        console.log('✨ Created permanent Pro subscription for special email')
-      } else if (subscription.plan !== 'pro') {
-        // Upgrade to Pro
-        subscription = await updateSubscription(subscription.id!, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year permanent access
-        })
-        console.log('⬆️ Upgraded to Pro for special email')
-      }
-    }
-    
-    // Determine Pro status
+    // Determine Pro status from database subscription
     let isPro = subscription?.plan === 'pro' && subscription?.status === 'active'
-    
-    // Special emails are guaranteed Pro
-    isPro = isPro || isSpecialEmail
     
     // Get today's usage record (creates if doesn't exist)
     let todayUsage = await getOrCreateTodayUsage(uid)

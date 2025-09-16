@@ -49,11 +49,25 @@ export function useSubscriptionAccess(featureType: 'integrations' | 'cmd_l' | 'b
           }
         }
 
+        // Get userId from URL params as fallback (for Electron app)
+        let userId: string | null = null;
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          userId = urlParams.get('userId');
+        }
+
         // Make API call to check subscription access
+        const requestBody: any = { featureType };
+        if (userId && !authHeaders['Authorization']) {
+          // If no Firebase auth but we have userId from URL, include it
+          requestBody.userId = userId;
+          console.log('🔧 [useSubscriptionAccess] Using userId from URL params:', userId);
+        }
+
         const response = await fetch('/api/subscription/check-access', {
           method: 'POST',
           headers: authHeaders,
-          body: JSON.stringify({ featureType })
+          body: JSON.stringify(requestBody)
         })
 
         if (!response.ok) {
@@ -131,7 +145,7 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
               console.log('⚠️ [useIntegrationsAccess] No Firebase user authenticated - will show free experience')
             }
           } catch (error) {
-            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error.message)
+            console.log('⚠️ [useIntegrationsAccess] Firebase auth error:', error instanceof Error ? error.message : 'Unknown error')
           }
         }
 
@@ -140,11 +154,25 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
           console.log('🔑 [useIntegrationsAccess] Using auth token for subscription check')
         }
 
+        // Get userId from URL params as fallback (for Electron app)  
+        let userId: string | null = null;
+        if (typeof window !== 'undefined') {
+          const urlParams = new URLSearchParams(window.location.search);
+          userId = urlParams.get('userId');
+        }
+
         // Make API call to check subscription access
+        const requestBody: any = { featureType: 'integrations' };
+        if (userId && !authHeaders['Authorization']) {
+          // If no Firebase auth but we have userId from URL, include it
+          requestBody.userId = userId;
+          console.log('🔧 [useIntegrationsAccess] Using userId from URL params for subscription check:', userId);
+        }
+
         const response = await fetch('/api/subscription/check-access', {
           method: 'POST',
           headers: authHeaders,
-          body: JSON.stringify({ featureType: 'integrations' })
+          body: JSON.stringify(requestBody)
         })
 
         if (!response.ok) {

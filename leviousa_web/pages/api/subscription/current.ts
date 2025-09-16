@@ -35,84 +35,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('🔍 Getting subscription for user:', uid)
 
-    // Check if this is a special email (gets Pro access)
-    const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
-    const isSpecialEmail = specialEmails.includes(email)
-    
     // Get today's date for usage tracking
     const today = new Date().toISOString().split('T')[0]
     
-    // Simple usage data for immediate testing
+    // Get user's subscription from database to determine usage limits
+    const { findSubscriptionByUserId } = await import('../../../utils/repositories/subscription')
+    let subscription = await findSubscriptionByUserId(uid)
+    const isPro = subscription?.plan === 'pro' && subscription?.status === 'active'
+    
+    // Usage data based on subscription plan
     let usageData = {
       auto_answer: 0,
       browser: 0,
-      auto_answer_limit: isSpecialEmail ? -1 : 10, // Unlimited for special emails
-      browser_limit: isSpecialEmail ? -1 : 10      // Unlimited for special emails
+      auto_answer_limit: isPro ? -1 : 10, // Unlimited for Pro users
+      browser_limit: isPro ? -1 : 10      // Unlimited for Pro users
     }
 
-    // For special emails, return Pro subscription immediately
-    if (isSpecialEmail) {
-      console.log('👑 Special email detected:', email, '- returning Pro subscription')
-      
-      // Create/update Pro subscription in database
-      try {
-        const { createSubscription, findSubscriptionByUserId, updateSubscription } = await import('../../../utils/repositories/subscription')
-        
-        let subscription = await findSubscriptionByUserId(uid)
-        
-        if (!subscription) {
-          // Create new Pro subscription for special email
-          subscription = await createSubscription(uid, {
-            plan: 'pro',
-            status: 'active',
-            trial_start: Date.now(),
-            trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
-          })
-          console.log('✨ Created permanent Pro subscription for special email')
-        } else if (subscription.plan !== 'pro') {
-          // Update existing subscription to Pro
-          subscription = await updateSubscription(subscription.id!, {
-            plan: 'pro',
-            status: 'active',
-            trial_start: Date.now(),
-            trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year trial for special emails
-          })
-          console.log('⬆️ Upgraded existing subscription to Pro for special email')
-        }
-
-        return res.status(200).json({ 
-          subscription: {
-            ...subscription,
-            plan: 'pro', // Ensure plan is explicitly set to pro
-            is_special_email: true
-          }, 
-          usage: usageData 
-        })
-      } catch (dbError) {
-        console.error('⚠️ Database error for special email, returning inline Pro subscription:', dbError)
-        
-        // Fallback: Return Pro subscription without database (for immediate UI fix)
-        const proSubscription = {
-          uid,
-          plan: 'pro', // ← This is the key fix
-          status: 'active',
-          stripe_customer_id: null,
-          stripe_subscription_id: null,
-          current_period_start: undefined,
-          current_period_end: undefined,
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000),
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          is_special_email: true
-        }
-
-        return res.status(200).json({ subscription: proSubscription, usage: usageData })
-      }
+    // Return subscription data from database
+    if (subscription) {
+      console.log(`✅ Found subscription - Plan: ${subscription.plan}, Status: ${subscription.status}`)
+      return res.status(200).json({ subscription, usage: usageData })
     }
 
     // For regular users, return default free subscription
-    const subscription = {
+    const defaultSubscription = {
       uid,
       plan: 'free',
       status: 'active',
@@ -128,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('✅ Successfully retrieved subscription status and usage')
 
-    return res.status(200).json({ subscription, usage: usageData })
+    return res.status(200).json({ subscription: defaultSubscription, usage: usageData })
   } catch (error) {
     console.error('❌ Error fetching subscription:', error)
     return res.status(500).json({ 

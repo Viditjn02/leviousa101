@@ -57,38 +57,68 @@ class SubscriptionService {
             console.log('[SubscriptionService] 🔍 Getting subscription for user:', currentUser);
             console.log('[SubscriptionService] 🔍 User email:', currentUser?.email);
             
-            // Check if this is a special email that should get automatic Pro access
-            const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
-            const isSpecialEmail = currentUser && specialEmails.includes(currentUser.email);
+            // 🎯 Call web API directly instead of local SQLite for real-time pro status
+            console.log('[SubscriptionService] 🌐 Calling web API for real subscription status...');
             
-            console.log('[SubscriptionService] 🔍 Is special email:', isSpecialEmail);
-            console.log('[SubscriptionService] 🔍 Special emails list:', specialEmails);
+            let subscription = null;
             
-            let subscription = await subscriptionRepository.getCurrentUserSubscription();
-            console.log('[SubscriptionService] 🔍 Current subscription:', subscription);
-            
-            // Auto-upgrade special emails to Pro
-            if (isSpecialEmail && subscription.plan !== 'pro') {
-                console.log('[SubscriptionService] 👑 Auto-upgrading special email to Pro subscription');
-                
-                // Update the subscription to Pro in the local database
-                if (subscription.id) {
-                    subscription = await subscriptionRepository.update(subscription.id, {
-                        plan: 'pro',
-                        status: 'active'
+            if (currentUser && currentUser.mode === 'firebase') {
+                try {
+                    // 🎯 Electron app: Create mock token with user info for API authentication
+                    const mockPayload = {
+                        user_id: currentUser.uid,
+                        sub: currentUser.uid,
+                        uid: currentUser.uid,
+                        email: currentUser.email,
+                        exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour from now
+                    };
+                    
+                    // Create a simple JWT-like token (for development - in production this should be proper Firebase token)
+                    const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${Buffer.from(JSON.stringify(mockPayload)).toString('base64')}.mock-signature`;
+                    console.log('[SubscriptionService] 🔑 Created token for web API authentication');
+                    
+                    const response = await fetch(`${process.env.leviousa_WEB_URL}/api/subscription/check-access`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ featureType: 'general' })
                     });
-                } else {
-                    subscription = await subscriptionRepository.create({
-                        plan: 'pro',
-                        status: 'active'
-                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Transform check-access response to subscription format
+                        subscription = {
+                            plan: data.plan,
+                            status: 'active',
+                            uid: currentUser.uid,
+                            stripe_customer_id: null,
+                            stripe_subscription_id: null
+                        };
+                        console.log('[SubscriptionService] 🌐 Got subscription from web API check-access:', subscription);
+                    } else {
+                        console.warn('[SubscriptionService] ⚠️ Web API call failed, falling back to local');
+                        subscription = await subscriptionRepository.getCurrentUserSubscription();
+                    }
+                } catch (apiError) {
+                    console.warn('[SubscriptionService] ⚠️ Web API error, falling back to local:', apiError.message);
+                    subscription = await subscriptionRepository.getCurrentUserSubscription();
                 }
+            } else {
+                console.log('[SubscriptionService] 🔍 Getting subscription from local database for non-firebase user');
+                subscription = await subscriptionRepository.getCurrentUserSubscription();
             }
+            
+            console.log('[SubscriptionService] 🔍 Final subscription:', subscription);
+            
+            // Use subscription as-is from database/API - no special email handling
+            console.log('[SubscriptionService] ✅ Using subscription:', subscription.plan, subscription.status);
             
             // Apply usage limits based on subscription plan (skip if no auth context)
             try {
-                if (subscription.plan === 'pro' || isSpecialEmail) {
-                    // Pro users and special emails have unlimited usage
+                if (subscription.plan === 'pro') {
+                    // Pro users have unlimited usage
                     console.log('[SubscriptionService] 👑 Setting unlimited usage for pro/special user');
                     await usageTrackingRepository.updateUserLimits(-1, -1);
                 } else {
@@ -110,7 +140,7 @@ class SubscriptionService {
             return {
                 ...subscription,
                 plan_details: this.plans[subscription.plan] || this.plans.free,
-                is_special_email: isSpecialEmail
+                database_driven: true
             };
         } catch (error) {
             console.error('[SubscriptionService] Error getting user subscription:', error);
@@ -587,6 +617,54 @@ class SubscriptionService {
         try {
             console.log('[SubscriptionService] 🔍 Starting integration access check...');
             
+            // 🎯 Use web API for integration access check (real-time)
+            const authService = require('./authService');
+            const currentUser = authService.getCurrentUser();
+            
+            if (currentUser && currentUser.mode === 'firebase') {
+                try {
+                    console.log('[SubscriptionService] 🌐 Calling web API for integration access check...');
+                    
+                    // 🎯 Electron app: Create mock token with user info for API authentication
+                    const mockPayload = {
+                        user_id: currentUser.uid,
+                        sub: currentUser.uid,
+                        uid: currentUser.uid,
+                        email: currentUser.email,
+                        exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour from now
+                    };
+                    
+                    const token = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${Buffer.from(JSON.stringify(mockPayload)).toString('base64')}.mock-signature`;
+                    console.log('[SubscriptionService] 🔑 Created token for integration access check');
+                    
+                    const response = await fetch(`${process.env.leviousa_WEB_URL}/api/subscription/check-access`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ featureType: 'integrations' })
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log('[SubscriptionService] 🌐 Integration access result from web API:', result);
+                        return {
+                            allowed: result.allowed,
+                            plan: result.plan,
+                            message: result.message,
+                            requiresUpgrade: result.requiresUpgrade
+                        };
+                    } else {
+                        console.warn('[SubscriptionService] ⚠️ Web API integration check failed, falling back to local');
+                    }
+                } catch (apiError) {
+                    console.warn('[SubscriptionService] ⚠️ Web API integration check error:', apiError.message);
+                }
+            }
+            
+            // Fallback to local subscription check
+            console.log('[SubscriptionService] 🔄 Using local subscription for integration access...');
             const subscription = await this.getCurrentUserSubscription();
             console.log('[SubscriptionService] 📊 Got subscription:', subscription);
             

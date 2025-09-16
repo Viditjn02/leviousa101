@@ -46,36 +46,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { findUsageByUserAndDate, updateUsage, getOrCreateTodayUsage } = await import('../../../utils/repositories/usageTracking')
     const { findSubscriptionByUserId } = await import('../../../utils/repositories/subscription')
     
-    // Special emails get automatic Pro subscription
-    const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
-    const isSpecial = specialEmails.includes(email)
-    
-    // For special emails, ensure they have Pro subscription
-    const { createSubscription, updateSubscription } = await import('../../../utils/repositories/subscription')
+    // Get user's subscription from database
     let subscription = await findSubscriptionByUserId(uid)
     
-    if (isSpecial && (!subscription || subscription.plan !== 'pro')) {
-      console.log('👑 Auto-upgrading special email to Pro during usage tracking')
-      
-      if (!subscription) {
-        subscription = await createSubscription(uid, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year permanent access
-        })
-      } else {
-        subscription = await updateSubscription(subscription.id!, {
-          plan: 'pro',
-          status: 'active',
-          trial_start: Date.now(),
-          trial_end: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year permanent access
-        })
-      }
-    }
-    
     const isPro = subscription?.plan === 'pro' && subscription?.status === 'active'
-    const hasUnlimited = isPro || isSpecial
+    const hasUnlimited = isPro
     
     // Ensure today's usage record exists
     await getOrCreateTodayUsage(uid)
