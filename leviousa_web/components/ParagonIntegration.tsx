@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import useParagonGlobal from '../hooks/useParagonGlobal'
 import { useParagonAuthContext } from '../context/ParagonAuthContext'
+import { notifyParagonAuthentication } from '../utils/websocketClient'
 
 interface ParagonIntegrationProps {
   service: string
@@ -72,8 +73,20 @@ export default function ParagonIntegration({
             console.warn('Failed to notify main process:', err)
           })
         } else {
-          console.log(`[ParagonIntegration] ❌ Cannot notify main process - API not available for ${service}`)
-          console.log('Available APIs:', typeof window !== 'undefined' ? Object.keys((window as any).api || {}) : 'window undefined')
+          // Fallback to WebSocket if IPC not available (e.g., external domain)
+          console.log(`🔌 Using WebSocket fallback to notify Electron of ${service} connection`)
+          notifyParagonAuthentication(service, 'connected')
+            .then(response => {
+              if (response.success) {
+                console.log(`✅ Successfully notified Electron of ${service} connection via WebSocket`)
+              } else {
+                console.warn(`⚠️ WebSocket notification failed:`, response)
+              }
+            })
+            .catch((err: any) => {
+              console.warn('Failed to notify Electron app via WebSocket:', err)
+              console.log('Available APIs:', typeof window !== 'undefined' ? Object.keys((window as any).api || {}) : 'window undefined')
+            })
         }
       }
       prevEnabledRef.current = isEnabled
@@ -121,7 +134,19 @@ export default function ParagonIntegration({
             console.warn('Failed to notify main process:', err)
           })
         } else {
-          console.log(`[ParagonIntegration] ❌ Cannot notify main process - API not available for ${service} (install event)`)
+          // Fallback to WebSocket if IPC not available (e.g., external domain)
+          console.log(`🔌 Using WebSocket fallback to notify Electron of ${service} connection (install event)`)
+          notifyParagonAuthentication(service, 'connected')
+            .then(response => {
+              if (response.success) {
+                console.log(`✅ Successfully notified Electron of ${service} connection via WebSocket (install)`)
+              } else {
+                console.warn(`⚠️ WebSocket notification failed:`, response)
+              }
+            })
+            .catch((err: any) => {
+              console.warn('Failed to notify Electron app via WebSocket (install):', err)
+            })
         }
       }
     })
@@ -226,28 +251,19 @@ export default function ParagonIntegration({
             console.warn('Failed to notify Electron app via IPC:', err)
           })
         } else {
-          // Fallback to HTTP API if running in browser
-          console.log(`🌐 Using HTTP API fallback to notify Electron of ${service} disconnection`)
-          fetch('http://localhost:9001/api/auth/notify-completion', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              serviceKey: service,
-              status: 'disconnected',
-              timestamp: new Date().toISOString()
-            })
-          }).then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                console.log(`✅ Successfully notified Electron of ${service} disconnection via HTTP`)
+          // Fallback to WebSocket if running in browser
+          console.log(`🔌 Using WebSocket to notify Electron of ${service} disconnection`)
+          notifyParagonAuthentication(service, 'disconnected')
+            .then(response => {
+              if (response.success) {
+                console.log(`✅ Successfully notified Electron of ${service} disconnection via WebSocket`)
               } else {
-                console.warn(`⚠️ HTTP notification failed:`, data)
+                console.warn(`⚠️ WebSocket notification failed:`, response)
               }
             })
             .catch((err: any) => {
-              console.warn('Failed to notify Electron app via HTTP API:', err)
+              console.warn('Failed to notify Electron app via WebSocket:', err)
+              // Could add HTTP fallback here if needed
             })
         }
       }
@@ -268,29 +284,19 @@ export default function ParagonIntegration({
             console.warn('Failed to notify Electron app via IPC:', notifyErr)
           })
         } else {
-          // Fallback to HTTP API if running in browser
-          console.log(`🌐 Using HTTP API fallback to notify Electron of ${service} disconnection failure`)
-          fetch('http://localhost:9001/api/auth/notify-completion', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              serviceKey: service,
-              status: 'failed',
-              error: error.message || 'Disconnect failed',
-              timestamp: new Date().toISOString()
-            })
-          }).then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                console.log(`✅ Successfully notified Electron of ${service} disconnection failure via HTTP`)
+          // Fallback to WebSocket if running in browser
+          console.log(`🔌 Using WebSocket to notify Electron of ${service} disconnection failure`)
+          notifyParagonAuthentication(service, 'failed', error.message || 'Disconnect failed')
+            .then(response => {
+              if (response.success) {
+                console.log(`✅ Successfully notified Electron of ${service} disconnection failure via WebSocket`)
               } else {
-                console.warn(`⚠️ HTTP notification failed:`, data)
+                console.warn(`⚠️ WebSocket notification failed:`, response)
               }
             })
             .catch((notifyErr: any) => {
-              console.warn('Failed to notify Electron app via HTTP API:', notifyErr)
+              console.warn('Failed to notify Electron app via WebSocket:', notifyErr)
+              // Could add HTTP fallback here if needed
             })
         }
       }

@@ -1,10 +1,10 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const authService = require('../common/services/authService');
 const path = require('path');
 const fs = require('fs');
 
-// Persistent Paragon auth cache functions
-const authCacheFile = path.join(__dirname, '../../data/paragon-auth-cache.json');
+// Persistent Paragon auth cache functions - use userData directory instead of asar
+const authCacheFile = path.join(app.getPath('userData'), 'paragon-auth-cache.json');
 
 function loadParagonAuthCache() {
     try {

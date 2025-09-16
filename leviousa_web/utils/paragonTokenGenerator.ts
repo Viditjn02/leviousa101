@@ -44,38 +44,8 @@ export async function generateParagonToken(userId?: string): Promise<string> {
   // In production/Firebase, we'll use a simple demo token
   // In development with API routes available, use the API
   
-  const isProduction = process.env.NODE_ENV === 'production';
-  
-  if (isProduction || typeof window === 'undefined') {
-    // For Firebase/production deployment, return a demo token
-    // This is for demo purposes only - in real production you'd get this from your auth system
-    const projectId = process.env.NEXT_PUBLIC_PARAGON_PROJECT_ID;
-    
-    if (!projectId) {
-      throw new Error('NEXT_PUBLIC_PARAGON_PROJECT_ID not configured');
-    }
-    
-    // Create a simple JWT-like token for demo purposes
-    // Note: This is NOT secure for production - it's just for testing Firebase deployment
-    const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }));
-    const payload = btoa(JSON.stringify({
-      sub: userId || 'demo-user',
-      aud: `useparagon.com/${projectId}`,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 3600), // 7 days for production
-      demo: true
-    }));
-    
-    const token = `${header}.${payload}.demo-signature`;
-    
-    // Cache the token (expires in 6 days to account for 7-day token)
-    tokenCache.set(cacheKey, {
-      token,
-      expiry: Date.now() + (6 * 24 * 60 * 60 * 1000)
-    });
-    
-    return token;
-  }
+  // Always use the real API endpoint for token generation
+  // This ensures production uses proper JWT tokens with real signing keys
   
   // Development mode - use API route
   try {

@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 // For testing purposes, we'll use simple JWT decode instead of Firebase Admin
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
+  maxNetworkRetries: 3,
+  timeout: 20000, // 20 seconds
+  apiVersion: '2024-06-20'
+})
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('🔥 Checkout API called with method:', req.method)
@@ -35,7 +39,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const tokenParts = token.split('.')
       if (tokenParts.length === 3) {
-        const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString())
+        // Handle URL-safe base64 encoding (Firebase JWTs use this)
+        let base64Payload = tokenParts[1]
+        base64Payload = base64Payload.replace(/-/g, '+').replace(/_/g, '/')
+        
+        // Add padding if needed
+        while (base64Payload.length % 4) {
+          base64Payload += '='
+        }
+        
+        const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString())
         uid = payload.user_id || payload.sub || payload.uid || 'test-uid'
         email = payload.email || 'test@test.com'
         console.log('✅ Token decoded successfully for user:', uid, email)
@@ -43,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('⚠️ Invalid token format, using defaults for testing')
       }
     } catch (tokenError) {
-      console.log('⚠️ Token decode failed, using defaults for testing')
+      console.log('⚠️ Token decode failed:', tokenError.message, 'using defaults for testing')
       uid = 'test-uid'
       email = 'test@test.com'
     }
@@ -90,10 +103,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       session = await stripe.checkout.sessions.create(sessionConfig)
       console.log('✅ Checkout session created successfully:', session.id)
     } catch (stripeError: any) {
-      console.error('❌ Stripe checkout session creation failed:', stripeError)
+      console.error('❌ Stripe checkout session creation failed:', {
+        type: stripeError?.type,
+        code: stripeError?.code, 
+        message: stripeError?.message,
+        requestId: stripeError?.requestId,
+        statusCode: stripeError?.statusCode,
+        detail: stripeError?.detail
+      })
+      
+      // Provide more specific error messages
+      let errorMessage = stripeError.message || 'Unknown Stripe error'
+      if (stripeError?.type === 'StripeInvalidRequestError') {
+        errorMessage = 'Invalid request to Stripe. Please check configuration.'
+      } else if (stripeError?.type === 'StripeAuthenticationError') {
+        errorMessage = 'Stripe authentication failed. Please check API keys.'
+      }
+      
       return res.status(500).json({
         error: 'Failed to create checkout session',
-        details: stripeError.message
+        details: errorMessage,
+        type: stripeError?.type || 'unknown'
       })
     }
 

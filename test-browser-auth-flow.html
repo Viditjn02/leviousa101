@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Browser Auth Flow</title>
+    <script src="https://connect.useparagon.com/sdk.js"></script>
+</head>
+<body>
+    <div id="results"></div>
+    <script>
+        const USER_ID = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+        const PROJECT_ID = '270db720-6ead-460b-ae94-5ea9bec3f1e2';
+        
+        async function testFlow() {
+            const results = document.getElementById('results');
+            
+            try {
+                results.innerHTML += '🔄 Step 1: Getting token...<br>';
+                
+                const response = await fetch(`https://www.leviousa.com/api/paragonToken?userId=${USER_ID}`);
+                const data = await response.json();
+                
+                if (!data.userToken) {
+                    throw new Error('No token received');
+                }
+                
+                results.innerHTML += '✅ Step 1: Token received<br>';
+                results.innerHTML += '🔄 Step 2: Configuring SDK...<br>';
+                
+                // Configure exactly like your app does
+                paragon.configureGlobal({ host: 'useparagon.com' });
+                
+                results.innerHTML += '✅ Step 2: SDK configured<br>';
+                results.innerHTML += '🔄 Step 3: Authenticating...<br>';
+                
+                await paragon.authenticate(PROJECT_ID, data.userToken);
+                
+                results.innerHTML += '✅ Step 3: Authentication successful!<br>';
+                results.innerHTML += '🔄 Step 4: Getting user state...<br>';
+                
+                const user = paragon.getUser();
+                
+                results.innerHTML += `✅ Authenticated: ${user.authenticated}<br>`;
+                
+                if (user.authenticated && user.integrations) {
+                    results.innerHTML += '<h3>Your Connected Integrations:</h3>';
+                    Object.keys(user.integrations).forEach(service => {
+                        const integration = user.integrations[service];
+                        results.innerHTML += `📱 ${service}: ${integration.enabled ? '✅ Connected' : '❌ Disconnected'}<br>`;
+                    });
+                } else {
+                    results.innerHTML += '❌ No integrations found<br>';
+                }
+                
+            } catch (error) {
+                results.innerHTML += `❌ Error: ${error.message}<br>`;
+                console.error('Authentication flow error:', error);
+            }
+        }
+        
+        testFlow();
+    </script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const WebSocket = require('ws');
+const http = require('http');
 // const db = require('./db'); // No longer needed
 const { identifyUser } = require('./middleware/auth');
 
@@ -123,6 +125,12 @@ function createApp(eventBridge) {
             let userId = 'guest-user';
             let email = null;
             
+            // CRITICAL: Also check for userId in request body (Electron app fallback)
+            if (req.body.userId) {
+                userId = req.body.userId;
+                console.log(`[API] 🔧 Using userId from request body: ${userId}`);
+            }
+            
             const authHeader = req.headers.authorization;
             if (authHeader && authHeader.startsWith('Bearer ')) {
                 try {
@@ -244,6 +252,84 @@ function createApp(eventBridge) {
             file_based_deprecated: true
         });
     });
+
+    // Add WebSocket server setup function to the app
+    app.setupWebSocket = (server) => {
+        console.log('[Backend] 🔌 Setting up WebSocket server for Paragon notifications...');
+        
+        const wss = new WebSocket.Server({ 
+            server,
+            path: '/ws',
+            clientTracking: true
+        });
+        
+        wss.on('connection', (ws, req) => {
+            console.log('[Backend] 🔗 WebSocket client connected from:', req.connection.remoteAddress);
+            
+            ws.on('message', (data) => {
+                try {
+                    const message = JSON.parse(data.toString());
+                    console.log('[Backend] 📨 WebSocket message received:', message);
+                    
+                    // Validate message format (same as HTTP endpoint)
+                    const { serviceKey, status, error, timestamp } = message;
+                    
+                    if (!serviceKey) {
+                        console.warn('[Backend] ⚠️ WebSocket message missing serviceKey');
+                        ws.send(JSON.stringify({ success: false, error: 'serviceKey is required' }));
+                        return;
+                    }
+                    
+                    // Forward to Electron using the SAME logic as HTTP endpoint
+                    if (eventBridge && eventBridge.notifyAuthenticationComplete) {
+                        eventBridge.notifyAuthenticationComplete({
+                            serviceKey,
+                            status: status || 'authenticated',
+                            error,
+                            timestamp: timestamp || new Date().toISOString(),
+                            source: 'websocket'
+                        });
+                        
+                        console.log(`[Backend] ✅ WebSocket notification forwarded to Electron for ${serviceKey}`);
+                        
+                        // Send success response
+                        ws.send(JSON.stringify({
+                            success: true,
+                            message: `Authentication notification forwarded for ${serviceKey}`,
+                            serviceKey
+                        }));
+                    } else {
+                        console.warn('[Backend] ⚠️ Event bridge not available for WebSocket notification');
+                        ws.send(JSON.stringify({
+                            success: false,
+                            error: 'Event bridge not available',
+                            serviceKey
+                        }));
+                    }
+                } catch (error) {
+                    console.error('[Backend] ❌ Error processing WebSocket message:', error);
+                    ws.send(JSON.stringify({
+                        success: false,
+                        error: error.message
+                    }));
+                }
+            });
+            
+            ws.on('close', () => {
+                console.log('[Backend] 🔌 WebSocket client disconnected');
+            });
+            
+            ws.on('error', (error) => {
+                console.error('[Backend] ❌ WebSocket error:', error);
+            });
+            
+            // Send welcome message
+            ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket ready for Paragon notifications' }));
+        });
+        
+        console.log('[Backend] ✅ WebSocket server ready at /ws endpoint');
+        return wss;
+    };
 
     return app;
 }

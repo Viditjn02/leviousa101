@@ -622,8 +622,12 @@ app.whenReady().then(async () => {
         );
     }
 
-    // initAutoUpdater should be called after auth is initialized
-    initAutoUpdater();
+    // TEMP: Disable auto-updater while debugging MCP issues
+    if (process.env.AUTO_UPDATES === 'true') {
+        initAutoUpdater();
+    } else {
+        console.log('[AutoUpdater] Disabled - set AUTO_UPDATES=true to enable');
+    }
 
     // Process any pending deep link after everything is initialized
     if (pendingDeepLinkUrl) {
@@ -1312,6 +1316,16 @@ async function startWebStack() {
   });
 
   console.log(`✅ API server started on http://localhost:${apiPort}`);
+  
+  // Add WebSocket server to the same HTTP server (for Paragon notifications)
+  if (nodeApi.setupWebSocket) {
+    try {
+      const wss = nodeApi.setupWebSocket(apiServer);
+      console.log(`🔌 WebSocket server added on ws://localhost:${apiPort}/ws`);
+    } catch (error) {
+      console.error('❌ Failed to setup WebSocket server:', error);
+    }
+  }
 
   console.log(`🚀 All services ready:
    Frontend: ${webUrl} (Firebase Hosting)

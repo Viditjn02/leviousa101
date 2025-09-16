@@ -12,6 +12,17 @@ const fs = require('fs').promises;
 const MCPAdapter = require('./MCPAdapter');
 const OAuthManager = require('../auth/OAuthManager');
 
+// Helper function for consistent Paragon path resolution
+function resolveParagonPath(relPath = '') {
+    if (process.resourcesPath) {
+        // Production: use extraResources
+        return path.join(process.resourcesPath, 'services/paragon-mcp', relPath);
+    } else {
+        // Development: use relative path from current file
+        return path.join(__dirname, '../../../../services/paragon-mcp', relPath);
+    }
+}
+
 // Configure logger
 const logger = winston.createLogger({
     level: 'info',
@@ -59,12 +70,14 @@ const LEGACY_SERVER_DEFINITIONS = {
         capabilities: ['list_tables', 'describe_table', 'query', 'execute']
     },
     paragon: {
-        command: 'node',
-        args: [path.join(__dirname, '../../../../services/paragon-mcp/dist/index.mjs')],
+        command: process.execPath,
+        args: [resolveParagonPath('dist/index.mjs')],
         description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
         capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],
         transport: 'stdio',
-        authProvider: 'paragon'
+        authProvider: 'paragon',
+        requiresAuth: true,
+        env: { ELECTRON_RUN_AS_NODE: '1' }
     }
 };
 
@@ -230,6 +243,13 @@ class ServerRegistry extends EventEmitter {
 
             // Determine transport type and options
             let transportOptions = { env, cwd: serverState.config.cwd };
+            
+            // Special working directory for Paragon MCP server
+            if (name === 'paragon' || serverState.config.authProvider === 'paragon') {
+                const paragonMcpDir = resolveParagonPath();
+                transportOptions.cwd = paragonMcpDir;
+                logger.info('Set Paragon MCP working directory', { cwd: paragonMcpDir });
+            }
             
             if (name === 'paragon' || serverState.config.authProvider === 'paragon') {
                 // For Paragon MCP, use stdio transport (compatible with Node.js 18+)
@@ -399,21 +419,22 @@ class ServerRegistry extends EventEmitter {
         if (authProvider === 'paragon') {
             logger.info('Using JWT authentication for Paragon', { serverName });
             
-            // Load Paragon environment if not already loaded
-            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            // Load Paragon environment using proper path resolution
+            const paragonEnvPath = resolveParagonPath('.env');
             require('dotenv').config({ path: paragonEnvPath });
             
-            // Check if Paragon credentials are available
-            const projectId = process.env.PROJECT_ID || process.env.PARAGON_PROJECT_ID;
-            const signingKey = process.env.SIGNING_KEY || process.env.PARAGON_SIGNING_KEY;
+            // Check if Paragon credentials are available (multiple name formats)
+            const projectId = process.env.PARAGON_PROJECT_ID || process.env.PROJECT_ID;
+            const signingKey = process.env.PARAGON_SIGNING_KEY || process.env.SIGNING_KEY || process.env.PARAGON_JWT_SECRET;
             
             if (!projectId || !signingKey) {
                 logger.error('Paragon credentials missing', { 
                     serverName, 
                     hasProjectId: !!projectId, 
-                    hasSigningKey: !!signingKey 
+                    hasSigningKey: !!signingKey,
+                    envPath: paragonEnvPath
                 });
-                throw new Error(`Paragon authentication credentials missing - check PROJECT_ID and SIGNING_KEY in services/paragon-mcp/.env`);
+                throw new Error(`Paragon authentication credentials missing - check PARAGON_PROJECT_ID and PARAGON_SIGNING_KEY in ${paragonEnvPath}`);
             }
             
             // Initialize and test JWT service
@@ -554,22 +575,29 @@ class ServerRegistry extends EventEmitter {
 
         // Special handling for Paragon - ensure environment variables are loaded
         if (config.authProvider === 'paragon') {
-            const paragonEnvPath = path.join(__dirname, '../../../../services/paragon-mcp/.env');
+            const paragonEnvPath = resolveParagonPath('.env');
             const paragonEnv = require('dotenv').config({ path: paragonEnvPath });
             
             // Add Paragon-specific environment variables directly to server environment
-            // Map from the actual .env variable names to what the server expects
-            env['PARAGON_PROJECT_ID'] = process.env.PARAGON_PROJECT_ID || paragonEnv.parsed?.PARAGON_PROJECT_ID;
-            env['PARAGON_JWT_SECRET'] = process.env.PARAGON_JWT_SECRET || paragonEnv.parsed?.PARAGON_JWT_SECRET;
-            env['PARAGON_WEB_URL'] = process.env.PARAGON_WEB_URL || paragonEnv.parsed?.PARAGON_WEB_URL || 'http://localhost:3000';
+            // Support multiple environment variable name formats for compatibility
+            env['PARAGON_PROJECT_ID'] = process.env.PARAGON_PROJECT_ID || paragonEnv.parsed?.PARAGON_PROJECT_ID || process.env.PROJECT_ID || paragonEnv.parsed?.PROJECT_ID;
+            env['PARAGON_SIGNING_KEY'] = process.env.PARAGON_SIGNING_KEY || paragonEnv.parsed?.PARAGON_SIGNING_KEY || process.env.SIGNING_KEY || paragonEnv.parsed?.SIGNING_KEY || process.env.PARAGON_JWT_SECRET || paragonEnv.parsed?.PARAGON_JWT_SECRET;
+            env['PARAGON_WEB_URL'] = process.env.PARAGON_WEB_URL || paragonEnv.parsed?.PARAGON_WEB_URL || 'https://www.leviousa.com';
             env['MCP_SERVER_URL'] = process.env.MCP_SERVER_URL || 'http://localhost:3002';
-            env['NODE_ENV'] = process.env.NODE_ENV || 'development';
+            env['NODE_ENV'] = process.env.NODE_ENV || 'production';
             env['PORT'] = process.env.PORT || '3002';
+            
+            // Merge any additional env vars from server config
+            if (config.env) {
+                Object.assign(env, config.env);
+            }
             
             logger.info('Added Paragon environment variables', { 
                 serverName, 
                 hasProjectId: !!env['PARAGON_PROJECT_ID'],
-                hasSigningKey: !!env['PARAGON_JWT_SECRET']
+                hasSigningKey: !!env['PARAGON_SIGNING_KEY'],
+                envPath: paragonEnvPath,
+                usingElectronNode: true
             });
         }
 

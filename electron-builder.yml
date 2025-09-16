@@ -15,9 +15,9 @@ publish:
 
 # Protocols configuration for deep linking
 protocols:
-    name: Leviousa Protocol
-    schemes: 
-        - leviousa
+    - name: Leviousa Protocol
+      schemes:
+          - leviousa
 
 # List of files to be included in the app package
 files:
@@ -32,6 +32,12 @@ extraResources:
     - from: leviousa_web/.next
       to: .next
       filter: ["**/*"]
+    - from: services/paragon-mcp
+      to: services/paragon-mcp
+      filter: ["**/*"]
+    - from: services/paragon-mcp/node_modules
+      to: services/paragon-mcp/node_modules
+      filter: ["**/*"]
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"
@@ -39,9 +45,12 @@ asarUnpack:
     - "**/node_modules/@img/**/*"
     - "**/node_modules/better-sqlite3/**/*"
     - "**/node_modules/keytar/**/*"
-    - "services"
-    - ".env*"
+    - "services/paragon-mcp/**/*"
     - "src/data"
+
+# Include MCP server dependencies explicitly
+directories:
+    buildResources: build
 
 # Windows configuration
 win:
