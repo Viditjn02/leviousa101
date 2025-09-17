@@ -33,13 +33,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('🔍 Creating referral for:', cleanEmail)
 
-    // Determine if this is a special email
-    const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
-    const isSpecial = specialEmails.includes(cleanEmail)
+    // Check if referred email already has pro status in database
+    let isSpecial = false;
+    try {
+      // Check if referred user already exists with pro subscription
+      const { getFirestoreAdmin } = await import('../../../utils/firebase-admin');
+      const firestore = getFirestoreAdmin();
+      
+      const existingUserQuery = await firestore.collection('users')
+        .where('email', '==', cleanEmail)
+        .get();
+        
+      if (!existingUserQuery.empty) {
+        const existingUserId = existingUserQuery.docs[0].id;
+        const { findSubscriptionByUserId } = await import('../../../utils/repositories/subscription');
+        const existingSubscription = await findSubscriptionByUserId(existingUserId);
+        
+        isSpecial = existingSubscription?.plan === 'pro' && existingSubscription?.status === 'active';
+        console.log(`🔍 Existing user ${cleanEmail} has pro status: ${isSpecial}`);
+      }
+    } catch (error) {
+      console.log('⚠️ Could not check existing user pro status, defaulting to normal referral');
+      isSpecial = false;
+    }
     
     // Use Stripe's native promotion codes instead of custom referral system
     const promotionCode = isSpecial ? 'VIDIT3DAYS' : 'FRIEND50'
-    const discount = isSpecial ? 'Automatic Pro access' : '50% off first month'
+    const discount = isSpecial ? 'Existing Pro user' : '50% off first month'
     
     console.log('🎫 Using Stripe promotion code:', promotionCode)
 

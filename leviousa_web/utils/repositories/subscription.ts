@@ -67,8 +67,35 @@ export async function findSubscriptionByUserId(uid: string): Promise<Subscriptio
       return subscription
     }
 
-    // Strategy 2: Fuzzy matching for UID variations (handles typos)
-    console.log('🔄 [SUBSCRIPTION] Direct match failed, trying fuzzy matching...')
+    // Strategy 2: Email-based lookup (for admin-granted subscriptions with different UIDs)
+    console.log('🔄 [SUBSCRIPTION] UID match failed, trying email-based lookup...')
+    
+    // Get user's email from users collection
+    const userDoc = await firestore.collection('users').doc(uid).get()
+    let userEmail = null
+    if (userDoc.exists) {
+      const userData = userDoc.data()
+      userEmail = userData?.email
+      console.log(`📧 [SUBSCRIPTION] Found user email: ${userEmail}`)
+      
+      if (userEmail) {
+        // Look for subscription by email in metadata
+        const emailQuery = await firestore.collection(COLLECTION_NAME)
+          .where('metadata.email', '==', userEmail)
+          .where('status', '==', 'active')
+          .where('plan', '==', 'pro')
+          .get()
+          
+        if (!emailQuery.empty) {
+          const emailSubscription = emailQuery.docs[0].data() as SubscriptionData
+          console.log(`✅ [SUBSCRIPTION] Found via email lookup: Plan=${emailSubscription.plan}`)
+          return emailSubscription
+        }
+      }
+    }
+    
+    // Strategy 3: Fuzzy matching for UID variations (handles typos)
+    console.log('🔄 [SUBSCRIPTION] Email lookup failed, trying fuzzy matching...')
     const allSnapshot = await firestore.collection(COLLECTION_NAME).get()
     const allDocs = allSnapshot.docs.map(doc => doc.data())
     

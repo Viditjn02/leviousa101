@@ -29,7 +29,7 @@ export default async function handler(
   }
 
   try {
-    const { featureType } = req.body
+    const { featureType, userId: bodyUserId } = req.body
 
     if (!featureType) {
       return res.status(400).json({
@@ -41,9 +41,11 @@ export default async function handler(
       })
     }
 
-            // Get Firebase auth token and decode it
-            let userId = 'guest-user'
+            // Get Firebase auth token and decode it, or use userId from request body
+            let userId = bodyUserId || 'guest-user'
             let email: string | null = null
+            
+            console.log(`[API] 🔍 Initial userId: ${userId} (from ${bodyUserId ? 'request body' : 'default'})`)
             
             const authHeader = req.headers.authorization
             console.log(`[API] 🔍 Auth header present: ${!!authHeader}`)

@@ -1,7 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+// Force Node.js runtime (not Edge) for Stripe compatibility
+export const config = {
+  runtime: 'nodejs',
+}
+
+// Clean the Stripe credentials (remove any newlines/whitespace)
+const cleanStripeKey = process.env.STRIPE_SECRET_KEY?.replace(/[\r\n\s]/g, '') || ''
+const cleanPriceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO?.replace(/[\r\n\s"]/g, '') || ''
+
 // For testing purposes, we'll use simple JWT decode instead of Firebase Admin
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, {
+const stripe = require('stripe')(cleanStripeKey, {
   maxNetworkRetries: 3,
   timeout: 20000, // 20 seconds
   apiVersion: '2024-06-20'
@@ -16,9 +25,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log('🔑 Checking environment variables...')
-    console.log('Stripe secret key exists:', !!process.env.STRIPE_SECRET_KEY)
-    console.log('Price ID exists:', !!process.env.NEXT_PUBLIC_STRIPE_PRICE_ID_PRO)
+    // CRITICAL: Check environment variables first
+    if (!cleanStripeKey) {
+      console.error('❌ Missing or invalid STRIPE_SECRET_KEY')
+      return res.status(500).json({ error: 'Server misconfigured - missing Stripe key' })
+    }
+    if (!cleanPriceId) {
+      console.error('❌ Missing or invalid STRIPE_PRICE_ID_PRO')
+      return res.status(500).json({ error: 'Server misconfigured - missing price ID' })
+    }
+
+    console.log('✅ Environment variables verified')
+    console.log('🔑 Stripe secret key type:', cleanStripeKey.startsWith('sk_test_') ? 'TEST' : 'LIVE')
+    console.log('🔑 Stripe key length:', cleanStripeKey.length)
+    console.log('💰 Clean Price ID:', cleanPriceId)
+    
+    // Test Stripe connectivity with a simple API call  
+    console.log('🧪 Testing Stripe connectivity with cleaned credentials...')
+    await stripe.prices.retrieve(cleanPriceId)
+    console.log('✅ Stripe connectivity confirmed')
     
     // Get the authorization token from the request  
     const authHeader = req.headers.authorization
@@ -77,12 +102,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       payment_method_types: ['card'],
       line_items: [
         {
-          price: priceId,
+          price: priceId || cleanPriceId,
           quantity: 1,
         },
       ],
-      success_url: successUrl || `${process.env.LEVIOUSA_WEB_URL || 'https://www.leviousa.com'}/settings/billing?success=true`,
-      cancel_url: cancelUrl || `${process.env.LEVIOUSA_WEB_URL || 'https://www.leviousa.com'}/settings/billing?canceled=true`,
+      success_url: successUrl || 'https://www.leviousa.com/settings/billing?success=true',
+      cancel_url: cancelUrl || 'https://www.leviousa.com/settings/billing?canceled=true',
       customer_email: decodedToken.email,
       allow_promotion_codes: true, // 🎫 Enable promotion codes for referrals!
       billing_address_collection: 'auto',

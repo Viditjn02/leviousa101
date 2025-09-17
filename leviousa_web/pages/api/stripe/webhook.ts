@@ -3,9 +3,7 @@ import Stripe from 'stripe'
 import { buffer } from 'micro'
 import { updateSubscription, findSubscriptionByUserId, createSubscription } from '../../../utils/repositories/subscription'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
-})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
@@ -61,9 +59,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await handlePromotionCodeCreated(event.data.object as Stripe.PromotionCode)
         break
 
-      case 'promotion_code.used':
-        await handlePromotionCodeUsed(event.data.object as Stripe.PromotionCode)
-        break
+      // case 'promotion_code.used':
+      //   await handlePromotionCodeUsed(event.data.object as Stripe.PromotionCode)
+      //   break
         
       default:
         console.log(`⚠️ Unhandled event type: ${event.type}`)
@@ -123,9 +121,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.log('🎁 User used a promotion code - processing referral rewards')
     
     // Get the promotion codes used in this session
-    if (session.discount?.promotion_code) {
-      const promoCode = await stripe.promotionCodes.retrieve(session.discount.promotion_code as string)
-      await processReferralReward(promoCode, userId, customerEmail || '')
+    if (session.discounts && session.discounts.length > 0) {
+      const discount = session.discounts[0];
+      if (discount.promotion_code) {
+        const promoCode = await stripe.promotionCodes.retrieve(discount.promotion_code as string)
+        await processReferralReward(promoCode, userId, customerEmail || '')
+      }
     }
   }
 
@@ -203,9 +204,26 @@ async function processReferralReward(promoCode: Stripe.PromotionCode, newUserId:
 
   console.log(`💰 Rewarding referrer ${referrerUserId} for successful referral`)
   
-  // Check if this was a special email referral
-  const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com']
-  const isSpecialEmail = specialEmails.includes(newUserEmail.toLowerCase())
+  // Check if referred user already has pro status in database (database-driven)
+  let isSpecialEmail = false;
+  try {
+    const { getFirestoreAdmin } = require('../../utils/firebase-admin');
+    const firestore = getFirestoreAdmin();
+    
+    const userQuery = await firestore.collection('users')
+      .where('email', '==', newUserEmail.toLowerCase())
+      .get();
+      
+    if (!userQuery.empty) {
+      const userId = userQuery.docs[0].id;
+      const existingSubscription = await findSubscriptionByUserId(userId);
+      isSpecialEmail = existingSubscription?.plan === 'pro' && existingSubscription?.status === 'active';
+      console.log(`🔍 User ${newUserEmail} existing pro status: ${isSpecialEmail}`);
+    }
+  } catch (error) {
+    console.log('⚠️ Could not check user pro status, treating as normal referral');
+    isSpecialEmail = false;
+  }
   
   if (isSpecialEmail) {
     console.log('⭐ Special email referral - giving 3 day free trial to new user')

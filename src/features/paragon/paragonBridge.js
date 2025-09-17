@@ -51,8 +51,8 @@ function initializeParagonBridge() {
               width: 1200,
               height: 800,
               show: true,
-              frame: false, // Frameless like listen overlay
-              transparent: true, // Transparent like listen overlay
+              frame: true, // ✅ Enable window controls (close/minimize/maximize)
+              transparent: false, // ✅ Solid window (better for OAuth)
               webPreferences: {
                 preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                 contextIsolation: true,
@@ -60,15 +60,15 @@ function initializeParagonBridge() {
                 // Use the default session which already has CSP patches
                 session: session.defaultSession
               },
-              // Make it independent overlay like listen system
-              parent: undefined, // No parent relationship like listen
-              modal: false, // Not modal - independent like listen
-              alwaysOnTop: true, // Always on top like listen overlay
-              skipTaskbar: true, // Don't show in taskbar like listen overlay
-              hasShadow: false,
+              // Make it a normal window that doesn't block OAuth pop-ups
+              parent: undefined, // No parent relationship
+              modal: false, // Not modal - allows other windows
+              alwaysOnTop: false, // ✅ Allow OAuth pop-ups to appear above
+              skipTaskbar: false, // ✅ Show in taskbar for easy access
+              hasShadow: true, // ✅ Normal window shadow
               resizable: true,
-              minimizable: false,
-              maximizable: false,
+              minimizable: true, // ✅ Enable minimize button
+              maximizable: true, // ✅ Enable maximize button
               focusable: true,
               title: `Connect ${service} - Leviousa`
             });

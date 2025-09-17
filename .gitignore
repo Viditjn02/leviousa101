@@ -129,3 +129,4 @@ backups/
 *.backup
 **/**.backup
 .vercel
+.env.temp

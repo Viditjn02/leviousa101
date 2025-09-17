@@ -669,8 +669,8 @@ function initializeInvisibilityBridge() {
                     width: 500,
                     height: 700,
                     show: true,
-                    frame: false, // Frameless like listen overlay
-                    transparent: true, // Transparent like listen overlay
+              frame: true, // ✅ Enable window controls (close/minimize/maximize)
+              transparent: false, // ✅ Solid window (better for OAuth)
                     webPreferences: {
                         nodeIntegration: false,
                         contextIsolation: true,
@@ -681,12 +681,12 @@ function initializeInvisibilityBridge() {
                     // Make it independent overlay like listen system
                     modal: false, // Not modal - independent like listen
                     parent: undefined, // No parent relationship like listen
-                    alwaysOnTop: true, // Always on top like listen overlay
-                    skipTaskbar: true, // Don't show in taskbar like listen overlay
-                    hasShadow: false,
+              alwaysOnTop: false, // ✅ Allow OAuth pop-ups to appear above
+              skipTaskbar: false, // ✅ Show in taskbar for easy access
+                    hasShadow: true, // ✅ Normal window shadow
                     resizable: true,
-                    minimizable: false,
-                    maximizable: false,
+              minimizable: true, // ✅ Enable minimize button
+              maximizable: true, // ✅ Enable maximize button
                     focusable: true
                 });
                 
@@ -1649,8 +1649,8 @@ function initializeInvisibilityBridge() {
                                   width: 1200,
                                   height: 800,
                                   show: true,
-                                  frame: false, // Frameless like listen overlay
-                                  transparent: true, // Transparent like listen overlay
+              frame: true, // ✅ Enable window controls (close/minimize/maximize)
+              transparent: false, // ✅ Solid window (better for OAuth)
                                   webPreferences: {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
@@ -1661,12 +1661,12 @@ function initializeInvisibilityBridge() {
                                   // Make it independent overlay like listen system
                                   modal: false, // Not modal - independent like listen
                                   parent: undefined, // No parent relationship like listen
-                                  alwaysOnTop: true, // Always on top like listen overlay
-                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
-                                  hasShadow: false,
+              alwaysOnTop: false, // ✅ Allow OAuth pop-ups to appear above
+              skipTaskbar: false, // ✅ Show in taskbar for easy access
+                                  hasShadow: true, // ✅ Normal window shadow
                                   resizable: true,
-                                  minimizable: false,
-                                  maximizable: false,
+              minimizable: true, // ✅ Enable minimize button
+              maximizable: true, // ✅ Enable maximize button
                                   focusable: true,
                                   title: `Connect ${serviceKey} - Leviousa`
                                 });
@@ -1781,8 +1781,8 @@ function initializeInvisibilityBridge() {
                                   width: 1200,
                                   height: 800,
                                   show: true,
-                                  frame: false, // Frameless like listen overlay
-                                  transparent: true, // Transparent like listen overlay
+              frame: true, // ✅ Enable window controls (close/minimize/maximize)
+              transparent: false, // ✅ Solid window (better for OAuth)
                                   webPreferences: {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
@@ -1793,12 +1793,12 @@ function initializeInvisibilityBridge() {
                                   // Make it independent overlay like listen system
                                   modal: false, // Not modal - independent like listen
                                   parent: undefined, // No parent relationship like listen
-                                  alwaysOnTop: true, // Always on top like listen overlay
-                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
-                                  hasShadow: false,
+              alwaysOnTop: false, // ✅ Allow OAuth pop-ups to appear above
+              skipTaskbar: false, // ✅ Show in taskbar for easy access
+                                  hasShadow: true, // ✅ Normal window shadow
                                   resizable: true,
-                                  minimizable: false,
-                                  maximizable: false,
+              minimizable: true, // ✅ Enable minimize button
+              maximizable: true, // ✅ Enable maximize button
                                   focusable: true,
                                   title: `Connect ${serviceKey} - Leviousa`
                                 });

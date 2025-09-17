@@ -1,8 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+// Force Node.js runtime for reliability
+export const config = {
+  runtime: 'nodejs',
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Simple health check - don't hit Firebase/Stripe in status endpoint
+  if (!req.headers.authorization) {
+    return res.status(200).json({
+      ok: true,
+      hasStripeKey: !!process.env.STRIPE_SECRET_KEY,
+      message: 'Health check OK - no auth required'
+    })
   }
 
   try {
@@ -38,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('✅ Token decoded successfully for user:', uid, email)
       }
     } catch (error) {
-      console.log('⚠️ Token decode failed:', error.message, 'using defaults for testing')
+      console.log('⚠️ Token decode failed:', error instanceof Error ? error.message : 'Unknown error', 'using defaults for testing')
     }
 
     console.log('📊 Getting usage status for user:', uid)
@@ -51,10 +65,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { findSubscriptionByUserId } = await import('../../../utils/repositories/subscription')
     const { calculateDailyBonusLimits } = await import('../../../utils/repositories/referralBonus')
     
-    // Get user's subscription from database
+    // Get user's subscription from database (with email fallback for UID mismatches)
     let subscription = await findSubscriptionByUserId(uid)
     
-    // Determine Pro status from database subscription
+    // Determine Pro status ONLY from database subscription
     let isPro = subscription?.plan === 'pro' && subscription?.status === 'active'
     
     // Get today's usage record (creates if doesn't exist)
@@ -77,7 +91,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       browser_remaining: finalBrowserLimit === -1 ? -1 : Math.max(0, finalBrowserLimit - (todayUsage.browser_usage_minutes || 0)),
       date: today,
       subscription_plan: isPro ? 'pro' : 'free',
-      is_special_email: isSpecialEmail,
       referral_bonus: bonusLimits
     };
     

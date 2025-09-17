@@ -150,15 +150,35 @@ function createApp(eventBridge) {
                 console.log('[API] ⚠️ No auth token provided, using guest access');
             }
 
-            // Check if this is a special email (gets Pro access)
-            const specialEmails = ['viditjn02@gmail.com', 'viditjn@berkeley.edu', 'shreyabhatia63@gmail.com'];
-            const isSpecialEmail = email && specialEmails.includes(email);
-            
-            console.log(`[API] 🧪 Checking access for user: ${userId}, email: ${email}, featureType: ${featureType}, isSpecial: ${isSpecialEmail}`);
+            console.log(`[API] 🧪 Checking access for user: ${userId}, email: ${email}, featureType: ${featureType}`);
 
-            // 🧪 SIMPLIFIED TEST: Check if this is the Pro user or special email
-            if (userId === 'vqLrzGnqajPGlX9Wzq89SgqVPsN2' || isSpecialEmail) {
-                console.log('[API] ✅ Pro user detected (viditjn02@gmail.com)');
+            // Use proper database-driven subscription checking (no hardcoded UIDs/emails)
+            let isPro = false;
+            let subscription = null;
+            
+            try {
+                // Import and use the centralized subscription lookup
+                const { findSubscriptionByUserId } = require('../utils/repositories/subscription');
+                
+                console.log(`[API] 🔍 Querying subscription for user: ${userId}`);
+                subscription = await findSubscriptionByUserId(userId);
+                
+                if (subscription && subscription.plan === 'pro' && subscription.status === 'active') {
+                    isPro = true;
+                    console.log(`[API] ✅ Pro user detected from database: Plan=${subscription.plan}, Status=${subscription.status}`);
+                } else if (subscription) {
+                    console.log(`[API] ⚠️ Found subscription but not pro/active: Plan=${subscription.plan}, Status=${subscription.status}`);
+                } else {
+                    console.log(`[API] ⚠️ No subscription found for user: ${userId}`);
+                }
+                
+            } catch (dbError) {
+                console.error('[API] Database query error:', dbError);
+                isPro = false;
+            }
+            
+            if (isPro && subscription) {
+                console.log(`[API] ✅ Pro user access granted: ${email || userId}`);
                 
                 if (featureType === 'integrations') {
                     // Grant Pro user full integration access
@@ -167,9 +187,7 @@ function createApp(eventBridge) {
                         allowed: true,
                         plan: 'pro',
                         message: 'Pro user - integration access granted',
-                        requiresUpgrade: false,
-                        specialEmail: true,
-                        testMode: true
+                        requiresUpgrade: false
                     });
                 } else {
                     // Grant unlimited usage for other features
@@ -181,8 +199,7 @@ function createApp(eventBridge) {
                         requiresUpgrade: false,
                         usage: 0,
                         limit: -1,
-                        remaining: -1,
-                        testMode: true
+                        remaining: -1
                     });
                 }
             } else {
@@ -195,8 +212,7 @@ function createApp(eventBridge) {
                         allowed: false,
                         plan: 'free',
                         message: 'Integration access requires Leviousa Pro',
-                        requiresUpgrade: true,
-                        testMode: true
+                        requiresUpgrade: true
                     });
                 } else {
                     // Free users get limited usage
@@ -208,8 +224,7 @@ function createApp(eventBridge) {
                         requiresUpgrade: false,
                         usage: 5,
                         limit: 10,
-                        remaining: 5,
-                        testMode: true
+                        remaining: 5
                     });
                 }
             }
