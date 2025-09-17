@@ -31,7 +31,7 @@ export default function useParagonAuth(userId?: string): {
     
     // CRITICAL: Wait for Firebase auth persistence to be ready
     // This prevents auth state loss during OAuth flows
-    authPersistenceReady
+    authPersistenceReady()
       .then(() => {
         console.log('✅ [useParagonAuth] Firebase persistence ready, generating token...')
         // Clear any expired tokens first
