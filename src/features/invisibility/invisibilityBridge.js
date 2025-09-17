@@ -690,6 +690,43 @@ function initializeInvisibilityBridge() {
                     focusable: true
                 });
                 
+                // CRITICAL: Allow OAuth popups from Paragon/Google domains
+                oauthWindow.webContents.setWindowOpenHandler(({ url }) => {
+                    const allowedDomains = [
+                        'https://connect.useparagon.com',
+                        'https://auth.useparagon.com', 
+                        'https://accounts.google.com',
+                        'https://oauth2.googleapis.com',
+                        'https://login.microsoftonline.com',
+                        'https://api.calendly.com',
+                        'https://auth.calendly.com',
+                        'https://www.linkedin.com',
+                        'https://api.notion.com',
+                        'http://127.0.0.1:54321',   // Local callback
+                        'http://localhost:54321'     // Local callback alternative
+                    ];
+                    
+                    const isAllowed = allowedDomains.some(domain => url.startsWith(domain));
+                    console.log(`[InvisibilityBridge] 🔍 OAuth popup request: ${url} - ${isAllowed ? 'ALLOWED' : 'DENIED'}`);
+                    
+                    if (isAllowed) {
+                        return {
+                            action: 'allow',
+                            overrideBrowserWindowOptions: {
+                                webPreferences: { 
+                                    nativeWindowOpen: true,
+                                    contextIsolation: true,
+                                    nodeIntegration: false
+                                }
+                            }
+                        };
+                    } else {
+                        // Open non-OAuth URLs externally
+                        require('electron').shell.openExternal(url);
+                        return { action: 'deny' };
+                    }
+                });
+                
                 // Set user agent to avoid Electron detection by Paragon Connect Portal
                 // This prevents the "this browser or app may not be secure" error
                 const originalUserAgent = oauthWindow.webContents.getUserAgent();
@@ -1655,6 +1692,8 @@ function initializeInvisibilityBridge() {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
                                     nodeIntegration: false,
+                                    // CRITICAL for OAuth popups:
+                                    nativeWindowOpen: true,
                                     // CRITICAL: Use the same session as main app to get CSP patches
                                     session: session.defaultSession
                                   },
@@ -1787,6 +1826,8 @@ function initializeInvisibilityBridge() {
                                     preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
                                     contextIsolation: true,
                                     nodeIntegration: false,
+                                    // CRITICAL for OAuth popups:
+                                    nativeWindowOpen: true,
                                     // CRITICAL: Use the same session as main app to get CSP patches
                                     session: session.defaultSession
                                   },

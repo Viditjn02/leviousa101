@@ -841,6 +841,8 @@ function createWindows() {
             backgroundThrottling: false,
             webSecurity: false,
             enableRemoteModule: false,
+            // CRITICAL for OAuth popups:
+            nativeWindowOpen: true,
             // Ensure proper rendering and prevent pixelation
             experimentalFeatures: false,
             // Enable dev tools in development builds
@@ -853,6 +855,44 @@ function createWindows() {
     if (process.platform === 'darwin') {
         header.setWindowButtonVisibility(false);
     }
+    
+    // CRITICAL: Allow OAuth popups for integrations loaded in header window
+    header.webContents.setWindowOpenHandler(({ url }) => {
+        const allowedDomains = [
+            'https://connect.useparagon.com',
+            'https://auth.useparagon.com', 
+            'https://accounts.google.com',
+            'https://oauth2.googleapis.com',
+            'https://login.microsoftonline.com',
+            'https://api.calendly.com',
+            'https://auth.calendly.com',
+            'https://www.linkedin.com',
+            'https://api.notion.com',
+            'http://127.0.0.1:54321',   // Local callback
+            'http://localhost:54321'     // Local callback alternative
+        ];
+        
+        const isAllowed = allowedDomains.some(domain => url.startsWith(domain));
+        console.log(`[Header] 🔍 OAuth popup request: ${url} - ${isAllowed ? 'ALLOWED' : 'DENIED'}`);
+        
+        if (isAllowed) {
+            return {
+                action: 'allow',
+                overrideBrowserWindowOptions: {
+                    webPreferences: { 
+                        nativeWindowOpen: true,
+                        contextIsolation: true,
+                        nodeIntegration: false
+                    }
+                }
+            };
+        } else {
+            // Open non-OAuth URLs externally
+            require('electron').shell.openExternal(url);
+            return { action: 'deny' };
+        }
+    });
+    
     const headerLoadOptions = {};
     if (!shouldUseLiquidGlass) {
         header.loadFile(path.join(__dirname, '../ui/app/header.html'), headerLoadOptions);
@@ -1118,6 +1158,8 @@ const toggleBrowserWindow = async () => {
                 enableRemoteModule: false,
                 experimentalFeatures: false,
                 partition: 'persist:browser', // Persistent session for passwords/cookies
+                // CRITICAL for OAuth popups:
+                nativeWindowOpen: true,
             },
             useContentSize: true,
             disableAutoHideCursor: true, // PRIVACY: Disable cursor auto-hide which can leak info

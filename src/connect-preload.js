@@ -10,11 +10,24 @@ console.log('[ConnectPreload] 📦 Paragon SDK will be loaded in renderer proces
 contextBridge.exposeInMainWorld('api', {
   mcp: {
     notifyAuthenticationComplete: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationComplete', data),
-    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data)
+    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data),
+    paragon: {
+      authenticate: (service) => ipcRenderer.invoke('paragon:authenticate', service),
+      disconnect: (service) => ipcRenderer.invoke('paragon:disconnect', service),
+      getStatus: (service) => ipcRenderer.invoke('paragon:status', service)
+    }
   }
 });
 
+// Also expose electronAPI for integration page detection
+contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+  version: process.versions.electron,
+  isElectron: true
+});
+
 console.log('[ConnectPreload] ✅ Exposed IPC methods for authentication notifications');
+console.log('[ConnectPreload] ✅ Exposed ElectronAPI for integration page detection');
 
 // Defensive meta CSP removal
 function scrubCSPMeta() {

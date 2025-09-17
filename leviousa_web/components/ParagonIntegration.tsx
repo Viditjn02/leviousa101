@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import useParagonGlobal from '../hooks/useParagonGlobal'
 import { useParagonAuthContext } from '../context/ParagonAuthContext'
 import { notifyParagonAuthentication } from '../utils/websocketClient'
+import { generateParagonToken } from '../utils/paragonTokenGenerator'
 
 interface ParagonIntegrationProps {
   service: string
@@ -202,17 +203,150 @@ export default function ParagonIntegration({
        // a dedicated window that already has CSP patches (quick-debug flow)
        if (typeof window !== 'undefined' && (window as any).api?.mcp?.paragon?.authenticate) {
          console.log(`[ParagonIntegration] 🚀 Delegating ${service} auth to main process window`)
-         await (window as any).api.mcp.paragon.authenticate(service)
-         // main window will update status via SDK events when auth completes
-         return
+         
+         try {
+           const ipcResult = await (window as any).api.mcp.paragon.authenticate(service)
+           console.log(`✅ [ParagonIntegration] IPC auth result for ${service}:`, ipcResult)
+           return
+         } catch (ipcError: any) {
+           console.error(`❌ [ParagonIntegration] IPC auth failed for ${service}:`, ipcError)
+           console.log(`[ParagonIntegration] 🔄 Falling back to browser mode due to IPC error`)
+           // Fall through to browser mode
+         }
        } else {
          console.log(`[ParagonIntegration] ⚠️ Using fallback paragon.connect() path for ${service}`)
+         console.log(`[ParagonIntegration] 🔍 IPC debug:`, {
+           hasWindow: typeof window !== 'undefined',
+           hasApi: !!(window as any).api,
+           hasMcp: !!(window as any).api?.mcp,  
+           hasParagon: !!(window as any).api?.mcp?.paragon,
+           hasAuthenticate: !!(window as any).api?.mcp?.paragon?.authenticate
+         })
        }
 
        console.log(`🔐 Starting Paragon authentication for ${service} in browser mode`)
-       const redirectUri = 'http://127.0.0.1:54321/paragon/callback'
+       
+       // CRITICAL: Authenticate SDK with user token BEFORE calling connect()
+       console.log(`🔑 [ParagonIntegration] Authenticating Paragon SDK first...`)
+       try {
+         const projectId = process.env.NEXT_PUBLIC_PARAGON_PROJECT_ID || '270db720-6ead-460b-ae94-5ea9bec3f1e2'
+         const userToken = await generateParagonToken(userId)
+         
+         console.log(`🔍 [ParagonIntegration] Using projectId: ${projectId}`)
+         console.log(`🔍 [ParagonIntegration] Generated token length: ${userToken?.length || 0}`)
+         
+         await paragon.authenticate(projectId, userToken)
+         console.log(`✅ [ParagonIntegration] Paragon SDK authenticated successfully`)
+         
+       } catch (authError: any) {
+         console.error(`❌ [ParagonIntegration] SDK authentication failed:`, authError)
+         throw new Error(`SDK authentication failed: ${authError.message}`)
+       }
+       
+       // Now call connect() on the authenticated SDK
+       // Use dynamic port detection for OAuth callback (same as API server)
+       let redirectUri = 'http://127.0.0.1:54321/paragon/callback' // Fallback
+       
+       try {
+         // Try to detect the actual API server port from WebSocket client
+         const wsClient = (window as any).websocketClient
+         if (wsClient?.wsUrl) {
+           const wsUrl = wsClient.wsUrl
+           const portMatch = wsUrl.match(/:(\d+)/)
+           if (portMatch) {
+             const actualPort = portMatch[1]
+             redirectUri = `http://127.0.0.1:${actualPort}/paragon/callback`
+             console.log(`🔍 [ParagonIntegration] Using dynamic port for OAuth callback: ${actualPort}`)
+           }
+         } else {
+           // Alternative: try to detect from window.location if it's an Electron URL
+           const electronUrl = (window as any).location?.href
+           if (electronUrl?.includes('localhost:')) {
+             const electronPortMatch = electronUrl.match(/localhost:(\d+)/)
+             if (electronPortMatch) {
+               const electronPort = electronPortMatch[1]
+               redirectUri = `http://127.0.0.1:${electronPort}/paragon/callback`
+               console.log(`🔍 [ParagonIntegration] Using Electron API port for OAuth callback: ${electronPort}`)
+             }
+           }
+         }
+       } catch (portError) {
+         console.warn(`⚠️ [ParagonIntegration] Could not detect dynamic port, using fallback: 54321`)
+       }
+       
+       console.log(`🔗 [ParagonIntegration] Final OAuth callback URI: ${redirectUri}`)
        const connectOptions: any = { redirectUri, popup }
-       await paragon.connect(service, connectOptions)
+       
+       console.log(`🔍 [ParagonIntegration] Connect options for ${service}:`, connectOptions)
+       
+       // Test popup blocking before calling paragon.connect()
+       console.log(`🧪 [ParagonIntegration] Testing popup capability...`)
+       console.log(`🔍 [ParagonIntegration] Window debug info:`, {
+         userAgent: navigator.userAgent,
+         location: window.location.href,
+         hasWindowOpen: typeof window.open,
+         origin: window.location.origin,
+         protocol: window.location.protocol,
+         isInFrame: window.self !== window.top,
+         frameElement: window.frameElement,
+         webviewTag: document.querySelector('webview'),
+         windowName: window.name,
+         windowFeatures: window.outerHeight + 'x' + window.outerWidth
+       })
+       
+       // GPT-5's webPreferences debugging
+       if (typeof window !== 'undefined' && (window as any).electronAPI) {
+         console.log(`🔍 [ParagonIntegration] ElectronAPI available - checking webPreferences...`)
+         // Try to get webPreferences info if available
+       } else {
+         console.log(`🔍 [ParagonIntegration] No ElectronAPI - may be in webview or BrowserView`)
+       }
+       
+       try {
+         const testPopup = window.open('about:blank', '_blank', 'width=1,height=1')
+         console.log(`🔍 [ParagonIntegration] window.open() returned:`, testPopup)
+         
+         if (testPopup) {
+           testPopup.close()
+           console.log(`✅ [ParagonIntegration] Popup test passed - popups allowed`)
+         } else {
+           console.error(`🚫 [ParagonIntegration] Popup test failed - window.open() returned null`)
+           console.error(`🔍 [ParagonIntegration] This indicates Electron popup blocking at window level`)
+         }
+       } catch (popupTestError) {
+         console.error(`🚫 [ParagonIntegration] Popup test error:`, popupTestError)
+       }
+       
+       console.log(`🚀 [ParagonIntegration] Calling paragon.connect() for ${service}...`)
+       
+       try {
+         // Add timeout to detect hanging
+         const connectPromise = paragon.connect(service, connectOptions)
+         const timeoutPromise = new Promise((_, reject) => 
+           setTimeout(() => reject(new Error('OAuth popup timeout - may be blocked')), 10000)
+         )
+         
+         const result = await Promise.race([connectPromise, timeoutPromise])
+         console.log(`✅ [ParagonIntegration] Paragon.connect completed for ${service}:`, result)
+         
+         // Check if popup was actually opened
+         console.log(`🔍 [ParagonIntegration] Popup status check - window focus events:`)
+         setTimeout(() => {
+           console.log(`🔍 [ParagonIntegration] Window focus state: focused=${document.hasFocus()}`)
+         }, 1000)
+         
+       } catch (connectError: any) {
+         console.error(`❌ [ParagonIntegration] Paragon.connect failed for ${service}:`, connectError)
+         
+         // Add specific error analysis
+         if (connectError.message?.includes('timeout')) {
+           console.error(`🚫 [ParagonIntegration] OAuth popup likely blocked or CSP issue for ${service}`)
+         } else if (connectError.message?.includes('popup')) {
+           console.error(`🚫 [ParagonIntegration] Popup blocker detected for ${service}`)
+         }
+         
+         throw connectError
+       }
     } catch (err: any) {
       console.error(`❌ Paragon authentication failed for ${service}:`, err)
       setStatus('disconnected')

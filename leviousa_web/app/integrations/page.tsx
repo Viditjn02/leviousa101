@@ -83,11 +83,16 @@ function IntegrationsContentInner() {
   }
 
   const shouldAutoConnect = (service: string) => {
-    return (
-      (serviceToConnect === service && action === 'connect') ||
-      authenticateService === service ||
-      connectService === service
-    )
+    // Disable auto-connect to ensure OAuth popups are user-initiated (fixes popup blocking)
+    // Following GPT-5's recommendation for OAuth popup reliability
+    return false
+    
+    // Original logic (commented out):
+    // return (
+    //   (serviceToConnect === service && action === 'connect') ||
+    //   authenticateService === service ||
+    //   connectService === service
+    // )
   }
 
   // Check if user has access to integrations

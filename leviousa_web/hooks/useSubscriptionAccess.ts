@@ -181,12 +181,20 @@ export function useIntegrationsAccess(providedToken?: string): SubscriptionAcces
 
         const result = await response.json()
         
+        console.log('🔍 [useIntegrationsAccess] API response received:', JSON.stringify(result, null, 2))
+        
         setAccess({
           allowed: result.allowed || false,
           plan: result.plan || 'free',
           message: result.message || 'Access check completed',
           requiresUpgrade: result.requiresUpgrade || false,
           loading: false
+        })
+        
+        console.log('✅ [useIntegrationsAccess] Access state updated:', {
+          allowed: result.allowed || false,
+          plan: result.plan || 'free',
+          requiresUpgrade: result.requiresUpgrade || false
         })
 
       } catch (error) {
