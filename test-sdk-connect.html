@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Paragon SDK Connect Method Test</title>
+    <script src="https://cdn.useparagon.com/connect/latest/bundle.js"></script>
+</head>
+<body>
+    <h1>Paragon SDK Connect Method Inspector</h1>
+    <p>Open browser DevTools Network tab to see what URL the SDK tries to open</p>
+    <button id="testBtn">Test paragon.connect()</button>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        const log = (msg) => {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        // Intercept window.open to see what URL Paragon tries to use
+        const originalOpen = window.open;
+        window.open = function(url, target, features) {
+            log(`\n🔍 INTERCEPTED window.open() call:`);
+            log(`URL: ${url}`);
+            log(`Target: ${target}`);
+            log(`Features: ${features}`);
+            
+            // Parse the URL to see parameters
+            if (url) {
+                try {
+                    const urlObj = new URL(url);
+                    log(`\n📊 URL Parameters:`);
+                    urlObj.searchParams.forEach((value, key) => {
+                        log(`  ${key}: ${value}`);
+                    });
+                } catch (e) {
+                    log(`Could not parse URL: ${e.message}`);
+                }
+            }
+            
+            // Still call the original to let it work
+            return originalOpen.call(window, url, target, features);
+        };
+        
+        // Also intercept iframe creation
+        const originalCreateElement = document.createElement;
+        document.createElement = function(tagName) {
+            const element = originalCreateElement.call(document, tagName);
+            
+            if (tagName.toLowerCase() === 'iframe') {
+                log(`\n🖼️ INTERCEPTED iframe creation`);
+                
+                // Monitor src changes
+                let srcValue = '';
+                Object.defineProperty(element, 'src', {
+                    get() { return srcValue; },
+                    set(value) {
+                        log(`iframe src set to: ${value}`);
+                        srcValue = value;
+                        
+                        // Parse the URL
+                        if (value) {
+                            try {
+                                const urlObj = new URL(value);
+                                log(`\n📊 iframe URL Parameters:`);
+                                urlObj.searchParams.forEach((val, key) => {
+                                    log(`  ${key}: ${val}`);
+                                });
+                            } catch (e) {
+                                log(`Could not parse iframe URL: ${e.message}`);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            return element;
+        };
+        
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            log('\n🚀 Starting Paragon SDK test...');
+            
+            try {
+                // First authenticate
+                const projectId = 'ed25f59d-f4d2-40da-995f-87e875e40865';
+                const testToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3MzIwMDAwMDAsImV4cCI6MTczMjAwMzYwMH0.test';
+                
+                log('Authenticating SDK...');
+                await window.paragon.authenticate(projectId, testToken);
+                log('✅ SDK authenticated');
+                
+                log('\nCalling paragon.connect("gmail")...');
+                await window.paragon.connect('gmail');
+                log('✅ Connect completed');
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                console.error(error);
+            }
+        });
+        
+        log('🔍 Ready to test. Click the button above.');
+        log('Also check Network tab for any requests to passport.useparagon.com');
+    </script>
+</body>
+</html>

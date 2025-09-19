@@ -681,8 +681,8 @@ function initializeInvisibilityBridge() {
                     // Make it independent overlay like listen system
                     modal: false, // Not modal - independent like listen
                     parent: undefined, // No parent relationship like listen
-                    alwaysOnTop: true, // Always on top like listen overlay
-                    skipTaskbar: true, // Don't show in taskbar like listen overlay
+                    alwaysOnTop: false, // Always on top like listen overlay
+                    skipTaskbar: false, // Don't show in taskbar like listen overlay
                     hasShadow: false,
                     resizable: true,
                     minimizable: false,
@@ -1661,8 +1661,8 @@ function initializeInvisibilityBridge() {
                                   // Make it independent overlay like listen system
                                   modal: false, // Not modal - independent like listen
                                   parent: undefined, // No parent relationship like listen
-                                  alwaysOnTop: true, // Always on top like listen overlay
-                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
+                                  alwaysOnTop: false, // Always on top like listen overlay
+                                  skipTaskbar: false, // Don't show in taskbar like listen overlay
                                   hasShadow: false,
                                   resizable: true,
                                   minimizable: false,
@@ -1793,8 +1793,8 @@ function initializeInvisibilityBridge() {
                                   // Make it independent overlay like listen system
                                   modal: false, // Not modal - independent like listen
                                   parent: undefined, // No parent relationship like listen
-                                  alwaysOnTop: true, // Always on top like listen overlay
-                                  skipTaskbar: true, // Don't show in taskbar like listen overlay
+                                  alwaysOnTop: false, // Always on top like listen overlay
+                                  skipTaskbar: false, // Don't show in taskbar like listen overlay
                                   hasShadow: false,
                                   resizable: true,
                                   minimizable: false,

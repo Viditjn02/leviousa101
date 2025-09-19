@@ -128,3 +128,4 @@ backups/
 *.backup
 **/**.backup
 .vercel
+leviousa_web/.env.production

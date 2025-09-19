@@ -397,15 +397,15 @@ function setupCSPInterception() {
         // Keep content-encoding so gzipped content displays properly
         // delete h['content-encoding']; // Commented out to prevent binary corruption
         
-        // Add relaxed header CSP with Google auth support
+        // Add relaxed header CSP with blob: support (EXACT working version)
         h['content-security-policy'] = [
             "default-src 'self' https: http: blob: data:; " +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: https://*.googleapis.com https://*.gstatic.com https://ssl.gstatic.com https://*.googleusercontent.com https://accounts.google.com; " +
-            "connect-src 'self' https: http: ws: wss: blob: https://*.googleapis.com https://accounts.google.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: data: 'wasm-unsafe-eval' 'unsafe-hashes' https://*.useparagon.com https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com; " +
+            "connect-src 'self' https: http: ws: wss: blob:; " +
             "img-src 'self' data: blob: https: http:; " +
             "style-src 'self' 'unsafe-inline' https: http:; " +
             "font-src 'self' data: https: http:; " +
-            "frame-src 'self' https: http: blob: https://accounts.google.com; " +
+            "frame-src 'self' https: http: blob:; " +
             "worker-src 'self' blob:; " +
             "child-src 'self' https: http: blob:; " +
             "object-src 'self' blob: https: http:;"

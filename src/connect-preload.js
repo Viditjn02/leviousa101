@@ -1,24 +1,20 @@
 // connect-preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Configure Paragon SDK globally first (before it initializes)
-try {
-  const { paragon } = require('@useparagon/connect');
-  paragon.configureGlobal({
-    host: 'useparagon.com',
-    apiHost: 'https://api.useparagon.com',
-    connectHost: 'https://connect.useparagon.com',
-  });
-  console.log('[ConnectPreload] ✅ Paragon SDK configured globally');
-} catch (error) {
-  console.warn('[ConnectPreload] ⚠️ Failed to configure Paragon SDK:', error);
-}
+// Note: Paragon SDK should load in renderer process, not preload
+console.log('[ConnectPreload] 🔧 Setting up browser environment for Paragon SDK...');
+console.log('[ConnectPreload] 📦 Paragon SDK will be loaded in renderer process (not preload)');
 
-// Expose necessary IPC methods for authentication notifications
+// Expose necessary IPC methods for authentication notifications AND Paragon bridge
 contextBridge.exposeInMainWorld('api', {
   mcp: {
     notifyAuthenticationComplete: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationComplete', data),
-    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data)
+    notifyAuthenticationFailed: (data) => ipcRenderer.invoke('mcp:notifyAuthenticationFailed', data),
+    paragon: {
+      authenticate: (service) => ipcRenderer.invoke('paragon:authenticate', service),
+      disconnect: (service) => ipcRenderer.invoke('paragon:disconnect', service),
+      status: (service) => ipcRenderer.invoke('paragon:status', service)
+    }
   }
 });
 

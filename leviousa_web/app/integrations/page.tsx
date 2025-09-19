@@ -6,6 +6,9 @@ import ParagonIntegration from '../../components/ParagonIntegration'
 import { useIntegrationsAccess } from '../../hooks/useSubscriptionAccess'
 import { ParagonAuthProvider } from '../../context/ParagonAuthContext'
 
+// Force dynamic rendering to avoid SSG issues with useSearchParams
+export const dynamic = 'force-dynamic'
+
 function IntegrationsContentInner() {
   const searchParams = useSearchParams()
   const serviceToConnect = searchParams?.get('service')
@@ -83,11 +86,15 @@ function IntegrationsContentInner() {
   }
 
   const shouldAutoConnect = (service: string) => {
-    return (
-      (serviceToConnect === service && action === 'connect') ||
-      authenticateService === service ||
-      connectService === service
-    )
+    // Auto-connect enabled now that IPC delegation is fixed (BrowserWindow approach)
+    const shouldConnect = searchParams?.get('authenticate') === service || searchParams?.get('service') === service;
+    if (shouldConnect) {
+      console.log(`🔄 [shouldAutoConnect] Allowing auto-connect for ${service} (Electron triggered)`)
+      return true
+    } else {
+      console.log(`🚫 [shouldAutoConnect] Blocking auto-connect for ${service} (web user-initiated only)`)
+      return false
+    }
   }
 
   // Check if user has access to integrations

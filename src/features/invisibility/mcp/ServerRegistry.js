@@ -470,7 +470,7 @@ class ServerRegistry extends EventEmitter {
                 processEnv = { ...processEnv, ...paragonEnv.parsed };
                 logger.info('Loaded Paragon .env file for process', { 
                     hasProjectId: !!paragonEnv.parsed.PARAGON_PROJECT_ID,
-                    hasSigningKey: !!paragonEnv.parsed.PARAGON_JWT_SECRET
+                    hasSigningKey: !!paragonEnv.parsed.PARAGON_SIGNING_KEY
                 });
             } else {
                 logger.warn('Failed to load Paragon .env file', { error: paragonEnv.error?.message });

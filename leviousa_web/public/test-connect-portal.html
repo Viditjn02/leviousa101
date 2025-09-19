@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connect Portal Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .status { padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid; }
+        .success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border-color: #ffeaa7; }
+        .log { font-family: monospace; margin: 2px 0; font-size: 12px; }
+        button { padding: 12px 24px; margin: 8px; font-size: 14px; border-radius: 4px; border: 1px solid; cursor: pointer; }
+        .connect-btn { background: #007bff; color: white; border-color: #007bff; }
+        .connect-btn:hover { background: #0056b3; }
+        .disabled { opacity: 0.5; cursor: not-allowed; }
+        .test-results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Paragon Connect Portal Test</h1>
+        <p>This page tests if the Paragon Connect Portal appears when clicking connect</p>
+        
+        <h3>Test Controls:</h3>
+        <button id="connect-gmail" class="connect-btn">Connect Gmail</button>
+        <button id="connect-calendar" class="connect-btn">Connect Google Calendar</button>
+        <button id="check-status" class="connect-btn">Check Integration Status</button>
+        
+        <h3>Test Results:</h3>
+        <div id="sdk-status" class="status info">Checking SDK...</div>
+        <div id="auth-status" class="status info">Checking authentication...</div>
+        <div id="portal-status" class="status info">Portal not tested</div>
+        
+        <div class="test-results">
+            <h3>Live Diagnostics:</h3>
+            <div id="live-diagnostics"></div>
+        </div>
+        
+        <h3>Console Logs:</h3>
+        <div id="logs" style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@useparagon/connect@latest/dist/index.js" async></script>
+    <script>
+        let paragonSDK = null;
+        let userToken = null;
+        
+        function log(message, type = 'info') {
+            console.log(message);
+            const timestamp = new Date().toISOString().substr(11, 8);
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${timestamp}] ${message}`;
+            logsDiv.appendChild(logDiv);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function updateStatus(elementId, text, type) {
+            const el = document.getElementById(elementId);
+            el.textContent = text;
+            el.className = `status ${type}`;
+        }
+
+        function updateLiveDiagnostics() {
+            const diagnosticsDiv = document.getElementById('live-diagnostics');
+            const iframes = document.querySelectorAll('iframe');
+            const paragonElements = document.querySelectorAll('[class*="paragon"], [id*="paragon"]');
+            
+            diagnosticsDiv.innerHTML = `
+                <div class="status info">
+                    <strong>Live Status:</strong><br>
+                    📊 Iframes on page: ${iframes.length}<br>
+                    📦 Paragon elements: ${paragonElements.length}<br>
+                    🔍 SDK ready: ${!!paragonSDK}<br>
+                    🔑 User token: ${userToken ? 'Generated' : 'Not generated'}<br>
+                    ⏰ Last check: ${new Date().toLocaleTimeString()}
+                </div>
+            `;
+        }
+
+        async function generateUserToken() {
+            try {
+                log('🔑 Generating user token...', 'info');
+                const response = await fetch('/api/paragonToken?userId=connect-portal-test');
+                
+                if (!response.ok) {
+                    throw new Error(`Token API failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!data.userToken) {
+                    throw new Error('No token received from API');
+                }
+                
+                userToken = data.userToken;
+                log('✅ User token generated successfully', 'success');
+                return userToken;
+                
+            } catch (error) {
+                log(`❌ Token generation failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        async function initializeParagon() {
+            log('🔍 Initializing Paragon SDK...', 'info');
+            
+            // Wait for SDK to be available
+            let attempts = 0;
+            while (!window.paragon && attempts < 30) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!window.paragon) {
+                log('❌ Paragon SDK not available after 3 seconds', 'error');
+                updateStatus('sdk-status', '❌ SDK Not Loaded', 'error');
+                return false;
+            }
+            
+            paragonSDK = window.paragon;
+            log('✅ Paragon SDK is available', 'success');
+            updateStatus('sdk-status', '✅ SDK Loaded', 'success');
+            
+            // Check required methods
+            const requiredMethods = ['authenticate', 'connect', 'getUser', 'getIntegrationMetadata'];
+            let methodsFound = 0;
+            
+            requiredMethods.forEach(method => {
+                if (typeof paragonSDK[method] === 'function') {
+                    log(`✅ paragon.${method}() available`, 'success');
+                    methodsFound++;
+                } else {
+                    log(`❌ paragon.${method}() missing`, 'error');
+                }
+            });
+            
+            log(`📊 SDK Methods: ${methodsFound}/${requiredMethods.length} available`, methodsFound === requiredMethods.length ? 'success' : 'warning');
+            
+            return true;
+        }
+
+        async function authenticateUser() {
+            if (!paragonSDK) {
+                log('❌ SDK not initialized', 'error');
+                return false;
+            }
+            
+            try {
+                log('🔑 Authenticating user with Paragon...', 'info');
+                
+                if (!userToken) {
+                    await generateUserToken();
+                }
+                
+                const projectId = 'ed25f59d-f4d2-40da-995f-87e875e40865';
+                await paragonSDK.authenticate(projectId, userToken);
+                
+                log('✅ User authenticated with Paragon', 'success');
+                updateStatus('auth-status', '✅ Authenticated', 'success');
+                
+                // Check available integrations
+                const integrations = paragonSDK.getIntegrationMetadata();
+                log(`📋 Available integrations: ${integrations.length}`, 'info');
+                integrations.forEach(integration => {
+                    log(`  - ${integration.type} (${integration.name})`, 'info');
+                });
+                
+                return true;
+                
+            } catch (error) {
+                log(`❌ Authentication failed: ${error.message}`, 'error');
+                updateStatus('auth-status', '❌ Auth Failed', 'error');
+                return false;
+            }
+        }
+
+        async function testConnectPortal(service) {
+            if (!paragonSDK) {
+                log(`❌ Cannot connect ${service} - SDK not ready`, 'error');
+                return;
+            }
+            
+            log(`🚀 Testing Connect Portal for ${service}...`, 'info');
+            updateStatus('portal-status', `🔄 Testing ${service}...`, 'info');
+            
+            // Count initial iframes
+            const initialIframes = document.querySelectorAll('iframe').length;
+            log(`📊 Initial iframe count: ${initialIframes}`, 'info');
+            
+            try {
+                // Call paragon.connect()
+                log(`🔗 Calling paragon.connect('${service}')...`, 'info');
+                
+                const connectResult = paragonSDK.connect(service, {
+                    onSuccess: () => {
+                        log(`✅ ${service} connected successfully!`, 'success');
+                        updateStatus('portal-status', `✅ ${service} Connected`, 'success');
+                    },
+                    onError: (error) => {
+                        log(`❌ ${service} connection failed: ${error.message}`, 'error');
+                        updateStatus('portal-status', `❌ ${service} Failed`, 'error');
+                    }
+                });
+                
+                log(`📋 paragon.connect() returned:`, 'info');
+                log(`${JSON.stringify(connectResult)}`, 'info');
+                
+                // Monitor for iframe appearance
+                let checkCount = 0;
+                const checkInterval = setInterval(() => {
+                    checkCount++;
+                    const currentIframes = document.querySelectorAll('iframe').length;
+                    const paragonElements = document.querySelectorAll('[class*="paragon"], [id*="paragon"]').length;
+                    
+                    log(`📊 Check ${checkCount}: ${currentIframes} iframes, ${paragonElements} paragon elements`, 'info');
+                    
+                    if (currentIframes > initialIframes || paragonElements > 0) {
+                        log(`🎉 SUCCESS! Connect Portal appeared for ${service}`, 'success');
+                        updateStatus('portal-status', `✅ ${service} Portal Appeared`, 'success');
+                        clearInterval(checkInterval);
+                        
+                        // Log iframe details
+                        document.querySelectorAll('iframe').forEach((iframe, index) => {
+                            log(`  📋 Iframe ${index}: ${iframe.src}`, 'info');
+                        });
+                        
+                    } else if (checkCount >= 15) {
+                        log(`❌ ISSUE: No Connect Portal appeared for ${service} after 15 seconds`, 'error');
+                        updateStatus('portal-status', `❌ ${service} Portal Missing`, 'error');
+                        clearInterval(checkInterval);
+                        
+                        // Detailed diagnosis
+                        log(`🔍 DIAGNOSIS:`, 'warning');
+                        log(`  - paragon.connect() completed without errors`, 'warning');
+                        log(`  - No iframe/popup appeared`, 'warning');
+                        log(`  - This typically means the integration is not Active in Paragon dashboard`, 'warning');
+                        log(`  - Solution: Login to dashboard.useparagon.com and activate the ${service} integration`, 'warning');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log(`❌ Connect Portal test failed: ${error.message}`, 'error');
+                updateStatus('portal-status', `❌ Test Failed`, 'error');
+            }
+        }
+
+        async function checkIntegrationStatus() {
+            if (!paragonSDK) {
+                log('❌ SDK not ready for status check', 'error');
+                return;
+            }
+            
+            try {
+                log('🔍 Checking integration status...', 'info');
+                
+                const user = paragonSDK.getUser();
+                log(`👤 User info: ${JSON.stringify(user)}`, 'info');
+                
+                const integrations = paragonSDK.getIntegrationMetadata();
+                log(`📋 Integration metadata:`, 'info');
+                integrations.forEach(integration => {
+                    log(`  - ${integration.type}: ${integration.name} (${integration.description})`, 'info');
+                });
+                
+            } catch (error) {
+                log(`❌ Status check failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', async () => {
+            log('🚀 Starting Connect Portal Test...', 'info');
+            
+            const sdkReady = await initializeParagon();
+            if (sdkReady) {
+                const authSuccess = await authenticateUser();
+                if (authSuccess) {
+                    log('✅ Ready to test Connect Portal!', 'success');
+                }
+            }
+            
+            // Update diagnostics every 2 seconds
+            setInterval(updateLiveDiagnostics, 2000);
+            updateLiveDiagnostics();
+        });
+
+        // Button event listeners
+        document.getElementById('connect-gmail').addEventListener('click', () => {
+            testConnectPortal('gmail');
+        });
+
+        document.getElementById('connect-calendar').addEventListener('click', () => {
+            testConnectPortal('googleCalendar');
+        });
+
+        document.getElementById('check-status').addEventListener('click', () => {
+            checkIntegrationStatus();
+        });
+
+        // Monitor for CSP errors
+        window.addEventListener('error', (event) => {
+            if (event.message && event.message.includes('Content Security Policy')) {
+                log(`❌ CSP Error detected: ${event.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

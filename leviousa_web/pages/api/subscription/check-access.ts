@@ -69,7 +69,7 @@ export default async function handler(
                         console.log(`[API] 🔍 Full payload:`, JSON.stringify(payload, null, 2))
                     }
                 } catch (error) {
-                    console.log('[API] ⚠️ Token decode failed:', error.message, 'using guest access')
+                    console.log('[API] ⚠️ Token decode failed:', error instanceof Error ? error.message : String(error), 'using guest access')
                 }
             } else {
                 console.log('[API] ⚠️ No auth token provided, using guest access')
@@ -92,7 +92,7 @@ export default async function handler(
           plan: 'pro',
           message: 'Pro user - integration access granted',
           requiresUpgrade: false,
-          specialEmail: isSpecialEmail,
+          specialEmail: Boolean(isSpecialEmail),
           testMode: true
         })
       } else {

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Paragon SDK Comprehensive Test Suite</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { border: 2px solid #ddd; padding: 15px; margin: 10px 0; }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+        .info { background: #d1ecf1; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Paragon SDK Test Suite</h1>
+    <div id="results"></div>
+    
+    <!-- Test 1: CDN Script -->
+    <script src="https://cdn.useparagon.com/connect/2.1.0/bundle.js"></script>
+    
+    <!-- Test 2: Alternative CDN -->
+    <script src="https://connect.useparagon.com/connect.js"></script>
+    
+    <script type="module">
+        // Test 3: NPM Module
+        import { paragon as npmParagon } from 'https://cdn.skypack.dev/@useparagon/connect';
+        
+        const results = document.getElementById('results');
+        const projectId = 'ed25f59d-f4d2-40da-995f-87e875e40865';
+        const userId = '7J1iNQy1GSTH0iyJWXHOIfI2D6G2';
+        
+        function addResult(title, content, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test ${type}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+            results.appendChild(div);
+        }
+        
+        // Test Suite
+        async function runTests() {
+            addResult('Test Suite Started', new Date().toISOString());
+            
+            // Test 1: Check what's available globally
+            addResult('Test 1: Global Objects', `
+window.paragon: ${typeof window.paragon}
+window.Paragon: ${typeof window.Paragon}
+window.connectSDK: ${typeof window.connectSDK}
+npmParagon: ${typeof npmParagon}
+            `);
+            
+            // Test 2: Try different SDK references
+            const sdkOptions = [
+                { name: 'window.paragon', sdk: window.paragon },
+                { name: 'window.Paragon', sdk: window.Paragon },
+                { name: 'npm import', sdk: npmParagon }
+            ];
+            
+            for (const option of sdkOptions) {
+                if (option.sdk) {
+                    addResult(`Test 2: ${option.name} methods`, Object.keys(option.sdk || {}).join(', '));
+                }
+            }
+            
+            // Test 3: Try authentication with different SDKs
+            const token = await getToken();
+            
+            for (const option of sdkOptions) {
+                if (option.sdk && option.sdk.authenticate) {
+                    try {
+                        addResult(`Test 3: Authenticating with ${option.name}`, 'Attempting...');
+                        await option.sdk.authenticate(projectId, token);
+                        const user = option.sdk.getUser();
+                        addResult(`✓ ${option.name} authenticated`, JSON.stringify(user, null, 2), 'success');
+                        
+                        // Test 4: Try different connect methods
+                        await testConnectMethods(option.name, option.sdk);
+                    } catch (err) {
+                        addResult(`✗ ${option.name} auth failed`, err.message, 'error');
+                    }
+                }
+            }
+            
+            // Test 5: Direct iframe creation with different URLs
+            testDirectIframes();
+            
+            // Test 6: Check CSP headers
+            checkCSP();
+        }
+        
+        async function getToken() {
+            const response = await fetch(`/api/paragonToken?userId=${userId}`);
+            const data = await response.json();
+            return data.userToken;
+        }
+        
+        async function testConnectMethods(name, sdk) {
+            const methods = [
+                // Method 1: Simple connect
+                () => sdk.connect('gmail'),
+                
+                // Method 2: With options
+                () => sdk.connect('gmail', { displayMode: 'inline' }),
+                () => sdk.connect('gmail', { displayMode: 'popup' }),
+                () => sdk.connect('gmail', { displayMode: 'iframe' }),
+                
+                // Method 3: With container
+                () => {
+                    const container = document.createElement('div');
+                    container.id = 'paragon-test-container';
+                    document.body.appendChild(container);
+                    return sdk.connect('gmail', { container });
+                },
+                
+                // Method 4: With callbacks
+                () => sdk.connect('gmail', {
+                    onSuccess: (data) => console.log('Success:', data),
+                    onError: (err) => console.log('Error:', err)
+                })
+            ];
+            
+            for (let i = 0; i < methods.length; i++) {
+                try {
+                    addResult(`Test 4.${i}: ${name} connect method ${i}`, 'Attempting...');
+                    const result = await methods[i]();
+                    
+                    // Check if any DOM elements were created
+                    setTimeout(() => {
+                        const iframes = document.querySelectorAll('iframe');
+                        const paragonDivs = document.querySelectorAll('[id*="paragon"], [class*="paragon"]');
+                        addResult(`DOM Check after method ${i}`, `
+Iframes: ${iframes.length}
+Paragon elements: ${paragonDivs.length}
+                        `);
+                    }, 1000);
+                    
+                    if (result) {
+                        addResult(`Result from method ${i}`, JSON.stringify(result));
+                    }
+                } catch (err) {
+                    addResult(`Error in method ${i}`, err.message, 'error');
+                }
+            }
+        }
+        
+        function testDirectIframes() {
+            const urls = [
+                `https://connect.useparagon.com/ui?projectId=${projectId}&integration=gmail`,
+                `https://connect.useparagon.com/${projectId}?integration=gmail`,
+                `https://app.useparagon.com/connect/${projectId}/gmail`,
+                `https://connect.useparagon.com/portal?project=${projectId}&integration=gmail`
+            ];
+            
+            urls.forEach((url, i) => {
+                const container = document.createElement('div');
+                container.className = 'test';
+                container.innerHTML = `<h3>Test 5.${i}: Direct iframe ${i}</h3>`;
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = url;
+                iframe.style.width = '100%';
+                iframe.style.height = '200px';
+                iframe.style.border = '1px solid red';
+                
+                iframe.onload = () => {
+                    addResult(`Iframe ${i} loaded`, url, 'success');
+                };
+                iframe.onerror = () => {
+                    addResult(`Iframe ${i} failed`, url, 'error');
+                };
+                
+                container.appendChild(iframe);
+                results.appendChild(container);
+            });
+        }
+        
+        function checkCSP() {
+            // Check if we can create blob URLs
+            try {
+                const blob = new Blob(['console.log("test")'], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                addResult('Test 6: Blob URL creation', `Success: ${url}`, 'success');
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                addResult('Test 6: Blob URL creation', `Failed: ${err.message}`, 'error');
+            }
+            
+            // Try to load a script as blob
+            try {
+                const blob = new Blob(['window.testBlobScript = true;'], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                const script = document.createElement('script');
+                script.src = url;
+                document.head.appendChild(script);
+                setTimeout(() => {
+                    addResult('Test 6: Blob script execution', 
+                        window.testBlobScript ? 'Success' : 'Failed - script did not execute', 
+                        window.testBlobScript ? 'success' : 'error'
+                    );
+                }, 100);
+            } catch (err) {
+                addResult('Test 6: Blob script execution', `Failed: ${err.message}`, 'error');
+            }
+        }
+        
+        // Run all tests
+        runTests();
+    </script>
+</body>
+</html>

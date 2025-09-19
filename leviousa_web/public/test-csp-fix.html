@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSP Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 8px; margin: 5px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .log { font-family: monospace; margin: 2px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 CSP Fix Test</h1>
+    <p>Testing if the CSP allows Paragon SDK from cdn.jsdelivr.net</p>
+    
+    <h3>Test Results:</h3>
+    <div id="script-load" class="status info">Testing script loading...</div>
+    <div id="window-paragon" class="status info">Checking window.paragon...</div>
+    <div id="sdk-methods" class="status info">Testing SDK methods...</div>
+    
+    <h3>Console Logs:</h3>
+    <div id="logs"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            console.log(message);
+            const logsDiv = document.getElementById('logs');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toISOString()}] ${message}`;
+            logsDiv.appendChild(logDiv);
+        }
+
+        function updateStatus(elementId, text, type) {
+            const el = document.getElementById(elementId);
+            el.textContent = text;
+            el.className = `status ${type}`;
+        }
+
+        // Test 1: Check if script loaded
+        log('🔍 Testing CSP fix for Paragon SDK...', 'info');
+        log('📍 Script should load from cdn.jsdelivr.net', 'info');
+
+        // Wait a moment for script to load
+        setTimeout(() => {
+            // Test 2: Check window.paragon
+            if (typeof window.paragon !== 'undefined') {
+                log('✅ window.paragon is available!', 'success');
+                updateStatus('window-paragon', '✅ Paragon Global Available', 'success');
+                
+                // Test 3: Check SDK methods
+                const requiredMethods = ['authenticate', 'connect', 'getUser'];
+                let methodsAvailable = 0;
+                
+                requiredMethods.forEach(method => {
+                    if (typeof window.paragon[method] === 'function') {
+                        log(`✅ paragon.${method}() available`, 'success');
+                        methodsAvailable++;
+                    } else {
+                        log(`❌ paragon.${method}() missing`, 'error');
+                    }
+                });
+                
+                if (methodsAvailable === requiredMethods.length) {
+                    updateStatus('sdk-methods', '✅ All SDK Methods Available', 'success');
+                    updateStatus('script-load', '✅ CSP Fix Successful', 'success');
+                    log('🎉 SUCCESS: CSP fix works! SDK loaded correctly', 'success');
+                } else {
+                    updateStatus('sdk-methods', `⚠️ ${methodsAvailable}/${requiredMethods.length} Methods Available`, 'error');
+                    log('⚠️ Partial SDK loading - some methods missing', 'error');
+                }
+                
+            } else {
+                log('❌ window.paragon not available', 'error');
+                updateStatus('window-paragon', '❌ Paragon Not Available', 'error');
+                updateStatus('script-load', '❌ CSP Still Blocking or Script Failed', 'error');
+                log('❌ FAILED: SDK still not loading - check CSP or script source', 'error');
+            }
+        }, 3000); // Wait 3 seconds for script to load
+
+        // Monitor for CSP errors
+        window.addEventListener('error', (event) => {
+            if (event.message && event.message.includes('Content Security Policy')) {
+                log(`❌ CSP Error: ${event.message}`, 'error');
+                updateStatus('script-load', '❌ CSP Blocking Detected', 'error');
+            }
+        });
+
+        // Monitor for script load errors
+        window.addEventListener('load', () => {
+            log('📄 Page fully loaded', 'info');
+        });
+    </script>
+    
+    <!-- The script that should now work with our CSP fix -->
+    <script src="https://cdn.jsdelivr.net/npm/@useparagon/connect@latest/dist/index.js" async></script>
+</body>
+</html>

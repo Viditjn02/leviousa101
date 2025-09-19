@@ -13,7 +13,7 @@ function initializeParagonBridge() {
         try {
             console.log('[ParagonBridge] Starting Paragon authentication for service:', service);
             
-            // Open integrations flow in-app to allow CSP patching
+            // BACK TO BROWSERWINDOW - With HTTP notification system!
             const { BrowserWindow, session } = require('electron');
             const path = require('path');
             
@@ -21,127 +21,76 @@ function initializeParagonBridge() {
             const authService = require('../common/services/authService');
             const userId = authService.getCurrentUserId() || 'default-user';
             
-            // Get Firebase token for proper auth in BrowserWindow
+            // Get Firebase token for proper auth
             let firebaseToken = null;
             try {
                 const firebaseUser = authService.getFirebaseUser();
                 if (firebaseUser) {
                     firebaseToken = await firebaseUser.getIdToken();
-                    console.log('[ParagonBridge] 🔑 Got Firebase token for integrations popup');
+                    console.log('[ParagonBridge] 🔑 Got Firebase token for BrowserWindow auth');
                 }
             } catch (error) {
                 console.warn('[ParagonBridge] ⚠️ Could not get Firebase token:', error.message);
             }
             
-            // Determine web URL based on environment: use localhost in development, else the configured web URL
-            const webUrl = process.env.NODE_ENV === 'development'
-              ? 'http://localhost:3000'
-              : (process.env.leviousa_WEB_URL || 'https://www.leviousa.com');
-            // Include userId and token for context if available
-            // Use 'authenticate' parameter to trigger auto-connect instead of manual connect
+            // Always use production web URL (has our API endpoints for tokens)
+            const webUrl = 'https://www.leviousa.com';
+            
+            // Include userId and token for context - NO browserMode (Electron context)
             const params = new URLSearchParams({ 
-                authenticate: service,  // This triggers auto-connect
+                authenticate: service,  // Trigger auto-connect
                 action: 'connect', 
                 ...(userId ? { userId } : {}),
                 ...(firebaseToken ? { token: firebaseToken } : {})
             });
             const authUrl = `${webUrl}/integrations?${params.toString()}`;
-            console.log(`[ParagonBridge] 🌐 Opening Paragon integration with auth: ${authUrl.split('token=')[0]}token=***`);
-            const connectWin = new BrowserWindow({
-              width: 1200,
-              height: 800,
-              show: true,
-              frame: false, // Frameless like listen overlay
-              transparent: true, // Transparent like listen overlay
-              webPreferences: {
-                preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
-                contextIsolation: true,
-                nodeIntegration: false,
-                // Use the default session which already has CSP patches
-                session: session.defaultSession
-              },
-              // Make it independent overlay like listen system
-              parent: undefined, // No parent relationship like listen
-              modal: false, // Not modal - independent like listen
-              alwaysOnTop: true, // Always on top like listen overlay
-              skipTaskbar: true, // Don't show in taskbar like listen overlay
-              hasShadow: false,
-              resizable: true,
-              minimizable: false,
-              maximizable: false,
-              focusable: true,
-              title: `Connect ${service} - Leviousa`
-            });
+            console.log(`[ParagonBridge] 🌐 Opening Paragon integration in BrowserWindow: ${authUrl.split('token=')[0]}token=***`);
             
-            // Set up window close on Escape key like listen overlay
-            connectWin.webContents.on('before-input-event', (event, input) => {
-                if (input.key === 'Escape' && input.type === 'keyDown') {
-                    connectWin.close();
+            // Create BrowserWindow with working CSP patches
+            const connectWin = new BrowserWindow({
+                width: 1200,
+                height: 800,
+                show: true,
+                parent: require('../../window/windowManager').windowPool.header,
+                modal: true,
+                webPreferences: {
+                    preload: path.join(__dirname, '..', '..', 'connect-preload.js'),
+                    contextIsolation: true,
+                    nodeIntegration: false,
+                    webSecurity: false, // Disable for Paragon Connect Portal
+                    nativeWindowOpen: true, // Enable OAuth popups
+                    session: session.defaultSession // Use session with CSP patches
                 }
             });
             
-            console.log(`[ParagonBridge] 🔧 Connect window using session with CSP patches`);
-            await connectWin.loadURL(authUrl);
-            
-            // Add custom close button after page loads
-            connectWin.webContents.once('did-finish-load', () => {
-                connectWin.webContents.executeJavaScript(`
-                    // Create close button container
-                    const closeBtn = document.createElement('div');
-                    closeBtn.id = 'leviousa-close-btn';
-                    closeBtn.innerHTML = '✕';
-                    closeBtn.style.cssText = \`
-                        position: fixed !important;
-                        top: 15px !important;
-                        right: 15px !important;
-                        width: 32px !important;
-                        height: 32px !important;
-                        background: rgba(0, 0, 0, 0.8) !important;
-                        color: white !important;
-                        border: none !important;
-                        border-radius: 50% !important;
-                        cursor: pointer !important;
-                        display: flex !important;
-                        align-items: center !important;
-                        justify-content: center !important;
-                        font-size: 16px !important;
-                        font-weight: bold !important;
-                        z-index: 999999 !important;
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-                        transition: all 0.2s ease !important;
-                    \`;
-                    
-                    // Add hover effects
-                    closeBtn.addEventListener('mouseenter', () => {
-                        closeBtn.style.background = 'rgba(255, 0, 0, 0.8)';
-                        closeBtn.style.transform = 'scale(1.1)';
-                    });
-                    
-                    closeBtn.addEventListener('mouseleave', () => {
-                        closeBtn.style.background = 'rgba(0, 0, 0, 0.8)';
-                        closeBtn.style.transform = 'scale(1)';
-                    });
-                    
-                    // Close window when clicked
-                    closeBtn.addEventListener('click', () => {
-                        window.electronAPI?.closeWindow?.() || window.close();
-                    });
-                    
-                    // Append to body
-                    document.body.appendChild(closeBtn);
-                    
-                    console.log('[Leviousa] Close button added to popup window');
-                `).catch(err => {
-                    console.error('[ParagonBridge] Failed to inject close button:', err);
-                });
+            // Enable OAuth popup domains
+            connectWin.webContents.setWindowOpenHandler(({ url }) => {
+                console.log(`[ParagonBridge] 🔍 OAuth popup request: ${url}`);
+                
+                const allowedDomains = [
+                    'https://passport.useparagon.com',
+                    'https://connect.useparagon.com', 
+                    'https://zeus.useparagon.com',
+                    'https://api.useparagon.com',
+                    'https://dashboard.useparagon.com',
+                    'https://accounts.google.com',
+                    'about:blank'
+                ];
+                
+                const isAllowed = allowedDomains.some(domain => url.startsWith(domain));
+                return { action: isAllowed ? 'allow' : 'deny' };
             });
             
-            // Return success immediately - the external browser will handle the auth
+            // Load integrations page
+            await connectWin.loadURL(authUrl);
+            console.log(`[ParagonBridge] ✅ BrowserWindow loaded - Connect Portal + HTTP notifications enabled`);
+            
+            // Return success immediately
             return { 
                 success: true, 
-                message: `Opening ${service} authentication in browser...`,
-                authUrl: authUrl
+                message: `Opening ${service} authentication in BrowserWindow - HTTP notifications enabled`,
+                authUrl: authUrl,
+                method: 'electron_browserwindow_http'
             };
         } catch (error) {
             console.error('[ParagonBridge] Error starting Paragon authentication:', error);
@@ -166,9 +115,11 @@ function initializeParagonBridge() {
             console.log('[ParagonBridge] Paragon service disconnected:', result);
             
             // Notify all windows of disconnection
-            const allWindows = require('electron').BrowserWindow.getAllWindows();
+            const allWindows = require('electron').BaseWindow.getAllWindows();
             allWindows.forEach(window => {
-                window.webContents.send('paragon:service-disconnected', { service });
+                if (window.webContents) {
+                    window.webContents.send('paragon:service-disconnected', { service });
+                }
             });
             
             return { success: true, result };
@@ -223,13 +174,15 @@ function initializeParagonBridge() {
                 const response = JSON.parse(result.content[0].text);
                 
                 // Notify all windows of successful authentication
-                const allWindows = require('electron').BrowserWindow.getAllWindows();
+                const allWindows = require('electron').BaseWindow.getAllWindows();
                 allWindows.forEach(window => {
-                    window.webContents.send('paragon:auth-status-updated', {
-                        success: true,
-                        service: response.service,
-                        message: response.message
-                    });
+                    if (window.webContents) {
+                        window.webContents.send('paragon:auth-status-updated', {
+                            success: true,
+                            service: response.service,
+                            message: response.message
+                        });
+                    }
                 });
                 
                 return { success: true, ...response };

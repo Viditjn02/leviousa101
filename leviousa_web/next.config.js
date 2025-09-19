@@ -1,53 +1,59 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   reactStrictMode: true,
   swcMinify: true,
-  // Disable static export for Vercel (Vercel handles dynamic Next.js apps)
-  // ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
-  
-  // Skip problematic pages during build for OAuth verification
-  async generateBuildId() {
-    return 'oauth-verification-build'
+  eslint: {
+    ignoreDuringBuilds: true, // Temporarily disable ESLint to test CSP fixes
   },
-  
-  // Configure pages that should be dynamically rendered
+  typescript: {
+    ignoreBuildErrors: true, // Temporarily disable TypeScript to test CSP fixes
+  },
   experimental: {
-    missingSuspenseWithCSRBailout: false,
+    missingSuspenseWithCSRBailout: false, // Disable useSearchParams suspense requirement
   },
-  images: { unoptimized: true },
-  env: {
-    NEXT_PUBLIC_PARAGON_PROJECT_ID: process.env.PARAGON_PROJECT_ID,
+  
+  // Allow all domains for images
+  images: {
+    unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      }
+    ],
   },
+
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: '/:path*',
         headers: [
           {
             key: 'Content-Security-Policy',
             value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com https://apis.google.com https://accounts.google.com https://www.leviousa.com https://www.googletagmanager.com https://*.useparagon.com https://www.gstatic.com https://app.posthog.com https://*.posthog.com https://*.googleapis.com https://*.gstatic.com https://ssl.gstatic.com https://*.googleusercontent.com blob: data: 'unsafe-hashes'",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://connect.useparagon.com https://cdn.honey.io https://www.leviousa.com",
-              "font-src 'self' https://fonts.gstatic.com data:",
-              "img-src 'self' data: https: blob:",
-              "connect-src 'self' https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com https://apis.google.com https://accounts.google.com https://www.leviousa.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://leviousa-101.firebaseapp.com https://www.google.com https://www.gstatic.com https://firestore.googleapis.com https://*.googleapis.com https://app.posthog.com https://*.posthog.com http://localhost:9001 ws://localhost:*",
-              "frame-src 'self' https://connect.useparagon.com https://accounts.google.com https://www.leviousa.com https://leviousa-101.firebaseapp.com",
-              "worker-src 'self' blob:",
-              "child-src 'self' blob:",
-              "object-src 'self' blob: https://connect.useparagon.com",
-            ].join('; '),
-          },
+              "default-src 'self' https: http: blob: data: 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: data: 'wasm-unsafe-eval' 'unsafe-hashes' https://*.useparagon.com https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com https://dashboard.useparagon.com https://www.google-analytics.com https://cdn.segment.com https://imgsct.cookiebot.com https://cdn.honey.io",
+              "connect-src 'self' https: http: ws: wss: blob: data: https://*.useparagon.com https://zeus.useparagon.com https://zeus.connect.useparagon.com https://zeus.app.useparagon.com https://connect.useparagon.com https://api.useparagon.com https://dashboard.useparagon.com https://www.google-analytics.com https://cdn.segment.com",
+              "img-src 'self' data: blob: https: http: https://cdn.honey.io https://imgsct.cookiebot.com https://www.google-analytics.com",
+              "style-src 'self' 'unsafe-inline' https: http: data: https://cdn.honey.io",
+              "font-src 'self' data: https: http:",
+              "frame-src 'self' https: http: blob: data: https://*.useparagon.com https://dashboard.useparagon.com",
+              "worker-src 'self' blob: data:",
+              "child-src 'self' https: http: blob: data:",
+              "object-src 'self' blob: https: http: data:"
+            ].join('; ')
+          }
         ],
       },
     ]
   },
+
+  // Disable SWC minification in development for better debugging
+  swcMinify: process.env.NODE_ENV === 'production',
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig

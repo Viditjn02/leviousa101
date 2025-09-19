@@ -11,30 +11,34 @@ export default function useParagonGlobal() {
 
   useEffect(() => {
     try {
-      // Ensure SDK is available
+      // Ensure SDK is available from npm package
       if (typeof paragon !== 'undefined' && paragon) {
-        // Force production hosts when running inside Electron (file:// or localhost)
-        try {
-          if (!(paragon as any)._configuredElectron) {
-            paragon.configureGlobal({
-              host: 'useparagon.com'
-            });
-            (paragon as any)._configuredElectron = true;
-            console.log('[ParagonSDK] configureGlobal applied for Electron runtime');
-          }
-        } catch (cfgErr) {
-          console.warn('[ParagonSDK] Failed to apply configureGlobal:', (cfgErr as Error).message);
+        console.log('[ParagonSDK] NPM package SDK loaded successfully');
+        
+        // CRITICAL: Expose paragon to window for global access
+        if (typeof window !== 'undefined') {
+          (window as any).paragon = paragon;
+          console.log('[ParagonSDK] Exposed paragon SDK to window.paragon');
         }
+        
+        // Don't call configureGlobal unless using on-premise
+        // The default should work for the cloud version
+        console.log('[ParagonSDK] Using default configuration (cloud)');
+        
         setIsLoaded(true);
       } else {
-        throw new Error('Paragon SDK not available');
+        throw new Error('Paragon SDK not available from NPM package');
       }
     } catch (err) {
+      console.error('[ParagonSDK] SDK loading failed:', err);
       setError(err as Error);
     }
   }, []);
 
-  if (error) throw error;
+  if (error) {
+    console.error('[ParagonSDK] Error:', error);
+    return undefined; // Don't throw, just return undefined
+  }
   
   return isLoaded ? paragon : undefined;
 }

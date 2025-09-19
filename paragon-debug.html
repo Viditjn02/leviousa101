@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Paragon Connect Debug Page</title>
+    <script src="https://cdn.useparagon.com/connect/latest/bundle.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 10px; 
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        #log { 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            background: #f5f5f5; 
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Paragon Connect Debug Page</h1>
+    <p>This page tests the Paragon SDK connect() method directly to see what's happening</p>
+    
+    <div>
+        <button onclick="testConnect()">Test paragon.connect('gmail')</button>
+        <button onclick="findIframes()">Find All Iframes</button>
+        <button onclick="makeVisible()">Force All Iframes Visible</button>
+        <button onclick="checkParagonElements()">Check Paragon Elements</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <h3>Log:</h3>
+    <div id="log"></div>
+    
+    <script>
+        const log = (msg, type = 'info') => {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const className = type;
+            logEl.innerHTML += `<span class="${className}">[${time}] ${msg}</span>\n`;
+            console.log(msg);
+            logEl.scrollTop = logEl.scrollHeight;
+        };
+        
+        const clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+        };
+        
+        // Override window.open to intercept popup attempts
+        const originalOpen = window.open;
+        window.open = function(url, target, features) {
+            log(`🪟 INTERCEPTED window.open(): ${url}`, 'warning');
+            return originalOpen.call(window, url, target, features);
+        };
+        
+        // Monitor DOM mutations
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeName === 'IFRAME') {
+                        log(`🖼️ IFRAME ADDED: ${node.src}`, 'success');
+                    }
+                    if (node.nodeName === 'DIV') {
+                        const div = node;
+                        if (div.id?.includes('paragon') || div.className?.includes('paragon')) {
+                            log(`📦 PARAGON DIV ADDED: id="${div.id}" class="${div.className}"`, 'success');
+                        }
+                    }
+                });
+            });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        
+        async function testConnect() {
+            log('Starting Paragon connect test...', 'info');
+            
+            try {
+                // First authenticate
+                const projectId = 'ed25f59d-f4d2-40da-995f-87e875e40865';
+                const userId = '7J1iNQy1GSTH0iyJWXHOIfI2D6G2';
+                
+                log('Generating token via API...', 'info');
+                const tokenResponse = await fetch(`https://www.leviousa.com/api/paragonToken?userId=${userId}`);
+                const tokenData = await tokenResponse.json();
+                const token = tokenData.userToken;
+                
+                log(`Token generated (${token.substring(0, 50)}...)`, 'success');
+                
+                // Decode and show token info
+                const parts = token.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                log(`Token payload: ${JSON.stringify(payload, null, 2)}`, 'info');
+                
+                log('Authenticating SDK...', 'info');
+                await window.paragon.authenticate(projectId, token);
+                log('✅ SDK authenticated', 'success');
+                
+                // Get available integrations
+                const integrations = window.paragon.getIntegrationMetadata();
+                log(`Available integrations: ${integrations.map(i => i.type).join(', ')}`, 'info');
+                
+                // Check current user
+                const user = window.paragon.getUser();
+                log(`User state: ${JSON.stringify(user, null, 2)}`, 'info');
+                
+                log('🚀 Calling paragon.connect("gmail")...', 'warning');
+                
+                // Try connect with various options
+                const connectPromise = window.paragon.connect('gmail', {
+                    // Try different options
+                    popup: false, // Try iframe mode
+                    onSuccess: (data) => {
+                        log(`✅ Connect success: ${JSON.stringify(data)}`, 'success');
+                    },
+                    onError: (error) => {
+                        log(`❌ Connect error: ${JSON.stringify(error)}`, 'error');
+                    }
+                });
+                
+                // Set a timeout to check DOM after connect
+                setTimeout(() => {
+                    findIframes();
+                    checkParagonElements();
+                }, 2000);
+                
+                const result = await connectPromise;
+                log(`Connect result: ${JSON.stringify(result)}`, 'info');
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        function findIframes() {
+            const iframes = document.querySelectorAll('iframe');
+            log(`\n🔍 Found ${iframes.length} iframes:`, 'info');
+            
+            iframes.forEach((iframe, i) => {
+                const info = {
+                    src: iframe.src || 'no src',
+                    id: iframe.id || 'no id',
+                    display: iframe.style.display || 'default',
+                    visibility: iframe.style.visibility || 'default',
+                    position: iframe.style.position || 'default',
+                    zIndex: iframe.style.zIndex || 'auto',
+                    width: iframe.style.width || iframe.width || 'auto',
+                    height: iframe.style.height || iframe.height || 'auto'
+                };
+                
+                log(`Iframe ${i}: ${JSON.stringify(info, null, 2)}`, 'info');
+                
+                if (iframe.src?.includes('paragon') || iframe.src?.includes('passport')) {
+                    log(`  🎯 THIS IS A PARAGON IFRAME!`, 'success');
+                }
+            });
+        }
+        
+        function makeVisible() {
+            log('Making all iframes visible...', 'warning');
+            
+            const iframes = document.querySelectorAll('iframe');
+            iframes.forEach((iframe, i) => {
+                if (iframe.src?.includes('paragon') || iframe.src?.includes('passport')) {
+                    iframe.style.cssText = `
+                        display: block !important;
+                        visibility: visible !important;
+                        position: fixed !important;
+                        top: 50px !important;
+                        left: 50px !important;
+                        right: 50px !important;
+                        bottom: 50px !important;
+                        width: calc(100% - 100px) !important;
+                        height: calc(100% - 100px) !important;
+                        z-index: 999999 !important;
+                        border: 5px solid red !important;
+                        background: white !important;
+                    `;
+                    log(`✅ Forced iframe ${i} to be visible with red border`, 'success');
+                }
+            });
+        }
+        
+        function checkParagonElements() {
+            log('\n🔍 Checking for Paragon elements...', 'info');
+            
+            const elements = document.querySelectorAll('*');
+            let paragonCount = 0;
+            
+            elements.forEach(el => {
+                if (el.id?.toLowerCase().includes('paragon') || 
+                    el.className?.toString().toLowerCase().includes('paragon')) {
+                    paragonCount++;
+                    log(`Found: <${el.tagName} id="${el.id}" class="${el.className}">`, 'success');
+                }
+            });
+            
+            log(`Total Paragon elements: ${paragonCount}`, 'info');
+        }
+        
+        log('Debug page ready. Click "Test paragon.connect()" to start.', 'success');
+    </script>
+</body>
+</html>

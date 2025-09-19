@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Paragon Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f0f0f0; }
+        .test-box { background: white; padding: 20px; margin: 10px 0; border: 1px solid #ccc; }
+        .button { padding: 10px 20px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; }
+        .log { background: #f8f8f8; padding: 10px; margin: 10px 0; height: 300px; overflow-y: scroll; font-size: 12px; }
+        .status { padding: 8px; margin: 5px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #cce7ff; color: #004085; }
+    </style>
+    <script src="https://unpkg.com/@useparagon/connect@latest/dist/index.js"></script>
+</head>
+<body>
+    <h1>🔧 Simple Paragon Connect Test</h1>
+    
+    <div class="test-box">
+        <h3>Step 1: Check SDK</h3>
+        <button class="button" onclick="checkSDK()">Check SDK</button>
+        <div id="sdk-status" class="status info">Not checked</div>
+    </div>
+    
+    <div class="test-box">
+        <h3>Step 2: Authenticate</h3>
+        <button class="button" onclick="authenticate()">Authenticate</button>
+        <div id="auth-status" class="status info">Not authenticated</div>
+    </div>
+    
+    <div class="test-box">
+        <h3>Step 3: Try Connect</h3>
+        <button class="button" onclick="tryConnect()">Connect Gmail</button>
+        <div id="connect-status" class="status info">Not attempted</div>
+    </div>
+    
+    <div class="test-box">
+        <h3>📝 Auto Test Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const PROJECT_ID = 'ed25f59d-f4d2-40da-995f-87e875e40865';
+        const USER_ID = 'simple-test-user';
+        let currentToken = null;
+        
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#007cba';
+            logEl.innerHTML += `<div style="color: ${color}">[${time}] ${message}</div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(elementId, message, type) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = `status ${type}`;
+        }
+        
+        async function checkSDK() {
+            log('🔍 Checking Paragon SDK...', 'info');
+            
+            if (typeof window.paragon !== 'undefined') {
+                log('✅ window.paragon available', 'success');
+                
+                const methods = ['authenticate', 'connect', 'getUser', 'getIntegrationMetadata'];
+                let allPresent = true;
+                
+                methods.forEach(method => {
+                    if (typeof window.paragon[method] === 'function') {
+                        log(`✅ ${method} method available`, 'success');
+                    } else {
+                        log(`❌ ${method} method missing`, 'error');
+                        allPresent = false;
+                    }
+                });
+                
+                if (allPresent) {
+                    updateStatus('sdk-status', '✅ SDK Ready', 'success');
+                    return true;
+                } else {
+                    updateStatus('sdk-status', '❌ SDK Incomplete', 'error');
+                    return false;
+                }
+            } else {
+                log('❌ window.paragon not available', 'error');
+                updateStatus('sdk-status', '❌ SDK Not Found', 'error');
+                return false;
+            }
+        }
+        
+        async function authenticate() {
+            log('🔑 Starting authentication...', 'info');
+            
+            if (!window.paragon) {
+                log('❌ SDK not available', 'error');
+                updateStatus('auth-status', '❌ No SDK', 'error');
+                return false;
+            }
+            
+            try {
+                // Generate token
+                log('🔄 Generating token...', 'info');
+                const response = await fetch(`/api/paragonToken?userId=${USER_ID}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Token API failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                if (!data.userToken) {
+                    throw new Error('No token in response');
+                }
+                
+                currentToken = data.userToken;
+                log('✅ Token generated', 'success');
+                
+                // Authenticate
+                log('🚀 Calling paragon.authenticate()...', 'info');
+                await window.paragon.authenticate(PROJECT_ID, currentToken);
+                
+                const user = window.paragon.getUser();
+                log(`Authentication result: ${JSON.stringify(user)}`, 'info');
+                
+                if (user.authenticated) {
+                    log('✅ Authentication successful', 'success');
+                    updateStatus('auth-status', '✅ Authenticated', 'success');
+                    
+                    // Check integrations
+                    try {
+                        const metadata = window.paragon.getIntegrationMetadata();
+                        log(`Available integrations: ${metadata.map(m => m.type).join(', ')}`, 'info');
+                    } catch (metaErr) {
+                        log(`Could not get metadata: ${metaErr.message}`, 'error');
+                    }
+                    
+                    return true;
+                } else {
+                    log('❌ Authentication failed', 'error');
+                    updateStatus('auth-status', '❌ Auth Failed', 'error');
+                    return false;
+                }
+                
+            } catch (error) {
+                log(`❌ Authentication error: ${error.message}`, 'error');
+                updateStatus('auth-status', '❌ Auth Error', 'error');
+                return false;
+            }
+        }
+        
+        async function tryConnect() {
+            log('🌐 Attempting Gmail connection...', 'info');
+            
+            if (!window.paragon) {
+                log('❌ SDK not available', 'error');
+                updateStatus('connect-status', '❌ No SDK', 'error');
+                return;
+            }
+            
+            const user = window.paragon.getUser();
+            if (!user.authenticated) {
+                log('❌ Not authenticated', 'error');
+                updateStatus('connect-status', '❌ Not Auth', 'error');
+                return;
+            }
+            
+            // Count existing elements
+            const beforeIframes = document.querySelectorAll('iframe').length;
+            const beforeParagon = document.querySelectorAll('[class*="paragon"], [id*="paragon"]').length;
+            
+            log(`Before connect: ${beforeIframes} iframes, ${beforeParagon} paragon elements`, 'info');
+            
+            try {
+                log('🚀 Calling paragon.connect("gmail")...', 'info');
+                
+                const connectResult = window.paragon.connect('gmail', {
+                    onSuccess: () => {
+                        log('✅ Connect SUCCESS callback triggered!', 'success');
+                        updateStatus('connect-status', '✅ Connected!', 'success');
+                    },
+                    onError: (error) => {
+                        log(`❌ Connect ERROR callback: ${error}`, 'error');
+                        updateStatus('connect-status', '❌ Connect Error', 'error');
+                    }
+                });
+                
+                log(`Connect call returned: ${JSON.stringify(connectResult)}`, 'info');
+                
+                // Wait and check for elements
+                setTimeout(() => {
+                    const afterIframes = document.querySelectorAll('iframe').length;
+                    const afterParagon = document.querySelectorAll('[class*="paragon"], [id*="paragon"]').length;
+                    
+                    log(`After connect: ${afterIframes} iframes, ${afterParagon} paragon elements`, 'info');
+                    
+                    if (afterIframes > beforeIframes || afterParagon > beforeParagon) {
+                        log('✅ Connect Portal detected!', 'success');
+                        updateStatus('connect-status', '✅ Portal Appeared', 'success');
+                        
+                        // List new iframes
+                        document.querySelectorAll('iframe').forEach((iframe, i) => {
+                            log(`Iframe ${i}: ${iframe.src}`, 'info');
+                        });
+                    } else {
+                        log('⚠️ No Connect Portal elements detected', 'error');
+                        updateStatus('connect-status', '⚠️ No Portal', 'error');
+                        
+                        // This is the key issue - connect() works but no UI appears
+                        log('🔍 DIAGNOSIS: paragon.connect() completed but no iframe/popup appeared', 'error');
+                        log('🔍 LIKELY CAUSE: Integration not marked as Active in Paragon dashboard', 'error');
+                        log('🔍 SOLUTION: Check Paragon dashboard and activate the Gmail integration', 'error');
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                log(`❌ Connect call failed: ${error.message}`, 'error');
+                updateStatus('connect-status', '❌ Connect Failed', 'error');
+            }
+        }
+        
+        // Auto-run tests
+        window.addEventListener('load', async () => {
+            log('🚀 Starting automatic test sequence...', 'info');
+            
+            setTimeout(async () => {
+                const sdkOk = await checkSDK();
+                if (!sdkOk) return;
+                
+                setTimeout(async () => {
+                    const authOk = await authenticate();
+                    if (!authOk) return;
+                    
+                    setTimeout(() => {
+                        tryConnect();
+                    }, 2000);
+                }, 2000);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

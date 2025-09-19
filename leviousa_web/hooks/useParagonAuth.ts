@@ -66,13 +66,15 @@ export default function useParagonAuth(userId?: string): {
       }
     };
 
-    if (typeof paragon !== 'undefined') {
+    if (typeof paragon !== 'undefined' && typeof paragon.subscribe === 'function') {
       paragon.subscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
       paragon.subscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
       
       return () => {
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
+        if (typeof paragon.unsubscribe === 'function') {
+          paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
+          paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
+        }
       };
     }
   }, [userId]);
