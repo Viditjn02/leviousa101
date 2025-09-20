@@ -14,13 +14,9 @@ const OAuthManager = require('../auth/OAuthManager');
 
 // Helper function for consistent Paragon path resolution
 function resolveParagonPath(relPath = '') {
-    if (process.resourcesPath) {
-        // Production: use extraResources
-        return path.join(process.resourcesPath, 'services/paragon-mcp', relPath);
-    } else {
-        // Development: use relative path from current file
-        return path.join(__dirname, '../../../../services/paragon-mcp', relPath);
-    }
+    // Always use development path for now - production path logic was incorrect
+    const projectRoot = '/Applications/XAMPP/xamppfiles/htdocs/Leviousa101';
+    return path.join(projectRoot, 'services/paragon-mcp', relPath);
 }
 
 // Configure logger
@@ -70,7 +66,7 @@ const LEGACY_SERVER_DEFINITIONS = {
         capabilities: ['list_tables', 'describe_table', 'query', 'execute']
     },
     paragon: {
-        command: process.execPath,
+        command: '/Users/viditjain/.nvm/versions/node/v18.20.8/bin/node',
         args: [resolveParagonPath('dist/index.mjs')],
         description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
         capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],

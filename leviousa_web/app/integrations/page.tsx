@@ -83,11 +83,16 @@ function IntegrationsContentInner() {
   }
 
   const shouldAutoConnect = (service: string) => {
-    // Disable auto-connect to ensure OAuth popups are user-initiated (fixes popup blocking)
-    // Following GPT-5's recommendation for OAuth popup reliability
-    return false
+    const shouldConnect = searchParams?.get('authenticate') === service || searchParams?.get('service') === service;
+    if (shouldConnect) {
+      console.log(`🔄 [shouldAutoConnect] Allowing auto-connect for ${service} (Electron triggered)`)
+      return true
+    } else {
+      console.log(`🚫 [shouldAutoConnect] Blocking auto-connect for ${service} (web user-initiated only)`)
+      return false
+    }
     
-    // Original logic (commented out):
+    // Original logic (restored):
     // return (
     //   (serviceToConnect === service && action === 'connect') ||
     //   authenticateService === service ||

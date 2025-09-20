@@ -31,7 +31,7 @@ export default function useParagonAuth(userId?: string): {
     
     // CRITICAL: Wait for Firebase auth persistence to be ready
     // This prevents auth state loss during OAuth flows
-    authPersistenceReady()
+    authPersistenceReady
       .then(() => {
         console.log('✅ [useParagonAuth] Firebase persistence ready, generating token...')
         // Clear any expired tokens first
@@ -157,7 +157,7 @@ export default function useParagonAuth(userId?: string): {
             service => currentUser.integrations[service]?.enabled
           );
           const storedIntegrations = Object.keys(user?.integrations || {}).filter(
-            service => user.integrations[service]?.enabled
+            service => user?.integrations?.[service]?.enabled
           );
           
           // Only update if there's a difference

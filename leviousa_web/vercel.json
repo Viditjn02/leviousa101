@@ -1,3 +1,14 @@
 {
-  "version": 2
+  "version": 2,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self' https: http: blob: data: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: http: data: 'wasm-unsafe-eval' 'unsafe-hashes' https://*.useparagon.com https://connect.useparagon.com https://zeus.useparagon.com https://api.useparagon.com; connect-src 'self' https: http: ws: wss: blob: data:; img-src 'self' data: blob: https: http:; style-src 'self' 'unsafe-inline' https: http: data:; font-src 'self' data: https: http:; frame-src 'self' https: http: blob: data:; worker-src 'self' blob: data:; child-src 'self' https: http: blob: data:; object-src 'self' blob: https: http: data:;"
+        }
+      ]
+    }
+  ]
 }
