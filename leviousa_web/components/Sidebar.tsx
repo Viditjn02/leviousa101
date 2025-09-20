@@ -230,13 +230,6 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
                 ariaLabel: 'View my activity',
             },
             {
-                name: 'Personalize',
-                href: '/personalize',
-                icon: '/book.svg',
-                isLucide: false,
-                ariaLabel: 'Personalization settings',
-            },
-            {
                 name: 'Settings',
                 href: '/settings',
                 icon: '/setting.svg',
@@ -251,7 +244,6 @@ const SidebarComponent = ({ isCollapsed, onToggle, onSearchClick }: SidebarProps
     const settingsSubmenu = useMemo<SubmenuItem[]>(
         () => [
             { name: 'Personal Profile', href: '/settings', icon: '/user.svg', isLucide: false, ariaLabel: 'Personal profile settings' },
-            { name: 'Data & privacy', href: '/settings/privacy', icon: '/privacy.svg', isLucide: false, ariaLabel: 'Data and privacy settings' },
             { name: 'Billing', href: '/settings/billing', icon: '/credit-card.svg', isLucide: false, ariaLabel: 'Billing settings' },
             { name: 'Referrals', href: '/settings/referrals', icon: '/linkout.svg', isLucide: false, ariaLabel: 'Referral program' },
         ],

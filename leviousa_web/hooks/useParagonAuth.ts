@@ -1,5 +1,30 @@
 import { useEffect, useState } from 'react';
-import { paragon, AuthenticatedConnectUser, SDK_EVENT } from '@useparagon/connect';
+
+// Type definitions for our enhanced Paragon SDK
+interface AuthenticatedConnectUser {
+  authenticated: boolean;
+  integrations?: Record<string, { enabled: boolean }>;
+}
+
+interface ParagonSDK {
+  authenticate: (token: string) => Promise<void>;
+  getUser: () => AuthenticatedConnectUser;
+  connect: (service: string, options?: any) => Promise<void>;
+  subscribe: (event: string, handler: Function) => void;
+  unsubscribe: (event: string, handler: Function) => void;
+  getIntegrationMetadata: () => any[];
+}
+
+// Access our enhanced SDK from window
+declare global {
+  interface Window {
+    paragon: ParagonSDK;
+  }
+}
+
+const SDK_EVENT = {
+  INTEGRATION_INSTALL: 'onIntegrationInstall'
+};
 
 import { generateParagonToken, clearExpiredTokens } from '../utils/paragonTokenGenerator';
 import { authPersistenceReady } from '../utils/firebase';
@@ -54,8 +79,8 @@ export default function useParagonAuth(userId?: string): {
   // Listen for account state changes and persist them
   useEffect(() => {
     const listener = () => {
-      if (paragon) {
-        const authedUser = paragon.getUser();
+      if (window.paragon) {
+        const authedUser = window.paragon.getUser();
         if (authedUser.authenticated) {
           setUser(authedUser);
           
@@ -68,13 +93,11 @@ export default function useParagonAuth(userId?: string): {
     };
 
     // Global subscription to Paragon SDK events
-    if (typeof paragon !== 'undefined') {
-      paragon.subscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
-      paragon.subscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
+    if (typeof window !== 'undefined' && window.paragon) {
+      window.paragon.subscribe(SDK_EVENT.INTEGRATION_INSTALL, listener);
       
       return () => {
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_INSTALL, listener);
-        paragon.unsubscribe(SDK_EVENT.ON_INTEGRATION_UNINSTALL, listener);
+        window.paragon.unsubscribe(SDK_EVENT.INTEGRATION_INSTALL, listener);
       };
     }
   }, [userId]);
@@ -92,7 +115,7 @@ export default function useParagonAuth(userId?: string): {
       paragon
         .authenticate(projectId, token)
         .then(() => {
-          const authedUser = paragon.getUser();
+          const authedUser = window.paragon.getUser();
           if (authedUser.authenticated) {
             setUser(authedUser);
             
@@ -126,9 +149,9 @@ export default function useParagonAuth(userId?: string): {
   // Force refresh function to manually check auth state
   const forceRefresh = () => {
     console.log('[useParagonAuth] Force refresh triggered');
-    if (paragon) {
+    if (window.paragon) {
       try {
-        const currentUser = paragon.getUser();
+        const currentUser = window.paragon.getUser();
         console.log('[useParagonAuth] Force refresh - current user:', currentUser);
         
         if (currentUser.authenticated) {
@@ -147,7 +170,7 @@ export default function useParagonAuth(userId?: string): {
 
   // Responsive periodic check to ensure we have the latest auth state
   useEffect(() => {
-    if (!paragon || !token) return;
+    if (!window.paragon || !token) return;
 
     const periodicCheck = () => {
       try {
@@ -186,7 +209,7 @@ export default function useParagonAuth(userId?: string): {
     const interval = setInterval(periodicCheck, 2000);
     
     return () => clearInterval(interval);
-  }, [paragon, token, user, userId]);
+  }, [token, user, userId]);
 
   // Enhanced final auth state listener that also triggers immediate check
   useEffect(() => {
@@ -194,9 +217,9 @@ export default function useParagonAuth(userId?: string): {
       console.log('[useParagonAuth] Received final auth state event:', data);
       
       // Trigger immediate check
-      if (paragon) {
+      if (window.paragon) {
         try {
-          const currentUser = paragon.getUser();
+          const currentUser = window.paragon.getUser();
           console.log('[useParagonAuth] Immediate check after final auth state:', currentUser);
           
           if (currentUser.authenticated) {
@@ -226,7 +249,7 @@ export default function useParagonAuth(userId?: string): {
         cleanup2();
       };
     }
-  }, [userId, paragon, forceRefresh]);
+  }, [userId, forceRefresh]);
 
   return { user, error, isLoading, forceRefresh };
 }
