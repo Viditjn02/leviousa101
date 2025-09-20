@@ -1,10 +1,6 @@
 "use client"
 import React, { createContext, useContext } from 'react'
-// Type definition for our enhanced Paragon SDK
-interface AuthenticatedConnectUser {
-  authenticated: boolean;
-  integrations?: Record<string, { enabled: boolean }>;
-}
+import { AuthenticatedConnectUser } from '@useparagon/connect'
 import useParagonAuth from '../hooks/useParagonAuth'
 
 interface ParagonAuthContextShape {
