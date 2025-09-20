@@ -2013,7 +2013,7 @@ function initializeInvisibilityBridge() {
     // Handle authentication completion notifications from web app
     ipcMain.handle('mcp:notifyAuthenticationComplete', async (event, data) => {
         try {
-            console.log(`[InvisibilityBridge] 🎉 Authentication completed for service: ${data.serviceKey}`);
+            console.log(`[InvisibilityBridge] 🎉 OAuth completion detected - auto-detecting ALL newly authenticated services`);
             
             // Store authentication state locally since Paragon API doesn't persist properly
             const userId = data.userId || global.currentUserId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
@@ -2025,29 +2025,93 @@ function initializeInvisibilityBridge() {
                 loadParagonAuthCache();
             }
             
-            // Store successful authentication
-            const authKey = `${userId}:${data.serviceKey}`;
-            global.localParagonAuthCache.set(authKey, {
-                service: data.serviceKey,
-                userId: userId,
-                provider: data.provider || 'paragon',
-                authenticatedAt: new Date().toISOString(),
-                success: true
-            });
+            // Get current cached services to compare
+            const previouslyAuthenticated = new Set();
+            for (const key of global.localParagonAuthCache.keys()) {
+                if (key.startsWith(`${userId}:`)) {
+                    const service = key.split(':')[1];
+                    previouslyAuthenticated.add(service);
+                }
+            }
+            console.log(`[InvisibilityBridge] 📋 Previously authenticated services:`, Array.from(previouslyAuthenticated));
             
-            console.log(`[InvisibilityBridge] 💾 Stored local auth state for ${authKey}`);
-            console.log(`[InvisibilityBridge] 📊 Local auth cache now contains:`, 
+            // Auto-detect ALL currently authenticated services from MCP server
+            const service = getInvisibilityService();
+            if (service && service.mcpClient) {
+                try {
+                    console.log(`[InvisibilityBridge] 🔍 Checking MCP server for all authenticated services...`);
+                    const refreshResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userId });
+                    
+                    if (refreshResult && refreshResult.content && refreshResult.content[0]) {
+                        // Parse the double-nested JSON response from MCP server
+                        const outerResponse = JSON.parse(refreshResult.content[0].text);
+                        let availableServices = [];
+                        
+                        if (outerResponse.content && outerResponse.content[0]) {
+                            const innerResponse = JSON.parse(outerResponse.content[0].text);
+                            availableServices = innerResponse.available_services || [];
+                        } else {
+                            // Fallback: direct parsing if not double-nested
+                            availableServices = outerResponse.available_services || [];
+                        }
+                        
+                        console.log(`[InvisibilityBridge] 📋 Available services from MCP:`, availableServices);
+                        
+                        // Since Paragon API is unreliable for authentication status,
+                        // we trust that if OAuth completion was triggered, the service is now authenticated
+                        console.log(`[InvisibilityBridge] 🎯 OAuth completion triggered - storing ${data.serviceKey} as authenticated`);
+                        
+                        // Store the service that just completed OAuth
+                        const targetService = data.serviceKey;
+                        const wasAlreadyAuthenticated = previouslyAuthenticated.has(targetService);
+                        
+                        if (!wasAlreadyAuthenticated) {
+                            console.log(`[InvisibilityBridge] 🎉 NEW service authenticated: ${targetService}`);
+                            
+                            // Store the newly authenticated service
+                            const authKey = `${userId}:${targetService}`;
+                            global.localParagonAuthCache.set(authKey, {
+                                service: targetService,
+                                userId: userId,
+                                provider: 'paragon',
+                                authenticatedAt: new Date().toISOString(),
+                                success: true
+                            });
+                            
+                            console.log(`[InvisibilityBridge] 💾 Stored local auth state for ${authKey}`);
+                        } else {
+                            console.log(`[InvisibilityBridge] ⚠️ Service ${targetService} was already in cache - OAuth re-authentication`);
+                        }
+                    }
+                    
+                } catch (refreshError) {
+                    console.warn(`[InvisibilityBridge] ⚠️ Could not auto-detect authenticated services:`, refreshError.message);
+                    
+                    // Fallback: Store the service from the notification if detection fails
+                    const authKey = `${userId}:${data.serviceKey}`;
+                    global.localParagonAuthCache.set(authKey, {
+                        service: data.serviceKey,
+                        userId: userId,
+                        provider: data.provider || 'paragon',
+                        authenticatedAt: new Date().toISOString(),
+                        success: true
+                    });
+                    console.log(`[InvisibilityBridge] 💾 Fallback: Stored local auth state for ${authKey}`);
+                }
+            }
+            
+            console.log(`[InvisibilityBridge] 📊 Updated local auth cache:`, 
                 Array.from(global.localParagonAuthCache.keys()));
             
             // Save to persistent storage
             saveParagonAuthCache();
             
-            const service = getInvisibilityService();
-            if (service && service.mcpClient) {
+            const invisibilityService = getInvisibilityService();
+            if (invisibilityService && invisibilityService.mcpClient) {
                 // Still refresh the MCP cache in case Paragon API works eventually
                 console.log(`[InvisibilityBridge] 🔄 Force refreshing authenticated services cache for ${data.serviceKey}`)
                 try {
-                    const refreshResult = await service.mcpClient.callTool('get_authenticated_services', { user_id: userId })
+                    const refreshResult = await invisibilityService.mcpClient.callTool('get_authenticated_services', { user_id: userId })
                     console.log(`[InvisibilityBridge] ✅ Refreshed authenticated services:`, refreshResult)
                 } catch (refreshError) {
                     console.warn(`[InvisibilityBridge] ⚠️ Failed to refresh authenticated services (expected):`, refreshError.message)

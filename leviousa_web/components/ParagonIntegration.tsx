@@ -72,7 +72,7 @@ export default function ParagonIntegration({
           }).catch((err: any) => {
             console.warn('Failed to notify main process:', err)
           })
-          } else {
+        } else {
             // Fallback to HTTP if IPC not available (e.g., external domain)
             console.log(`🌐 Using HTTP fallback to notify Electron of ${service} connection`)
             fetch('http://localhost:9001/api/auth/notify-completion', {
@@ -95,7 +95,7 @@ export default function ParagonIntegration({
               .catch((err: any) => {
                 console.warn('Failed to notify Electron app via HTTP:', err)
               })
-          }
+        }
       }
       prevEnabledRef.current = isEnabled
     }
@@ -141,7 +141,7 @@ export default function ParagonIntegration({
           }).catch((err: any) => {
             console.warn('Failed to notify main process:', err)
           })
-          } else {
+        } else {
             // Fallback to HTTP if IPC not available (e.g., external domain)
             console.log(`🌐 Using HTTP fallback to notify Electron of ${service} connection (install event)`)
             fetch('http://localhost:9001/api/auth/notify-completion', {
@@ -164,7 +164,7 @@ export default function ParagonIntegration({
               .catch((err: any) => {
                 console.warn('Failed to notify Electron app via HTTP (install):', err)
               })
-          }
+        }
       }
     })
 
@@ -211,31 +211,32 @@ export default function ParagonIntegration({
          console.log(`[ParagonIntegration] 🎯 ELECTRON DETECTED - Forcing Electron path for ${service}`)
        }
        
-        // Check if we're already in a delegated BrowserWindow (prevent infinite loop!)
+        // Check if we're already in a delegated BrowserWindow OR auto-connecting (prevent infinite loop!)
         const urlParams = new URLSearchParams(window.location.search)
-        const isAlreadyDelegated = urlParams.has('authenticate') || urlParams.has('service')
+        const isAlreadyDelegated = urlParams.has('authenticate') || urlParams.has('service') || autoConnect
         
         if (isAlreadyDelegated) {
           console.log(`[ParagonIntegration] 🖥️ Already in delegated BrowserWindow for ${service} - processing directly`)
           console.log(`[ParagonIntegration] 🔍 URL params:`, {
             authenticate: urlParams.get('authenticate'),
             service: urlParams.get('service'),
-            action: urlParams.get('action')
+            action: urlParams.get('action'),
+            autoConnect: autoConnect
           })
         } else if (typeof window !== 'undefined' && (window as any).api?.mcp?.paragon?.authenticate) {
-          console.log(`[ParagonIntegration] 🚀 Delegating ${service} auth to main process window`)
+         console.log(`[ParagonIntegration] 🚀 Delegating ${service} auth to main process window`)
           
           try {
             const ipcResult = await (window as any).api.mcp.paragon.authenticate(service)
             console.log(`✅ [ParagonIntegration] IPC auth result for ${service}:`, ipcResult)
-            return
+         return
           } catch (ipcError: any) {
             console.error(`❌ [ParagonIntegration] IPC auth failed for ${service}:`, ipcError)
             console.log(`[ParagonIntegration] 🔄 Falling back to browser mode due to IPC error`)
             // Fall through to browser mode
           }
-        } else {
-          console.log(`[ParagonIntegration] ⚠️ Using fallback paragon.connect() path for ${service}`)
+       } else {
+         console.log(`[ParagonIntegration] ⚠️ Using fallback paragon.connect() path for ${service}`)
           console.log(`[ParagonIntegration] 🔍 IPC debug:`, {
             hasWindow: typeof window !== 'undefined',
             hasApi: !!(window as any).api,
@@ -243,9 +244,9 @@ export default function ParagonIntegration({
             hasParagon: !!(window as any).api?.mcp?.paragon,
             hasAuthenticate: !!(window as any).api?.mcp?.paragon?.authenticate
           })
-        }
+       }
 
-        console.log(`🔐 Starting Paragon authentication for ${service} in browser mode`)
+       console.log(`🔐 Starting Paragon authentication for ${service} in browser mode`)
         
         // CRITICAL: Authenticate SDK with user token BEFORE calling connect()
         console.log(`🔑 [ParagonIntegration] Authenticating Paragon SDK first...`)
@@ -326,31 +327,148 @@ export default function ParagonIntegration({
             console.log(`  - SDK integrations:`, Object.keys((currentUser as any).integrations || {}))
             
             const metadata = paragon.getIntegrationMetadata()
-            console.log(`  - Available integrations:`, metadata.map(m => ({ type: m.type, name: m.name })))
+            console.log(`  - Available integrations:`, metadata.map((m: any) => ({ type: m.type, name: m.name })))
             
-            const gmailMeta = metadata.find(m => m.type === 'gmail')
+            const gmailMeta = metadata.find((m: any) => m.type === 'gmail')
             console.log(`  - Gmail integration metadata:`, gmailMeta)
             
           } catch (debugError) {
             console.log(`  - SDK state debug failed:`, debugError instanceof Error ? debugError.message : debugError)
           }
           
-          console.log(`⏰ [ParagonIntegration] Calling paragon.connect('${service}') - watching for iframe creation`)
+          console.log(`⏰ [ParagonIntegration] Calling paragon.connect('${service}') - OAuth flow will complete in external browser`)
           
-          // CRITICAL: Add timeout to catch hanging connect() calls
-          const connectPromise = paragon.connect(service, {})
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('connect() timeout - likely hanging')), 15000)
-          )
+          // Set up OAuth completion listener before calling connect
+          const onInstallHandler = (integrationData?: any) => {
+            console.log(`🎉 [ParagonIntegration:${service}] OAuth completion detected`, integrationData)
+            
+            // Check if this specific service was just authenticated
+            setTimeout(() => {
+              try {
+                const updatedUser = paragon.getUser()
+                console.log(`🔍 [ParagonIntegration:${service}] Updated user state:`, {
+                  authenticated: updatedUser.authenticated,
+                  integrations: Object.keys((updatedUser as any).integrations || {}),
+                  thisServiceEnabled: updatedUser.integrations?.[service]?.enabled,
+                  currentStatus: status
+                })
+                
+                // Only proceed if THIS specific service is now enabled AND wasn't before
+                const wasAlreadyConnected = status === 'connected' 
+                const isNowEnabled = updatedUser.authenticated && updatedUser.integrations?.[service]?.enabled
+                
+                if (isNowEnabled && !wasAlreadyConnected) {
+                  console.log(`✅ [ParagonIntegration:${service}] NEW connection confirmed - notifying Electron`)
+                  setStatus('connected')
+                  setError(null)
+                  onSuccess?.(service)
+                  
+                  // Notify Electron about THIS service's successful connection
+                  if (typeof window !== 'undefined' && (window as any).api?.mcp?.notifyAuthenticationComplete) {
+                    console.log(`[ParagonIntegration:${service}] 🔄 Notifying Electron of NEW ${service} connection`)
+                    ;(window as any).api.mcp.notifyAuthenticationComplete({
+                      serviceKey: service,
+                      provider: 'paragon',
+                      success: true,
+                      userId: userId,
+                      isNewConnection: true
+                    }).catch((err: any) => {
+                      console.warn(`[ParagonIntegration:${service}] Failed to notify Electron:`, err)
+                    })
+                  }
+                } else if (isNowEnabled && wasAlreadyConnected) {
+                  console.log(`⚠️ [ParagonIntegration:${service}] Already connected - skipping notification`)
+                } else {
+                  console.log(`⚠️ [ParagonIntegration:${service}] OAuth completed but not yet enabled in SDK state`)
+                }
+              } catch (checkError) {
+                console.error(`❌ [ParagonIntegration:${service}] Error checking OAuth completion:`, checkError)
+              }
+            }, 1000) // Small delay to allow SDK state to update
+          }
           
-          await Promise.race([connectPromise, timeoutPromise])
-          console.log(`✅ [ParagonIntegration] Paragon.connect completed successfully for ${service}`)
+          // Subscribe to installation events
+          paragon.subscribe('onIntegrationInstall', onInstallHandler)
           
-          // Stop observing after 5 seconds
+          // Start real-time polling for OAuth completion (backup to events)
+          let pollCount = 0
+          const maxPolls = 30 // 60 seconds max (2 second intervals)
+          let pollInterval: NodeJS.Timeout
+          
+          const startPolling = () => {
+            console.log(`🔄 [ParagonIntegration:${service}] Starting real-time OAuth polling...`)
+            
+            pollInterval = setInterval(() => {
+              pollCount++
+              
+              try {
+                const currentUser = paragon.getUser()
+                const isNowConnected = currentUser.authenticated && currentUser.integrations?.[service]?.enabled
+                const wasConnecting = status === 'connecting'
+                
+                console.log(`📊 [ParagonIntegration:${service}] Poll ${pollCount}/${maxPolls}: enabled=${isNowConnected}, status=${status}`)
+                
+                if (isNowConnected && wasConnecting) {
+                  console.log(`🎉 [ParagonIntegration:${service}] REAL-TIME: OAuth completion detected via polling!`)
+                  
+                  // Update UI immediately
+                  setStatus('connected')
+                  setError(null)
+                  onSuccess?.(service)
+                  
+                  // Notify Electron
+                  if (typeof window !== 'undefined' && (window as any).api?.mcp?.notifyAuthenticationComplete) {
+                    console.log(`[ParagonIntegration:${service}] 🔄 REAL-TIME: Notifying Electron of NEW ${service} connection`)
+                    ;(window as any).api.mcp.notifyAuthenticationComplete({
+                      serviceKey: service,
+                      provider: 'paragon',
+                      success: true,
+                      userId: userId,
+                      isNewConnection: true,
+                      detectedVia: 'polling'
+                    }).catch((err: any) => {
+                      console.warn(`[ParagonIntegration:${service}] Failed to notify Electron:`, err)
+                    })
+                  }
+                  
+                  // Stop polling - success!
+                  clearInterval(pollInterval)
+                  return
+                }
+                
+                // Stop polling after max attempts
+                if (pollCount >= maxPolls) {
+                  console.log(`⏰ [ParagonIntegration:${service}] Polling timeout - OAuth may have failed`)
+                  clearInterval(pollInterval)
+                }
+                
+              } catch (pollError) {
+                console.error(`❌ [ParagonIntegration:${service}] Polling error:`, pollError)
+              }
+            }, 2000) // Check every 2 seconds
+          }
+          
+          try {
+            // Let paragon.connect() complete naturally - OAuth may take time in external browser
+            await paragon.connect(service, {})
+            console.log(`✅ [ParagonIntegration] Paragon.connect completed successfully for ${service}`)
+            
+            // Start polling for real-time updates after connect() completes
+            startPolling()
+            
+          } catch (connectError: any) {
+            // Clean up event listener on error
+            paragon.unsubscribe('onIntegrationInstall', onInstallHandler)
+            throw connectError
+          }
+          
+          // Stop observing and polling after 60 seconds
           setTimeout(() => {
             observer.disconnect()
-            console.log(`🔍 [ParagonIntegration] Stopped DOM watching for ${service}`)
-          }, 5000)
+            paragon.unsubscribe('onIntegrationInstall', onInstallHandler)
+            if (pollInterval) clearInterval(pollInterval)
+            console.log(`🔍 [ParagonIntegration] Stopped DOM watching, event listening, and polling for ${service}`)
+          }, 60000)
           
         } catch (connectError: any) {
           console.error(`❌ [ParagonIntegration] Paragon.connect FAILED for ${service}:`, connectError)
@@ -363,8 +481,6 @@ export default function ParagonIntegration({
           } else if (connectError.message?.includes('has not been set up in your Paragon project')) {
             console.error(`🚫 [ParagonIntegration] SOLUTION: Add ${service} integration to your Paragon project`)
             console.error(`🔗 [ParagonIntegration] Dashboard: https://dashboard.useparagon.com`)
-          } else if (connectError.message?.includes('timeout')) {
-            console.error(`🚫 [ParagonIntegration] SOLUTION: OAuth popup blocked or CSP issue`)
           } else if (connectError.message?.includes('popup')) {
             console.error(`🚫 [ParagonIntegration] SOLUTION: Popup blocker detected`)
           } else {
@@ -425,29 +541,29 @@ export default function ParagonIntegration({
           }).catch((err: any) => {
             console.warn('Failed to notify Electron app via IPC:', err)
           })
-          } else {
+        } else {
             // Fallback to HTTP if running in browser
             console.log(`🌐 Using HTTP fallback to notify Electron of ${service} disconnection`)
-            fetch('http://localhost:9001/api/auth/notify-completion', {
-              method: 'POST',
+          fetch('http://localhost:9001/api/auth/notify-completion', {
+            method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                serviceKey: service,
-                status: 'disconnected',
-                timestamp: new Date().toISOString()
-              })
-            }).then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  console.log(`✅ Successfully notified Electron of ${service} disconnection via HTTP`)
-                } else {
-                  console.warn(`⚠️ HTTP notification failed:`, data)
-                }
-              })
-              .catch((err: any) => {
+            body: JSON.stringify({
+              serviceKey: service,
+              status: 'disconnected',
+              timestamp: new Date().toISOString()
+            })
+          }).then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                console.log(`✅ Successfully notified Electron of ${service} disconnection via HTTP`)
+              } else {
+                console.warn(`⚠️ HTTP notification failed:`, data)
+              }
+            })
+            .catch((err: any) => {
                 console.warn('Failed to notify Electron app via HTTP:', err)
-              })
-          }
+            })
+        }
       }
     } catch (error: any) {
       console.error(`❌ Disconnect failed for ${service}:`, error)
@@ -465,30 +581,30 @@ export default function ParagonIntegration({
           }).catch((notifyErr: any) => {
             console.warn('Failed to notify Electron app via IPC:', notifyErr)
           })
-          } else {
+        } else {
             // Fallback to HTTP if running in browser
             console.log(`🌐 Using HTTP fallback to notify Electron of ${service} disconnection failure`)
-            fetch('http://localhost:9001/api/auth/notify-completion', {
-              method: 'POST',
+          fetch('http://localhost:9001/api/auth/notify-completion', {
+            method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                serviceKey: service,
-                status: 'failed',
-                error: error.message || 'Disconnect failed',
-                timestamp: new Date().toISOString()
-              })
-            }).then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  console.log(`✅ Successfully notified Electron of ${service} disconnection failure via HTTP`)
-                } else {
-                  console.warn(`⚠️ HTTP notification failed:`, data)
-                }
-              })
-              .catch((notifyErr: any) => {
+            body: JSON.stringify({
+              serviceKey: service,
+              status: 'failed',
+              error: error.message || 'Disconnect failed',
+              timestamp: new Date().toISOString()
+            })
+          }).then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                console.log(`✅ Successfully notified Electron of ${service} disconnection failure via HTTP`)
+              } else {
+                console.warn(`⚠️ HTTP notification failed:`, data)
+              }
+            })
+            .catch((notifyErr: any) => {
                 console.warn('Failed to notify Electron app via HTTP:', notifyErr)
-              })
-          }
+            })
+        }
       }
     } finally {
       setIsLoading(false)

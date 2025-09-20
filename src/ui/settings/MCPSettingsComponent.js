@@ -924,7 +924,7 @@ export class MCPSettingsComponent extends LitElement {
             console.log(`[MCPSettings] Connecting to ${serviceName}...`);
             
             // For Paragon integrations, use Electron BrowserWindow (not external browser)
-            const paragonServices = ['gmail', 'notion', 'slack', 'salesforce', 'hubspot', 'googledrive', 'dropbox', 'outlook'];
+            const paragonServices = ['gmail', 'notion', 'slack', 'salesforce', 'hubspot', 'googledrive', 'dropbox', 'outlook', 'linkedin', 'calendly', 'googleCalendar'];
             if (paragonServices.includes(serviceName)) {
                 // Get the current user ID from auth service
                 const currentUser = await window.api.common.getCurrentUser();
