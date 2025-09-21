@@ -225,14 +225,22 @@ class AskService {
             // Get message count for this session
             const messages = await askRepository.getAllAiMessagesBySessionId(sessionId);
             
-            // Generate title after 2-3 message exchanges (4-6 total messages)
-            if (messages.length >= 4 && messages.length <= 8) {
+            // Generate title after first meaningful exchange (2+ total messages)
+            if (messages.length >= 2 && messages.length <= 8) {
                 console.log(`[AskService] Triggering title generation for session ${sessionId} (${messages.length} messages)`);
                 
                 // Generate title in background (don't await to avoid blocking)
-                sessionRepository.generateIntelligentTitle(sessionId).catch(error => {
-                    console.warn('[AskService] Title generation failed:', error.message);
+                sessionRepository.generateIntelligentTitle(sessionId).then(result => {
+                    if (result) {
+                        console.log(`[AskService] ✅ Successfully generated title for session ${sessionId}: "${result}"`);
+                    } else {
+                        console.warn(`[AskService] ⚠️ Title generation returned null for session ${sessionId}`);
+                    }
+                }).catch(error => {
+                    console.warn('[AskService] ❌ Title generation failed:', error.message);
                 });
+            } else {
+                console.log(`[AskService] 📝 Skipping title generation for session ${sessionId} (${messages.length} messages - need 2-8)`);
             }
         } catch (error) {
             console.warn('[AskService] Error in title generation trigger:', error.message);
@@ -588,6 +596,12 @@ class AskService {
                     }
                     
                     console.log('[AskService] MCP: Requesting enhanced answer...');
+                    
+                    // Get the authenticated user ID to pass to AnswerService
+                    const authService = require('../common/services/authService');
+                    const currentUserId = authService.getCurrentUserId();
+                    console.log(`[AskService] 🔑 Current authenticated user ID: ${currentUserId}`);
+                    
                     // Pass the question text and include the enhanced context in the context parameter
                     const enhancedContext = {
                         questionType: questionObj.type,
@@ -596,7 +610,8 @@ class AskService {
                         needsPreviousContext: questionObj.needsPreviousContext,
                         requiresScreenContext: questionObj.requiresScreenContext,
                         sessionContext: questionObj.sessionContext,
-                        screenshot: screenshotBase64
+                        screenshot: screenshotBase64,
+                        userId: currentUserId  // Add authenticated user ID to context
                     };
                     const mcpResponse = await mcpClient.getEnhancedAnswer(questionObj.text, enhancedContext);
                     if (mcpResponse && mcpResponse.answer) {

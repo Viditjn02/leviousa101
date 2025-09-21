@@ -8,26 +8,17 @@ function loadKeytar() {
     
     keytarLoadAttempted = true;
     
-    // Detect if we're running from a distribution (DMG, installed app)
-    const appPath = process.execPath || '';
-    const isDistributed = appPath.includes('/Volumes/') || 
-                         appPath.includes('/Applications/') || 
-                         process.env.NODE_ENV === 'production';
-    
-    if (isDistributed) {
-        console.log('[EncryptionService] Distribution mode detected - keytar disabled for stability');
-        console.log('[EncryptionService] Using in-memory storage (data will not persist across restarts)');
-        keytar = null;
-        return null;
-    }
+    // Always try to load keytar for persistent auth storage
+    console.log('[EncryptionService] Attempting to load keytar for persistent storage...');
     
     try {
         keytar = require('keytar');
-        console.log('[EncryptionService] keytar loaded successfully (development mode)');
+        console.log('[EncryptionService] ✅ keytar loaded successfully - auth will persist between app restarts');
         return keytar;
     } catch (error) {
-        console.warn('[EncryptionService] keytar is not available. Will use in-memory key for this session.');
+        console.warn('[EncryptionService] ⚠️ keytar failed to load - auth will NOT persist between restarts');
         console.warn('[EncryptionService] keytar error:', error.message);
+        console.warn('[EncryptionService] 🔧 To fix: Ensure keytar native module is properly built for your architecture');
         keytar = null;
         return null;
     }

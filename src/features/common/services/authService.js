@@ -482,15 +482,25 @@ class AuthService {
             // End all active sessions for the current user BEFORE signing out.
             await sessionRepository.endAllActiveSessions();
             
-            // Clear persistent auth storage
+            // Clear ALL persistent auth storage (both Firebase and manual backup)
             try {
                 const Store = await import('electron-store');
+                
+                // Clear manual backup storage
                 const authStore = new Store.default({ 
                     name: 'leviousa-auth-persistence',
                     projectName: 'Leviousa'
                 });
                 authStore.delete('persistentUser');
-                console.log('[AuthService] ✅ Persistent auth storage cleared');
+                
+                // Clear Firebase persistence storage
+                const firebaseStore = new Store.default({ 
+                    name: 'firebase-auth-session',
+                    projectName: 'Leviousa'
+                });
+                firebaseStore.clear(); // Clear all Firebase auth data
+                
+                console.log('[AuthService] ✅ All persistent auth storage cleared (Firebase + manual backup)');
             } catch (storeError) {
                 console.log('[AuthService] ⚠️ Error clearing persistent storage:', storeError.message);
             }

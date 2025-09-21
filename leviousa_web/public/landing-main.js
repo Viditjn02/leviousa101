@@ -282,14 +282,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.navigator.userAgentData?.platform === 'macOS'
   );
   
-  // Smart URL selection with GitHub releases - CRASH FIXED VERSION
+  // Smart URL selection with API endpoint - NOTARIZED VERSION
   let macUrl;
   if (isMac) {
-    // Using professional notarized version with correct DMG experience
-    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg';
-    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon (ARM64)' : 'Intel (x64)', '- Using FINAL COMPLETE DMG');
+    // Using API endpoint which redirects to latest notarized build
+    macUrl = '/api/downloads/dmg';
+    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon (ARM64)' : 'Intel (x64)', '- Using API endpoint for notarized build');
   } else {
-    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg'; // Latest universal DMG
+    macUrl = '/api/downloads/dmg'; // API endpoint works for all platforms
   }
   
   const winUrl = '/downloads/LeviousaSetup.exe';

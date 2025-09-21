@@ -1,7 +1,7 @@
 {
   "name": "leviousa",
   "productName": "Leviousa",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "Leviousa - Commercial AI Meeting Assistant with Pre-configured API Keys",
   "main": "src/index.js",
   "scripts": {
@@ -16,7 +16,9 @@
     "make": "npm run build:renderer && electron-forge make",
     "build": "npm run build:all && npm run rebuild:native && electron-builder --config electron-builder.yml --publish never",
     "build:win": "npm run build:all && npm run rebuild:native && electron-builder --win --x64 --publish never",
-    "publish": "npm run build:all && npm run rebuild:native && electron-builder --config electron-builder.yml --publish always",
+    "build:with-updates": "npm run build && node scripts/upload-updates.js",
+    "upload-updates": "node scripts/upload-updates.js",
+    "publish": "npm run build:all && npm run rebuild:native && electron-builder --config electron-builder.yml --publish never && node scripts/upload-updates.js",
     "rebuild:native": "electron-rebuild",
     "lint": "eslint --ext .ts,.tsx,.js .",
     "postinstall": "electron-builder install-app-deps",
@@ -54,6 +56,7 @@
     "@google/generative-ai": "^0.24.1",
     "@lit/react": "^1.0.8",
     "@modelcontextprotocol/sdk": "^1.17.1",
+    "@useparagon/connect": "^2.0.8",
     "@vercel/blob": "^1.1.1",
     "axios": "^1.10.0",
     "better-sqlite3": "^12.2.0",

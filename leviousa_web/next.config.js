@@ -8,6 +8,10 @@ const nextConfig = {
   },
   reactStrictMode: true,
   swcMinify: true,
+  compiler: {
+    // Remove console.* in production, but keep error and warn
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
   // Disable static export for Vercel (Vercel handles dynamic Next.js apps)
   // ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
   

@@ -284,11 +284,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Smart URL selection
   let macUrl;
   if (isMac) {
-    // PROFESSIONAL NOTARIZED VERSION - Complete solution
-    macUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/releases/Leviousa-1.0.0-universal.dmg';
-    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon' : 'Intel', '- Using FINAL COMPLETE DMG');
+    // Using API endpoint which redirects to latest notarized build
+    macUrl = '/api/downloads/dmg';
+    console.log('🍎 Mac detected:', isAppleSilicon ? 'Apple Silicon' : 'Intel', '- Using API endpoint for notarized build');
   } else {
-    macUrl = '/api/downloads/dmg'; // Default to ARM64 for non-Mac users
+    macUrl = '/api/downloads/dmg'; // API endpoint works for all platforms
   }
   
   const winUrl = '/api/downloads/exe';

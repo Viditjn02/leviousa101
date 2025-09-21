@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta http-equiv="content-security-policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval'" />
+        <meta http-equiv="content-security-policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval'; frame-src 'self' https://www.youtube.com;" />
         <title>Leviousa Welcome Video</title>
         <style>
             :root {
@@ -207,6 +207,41 @@
             .video-error.show {
                 display: block;
             }
+
+            .youtube-fallback {
+                text-align: center;
+                width: 100%;
+                max-width: 800px;
+            }
+
+            .youtube-fallback.show {
+                display: block !important;
+            }
+
+            .fallback-header {
+                margin-bottom: 15px;
+                color: var(--muted);
+            }
+
+            .fallback-header p {
+                margin: 0;
+                font-size: 14px;
+                color: var(--text);
+            }
+
+            .youtube-fallback iframe {
+                border-radius: 8px;
+                background: #000;
+                margin-bottom: 20px;
+                box-shadow: 0 4px 12px var(--shadow);
+            }
+
+            .fallback-controls {
+                display: flex;
+                gap: 12px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
         </style>
     </head>
     <body>
@@ -231,17 +266,46 @@
                     onended="onVideoEnded()"
                 >
                     <source src="../assets/welcome-video.mp4" type="video/mp4">
-                    <source src="../assets/welcome-video.webm" type="video/webm">
                     <p>Your browser doesn't support video playback. The welcome video should be bundled with the application.</p>
                 </video>
+                
+                <!-- YouTube fallback when local video fails -->
+                <div class="youtube-fallback" id="youtubeFallback" style="display: none;">
+                    <div class="fallback-header">
+                        <p>🌐 Loading video from YouTube...</p>
+                    </div>
+                    <iframe 
+                        id="youtubeVideo"
+                        width="100%" 
+                        height="400" 
+                        src="https://www.youtube.com/embed/kVpEBp34NiA?rel=0&modestbranding=1&showinfo=0" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                    </iframe>
+                    <div class="fallback-controls">
+                        <button class="control-button" onclick="retryLocalVideo()">🔄 Try Local Video</button>
+                        <button class="control-button primary" onclick="closeTutorial()">Close Tutorial</button>
+                    </div>
+                </div>
                 
                 <div class="video-error" id="videoError">
                     <p>⚠️ Welcome video not available</p>
                     <p>The tutorial video could not be loaded. Please check your internet connection or contact support.</p>
-                    <button onclick="window.open('https://www.leviousa.com/help', '_blank')" 
-                            style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        View Online Help
-                    </button>
+                    <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="showYouTubeFallback()" 
+                                style="padding: 8px 16px; background: #ff0000; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            ▶️ Watch on YouTube
+                        </button>
+                        <button onclick="window.open('https://www.leviousa.com/help', '_blank')" 
+                                style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            📖 View Help Guide
+                        </button>
+                        <button onclick="closeTutorial()" 
+                                style="padding: 8px 16px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                            ⏭️ Skip Tutorial
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="video-controls">
@@ -304,6 +368,26 @@
             function onVideoLoadStart() {
                 console.log('[VideoTutorial] 📥 Video loading started');
                 video = document.getElementById('welcomeVideo');
+                
+                // Enhanced debugging for Electron app
+                if (video) {
+                    console.log(`[VideoTutorial] 🔍 Video element found`);
+                    console.log(`[VideoTutorial] 📍 Video source: ${video.currentSrc || video.src || 'No source detected'}`);
+                    console.log(`[VideoTutorial] 🏠 Base URI: ${document.baseURI}`);
+                    console.log(`[VideoTutorial] 📁 Document location: ${document.location.href}`);
+                    
+                    // Check if file exists by trying to load it as an image first (hack to test file existence)
+                    const testImage = new Image();
+                    testImage.onload = () => {
+                        console.log('[VideoTutorial] ✅ Video file appears to exist (loaded as image)');
+                    };
+                    testImage.onerror = () => {
+                        console.warn('[VideoTutorial] ⚠️ Video file may not exist (failed to load as image)');
+                    };
+                    testImage.src = '../assets/welcome-video.mp4';
+                } else {
+                    console.error('[VideoTutorial] ❌ Video element not found!');
+                }
             }
 
             function onVideoLoaded() {
@@ -324,7 +408,56 @@
 
             function onVideoError() {
                 console.error('[VideoTutorial] ❌ Video failed to load');
+                
+                // Enhanced error handling for Electron app
+                const video = document.getElementById('welcomeVideo');
+                let errorDetails = 'Unknown error';
+                
+                if (video) {
+                    if (video.error) {
+                        switch (video.error.code) {
+                            case 1: // MEDIA_ERR_ABORTED
+                                errorDetails = 'Video loading was aborted';
+                                break;
+                            case 2: // MEDIA_ERR_NETWORK
+                                errorDetails = 'Network error while loading video';
+                                break;
+                            case 3: // MEDIA_ERR_DECODE
+                                errorDetails = 'Video decode error';
+                                break;
+                            case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+                                errorDetails = 'Video format not supported or file not found';
+                                break;
+                            default:
+                                errorDetails = `Media error code: ${video.error.code}`;
+                        }
+                    }
+                    console.error(`[VideoTutorial] 📊 Error details: ${errorDetails}`);
+                    console.error(`[VideoTutorial] 🔍 Video source: ${video.currentSrc || 'No source'}`);
+                }
+                
+                // Update error message with more details
+                const errorDiv = document.getElementById('videoError');
+                const errorText = errorDiv.querySelector('p:last-of-type');
+                errorText.innerHTML = `The welcome video could not be loaded. <br><br><strong>Technical details:</strong> ${errorDetails}<br><br>This might be due to the video file being missing from the app bundle. Click "Watch on YouTube" below for the online version.`;
+                
                 document.getElementById('videoError').classList.add('show');
+                
+                // For file not found errors, show an option to auto-fallback to YouTube after a delay
+                if (video && video.error && video.error.code === 4) { // MEDIA_ERR_SRC_NOT_SUPPORTED
+                    console.log('[VideoTutorial] 🎬 File not found - will offer YouTube fallback');
+                    
+                    // Add auto-fallback option after 3 seconds
+                    setTimeout(() => {
+                        const stillShowingError = errorDiv.classList.contains('show');
+                        if (stillShowingError) {
+                            const fallbackNotice = document.createElement('div');
+                            fallbackNotice.style.cssText = 'margin-top: 10px; padding: 8px; background: rgba(255, 0, 0, 0.1); border-radius: 4px; font-size: 12px; color: var(--muted);';
+                            fallbackNotice.innerHTML = '💡 <strong>Tip:</strong> Click "Watch on YouTube" above for the online tutorial video';
+                            errorDiv.appendChild(fallbackNotice);
+                        }
+                    }, 3000);
+                }
             }
 
             function onTimeUpdate() {
@@ -408,6 +541,70 @@
             function skipTutorial() {
                 console.log('[VideoTutorial] ⏭️ Skipping video tutorial');
                 closeTutorial();
+            }
+
+            function showYouTubeFallback() {
+                console.log('[VideoTutorial] 🎬 Showing YouTube fallback video');
+                
+                // Hide local video and error
+                const videoPlayer = document.querySelector('.video-player');
+                const videoError = document.getElementById('videoError');
+                const videoControls = document.querySelector('.video-controls');
+                const videoProgress = document.querySelector('.video-progress');
+                const videoActions = document.querySelector('.video-actions');
+                
+                if (videoPlayer) videoPlayer.style.display = 'none';
+                if (videoError) videoError.classList.remove('show');
+                if (videoControls) videoControls.style.display = 'none';
+                if (videoProgress) videoProgress.style.display = 'none';
+                if (videoActions) videoActions.style.display = 'none';
+                
+                // Show YouTube fallback
+                const youtubeFallback = document.getElementById('youtubeFallback');
+                if (youtubeFallback) {
+                    youtubeFallback.classList.add('show');
+                    youtubeFallback.style.display = 'block';
+                }
+                
+                // Update subtitle
+                const subtitle = document.querySelector('.video-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = 'Watch this quick introduction to get started (YouTube)';
+                }
+            }
+
+            function retryLocalVideo() {
+                console.log('[VideoTutorial] 🔄 Retrying local video');
+                
+                // Hide YouTube fallback
+                const youtubeFallback = document.getElementById('youtubeFallback');
+                if (youtubeFallback) {
+                    youtubeFallback.classList.remove('show');
+                    youtubeFallback.style.display = 'none';
+                }
+                
+                // Show local video elements
+                const videoPlayer = document.querySelector('.video-player');
+                const videoControls = document.querySelector('.video-controls');
+                const videoProgress = document.querySelector('.video-progress');
+                const videoActions = document.querySelector('.video-actions');
+                
+                if (videoPlayer) videoPlayer.style.display = 'block';
+                if (videoControls) videoControls.style.display = 'flex';
+                if (videoProgress) videoProgress.style.display = 'flex';
+                if (videoActions) videoActions.style.display = 'flex';
+                
+                // Reset subtitle
+                const subtitle = document.querySelector('.video-subtitle');
+                if (subtitle) {
+                    subtitle.textContent = 'Watch this quick introduction to get started';
+                }
+                
+                // Retry loading the video
+                video = document.getElementById('welcomeVideo');
+                if (video) {
+                    video.load();
+                }
             }
 
             // Keyboard shortcuts

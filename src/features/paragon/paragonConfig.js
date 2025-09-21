@@ -23,7 +23,10 @@ class ParagonConfig {
 
         console.log('[ParagonConfig] Initializing Paragon configuration...');
 
-        // Strategy 1: Load from environment variables (highest priority)
+        // Strategy 1: Use dotenv to load .env file first (before checking process.env)
+        this.loadDotenvConfig();
+
+        // Strategy 2: Load from environment variables (now loaded by dotenv)
         let projectId = process.env.PARAGON_PROJECT_ID || process.env.PROJECT_ID;
         let signingKey = process.env.PARAGON_SIGNING_KEY || process.env.SIGNING_KEY;
 
@@ -87,6 +90,42 @@ class ParagonConfig {
         // All strategies failed
         console.error('[ParagonConfig] ❌ Failed to load Paragon configuration from all sources');
         throw new Error('Paragon configuration not found. Please check PROJECT_ID and SIGNING_KEY are available.');
+    }
+
+    /**
+     * Load .env file using dotenv with proper path resolution for packaged apps
+     */
+    loadDotenvConfig() {
+        try {
+            const dotenv = require('dotenv');
+            
+            // Get the correct path for .env file (packaged vs development)
+            const envPaths = this.getEnvFilePaths();
+            
+            for (const envPath of envPaths) {
+                if (fs.existsSync(envPath)) {
+                    console.log(`[ParagonConfig] 📁 Loading dotenv from: ${envPath}`);
+                    
+                    const result = dotenv.config({ path: envPath });
+                    
+                    if (!result.error) {
+                        console.log(`[ParagonConfig] ✅ Dotenv loaded successfully from: ${envPath}`);
+                        return true;
+                    } else {
+                        console.warn(`[ParagonConfig] ⚠️ Dotenv load failed:`, result.error.message);
+                    }
+                } else {
+                    console.log(`[ParagonConfig] 📂 Env file not found: ${envPath}`);
+                }
+            }
+            
+            console.warn(`[ParagonConfig] ⚠️ No .env file found in any expected location`);
+            return false;
+            
+        } catch (error) {
+            console.error(`[ParagonConfig] ❌ Error loading dotenv:`, error.message);
+            return false;
+        }
     }
 
     /**

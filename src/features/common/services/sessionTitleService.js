@@ -39,8 +39,14 @@ class SessionTitleService {
                 return this.getDefaultTitle(sessionType);
             }
 
-            // Generate AI title
-            const generatedTitle = await this.generateAITitle(content, sessionType);
+            // Try AI title generation first
+            let generatedTitle = await this.generateAITitle(content, sessionType);
+            
+            // If AI title generation failed, try simple rule-based generation
+            if (!generatedTitle) {
+                console.log('[SessionTitleService] AI title generation failed, using rule-based fallback');
+                generatedTitle = this.generateRuleBasedTitle(content, sessionType);
+            }
             
             if (generatedTitle) {
                 this.titleCache.set(sessionId, generatedTitle);
@@ -84,6 +90,54 @@ class SessionTitleService {
 
         // Limit content length to avoid token overflow
         return content.substring(0, 1000);
+    }
+
+    /**
+     * Generate title using simple rules as fallback
+     */
+    generateRuleBasedTitle(content, sessionType) {
+        const lowerContent = content.toLowerCase();
+        
+        // Email-related content
+        if (lowerContent.includes('email') && lowerContent.includes('meeting')) {
+            return 'Welcome Email and Meeting Scheduling';
+        }
+        if (lowerContent.includes('send') && lowerContent.includes('email')) {
+            return 'Email Sending Task';
+        }
+        if (lowerContent.includes('email')) {
+            return 'Email Communication';
+        }
+        
+        // Meeting/Calendar content
+        if (lowerContent.includes('book') && lowerContent.includes('meeting')) {
+            return 'Meeting Booking Request';
+        }
+        if (lowerContent.includes('schedule') && lowerContent.includes('meeting')) {
+            return 'Meeting Scheduling';
+        }
+        if (lowerContent.includes('calendar')) {
+            return 'Calendar Management';
+        }
+        
+        // Try to extract key terms for a more specific title
+        const words = content.split(/\s+/).filter(word => 
+            word.length > 2 && 
+            !['the', 'and', 'for', 'with', 'can', 'you', 'please', 'help', 'how', 'what', 'when', 'where', 'that', 'this'].includes(word.toLowerCase())
+        );
+        
+        if (words.length > 0) {
+            const titleWords = words.slice(0, 3).map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase().replace(/[^a-zA-Z0-9]/g, '')
+            ).filter(word => word.length > 0);
+            
+            if (titleWords.length > 0) {
+                return titleWords.join(' ') + (titleWords.length === 1 ? ' Discussion' : ' Query');
+            }
+        }
+        
+        // Fallback based on session type
+        return sessionType === 'listen' ? 'Voice Conversation' : 'Q&A Discussion';
     }
 
     /**

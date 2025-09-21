@@ -70,7 +70,7 @@ class MCPServerManager extends EventEmitter {
                 authType: 'oauth'
             },
             paragon: {
-                command: '/Users/viditjain/.nvm/versions/node/v22.17.1/bin/node',
+                command: this.findNodeExecutable(), // Smart node finder for all launch methods
                 args: [path.join(__dirname, '../../../services/paragon-mcp/dist/index.mjs')],
                 description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
                 tools: [], // Will be dynamically populated from Paragon
@@ -82,6 +82,54 @@ class MCPServerManager extends EventEmitter {
         };
 
         console.log('[MCPServerManager] Initialized with', Object.keys(this.availableServers).length, 'available servers');
+    }
+
+    // Smart Node.js executable finder for all launch methods (Finder, Terminal, etc.)
+    findNodeExecutable() {
+        const { execSync } = require('child_process');
+        const fs = require('fs');
+        const os = require('os');
+        const homeDir = os.homedir();
+        
+        const commonPaths = [
+            '/usr/local/bin/node',           // Homebrew default (Intel)
+            '/opt/homebrew/bin/node',        // Homebrew M1 Mac
+            '/usr/bin/node',                 // System node
+            'node'                           // PATH fallback
+        ];
+        
+        // Add all nvm versions dynamically
+        try {
+            const nvmDir = `${homeDir}/.nvm/versions/node`;
+            if (fs.existsSync(nvmDir)) {
+                const versions = fs.readdirSync(nvmDir);
+                for (const version of versions) {
+                    commonPaths.push(`${nvmDir}/${version}/bin/node`);
+                }
+            }
+        } catch (error) {
+            // NVM not installed, continue with other paths
+        }
+        
+        // Try each path until we find a working node executable
+        for (const nodePath of commonPaths) {
+            try {
+                if (nodePath === 'node') {
+                    // Test if 'node' command works from PATH
+                    execSync('which node', { stdio: 'ignore' });
+                    console.log(`[MCPServerManager] ✅ Found node in PATH: ${nodePath}`);
+                    return nodePath;
+                } else if (fs.existsSync(nodePath)) {
+                    console.log(`[MCPServerManager] ✅ Found node at: ${nodePath}`);
+                    return nodePath;
+                }
+            } catch (error) {
+                // Continue to next path
+            }
+        }
+        
+        console.warn(`[MCPServerManager] ⚠️ Node.js not found in common locations, using 'node' as fallback`);
+        return 'node'; // Final fallback
     }
 
     async startServer(serverName, config = {}) {

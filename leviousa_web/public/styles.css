@@ -3664,6 +3664,10 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
 .lev-overlay .ov-chip .kbd{font-weight:800;font-size:.85rem;line-height:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.2rem .4rem;border-radius:.45rem;color:#fff}
 .lev-overlay .ov-chip.listen{padding-left:.9rem;padding-right:.9rem}
+.lev-overlay .ov-chip.browser{padding-left:.6rem;padding-right:.6rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)}
+.lev-overlay .browser-icon{font-size:.9rem;opacity:.9}
+.cta-link{color:inherit;text-decoration:none;cursor:pointer;transition:all 0.2s ease}
+.cta-link:hover{text-decoration:underline;opacity:0.9}
 .lev-overlay .eq-mini{display:inline-flex;gap:3px;margin-left:.2rem}
 .lev-overlay .eq-mini i{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.85;animation:equalize 1.2s ease-in-out infinite}
 .lev-overlay .eq-mini i:nth-child(2){animation-delay:.15s}
@@ -4604,6 +4608,10 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
 .lev-overlay .ov-chip .kbd{font-weight:800;font-size:.85rem;line-height:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.2rem .4rem;border-radius:.45rem;color:#fff}
 .lev-overlay .ov-chip.listen{padding-left:.9rem;padding-right:.9rem}
+.lev-overlay .ov-chip.browser{padding-left:.6rem;padding-right:.6rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)}
+.lev-overlay .browser-icon{font-size:.9rem;opacity:.9}
+.cta-link{color:inherit;text-decoration:none;cursor:pointer;transition:all 0.2s ease}
+.cta-link:hover{text-decoration:underline;opacity:0.9}
 .lev-overlay .eq-mini{display:inline-flex;gap:3px;margin-left:.2rem}
 .lev-overlay .eq-mini i{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.85;animation:equalize 1.2s ease-in-out infinite}
 .lev-overlay .eq-mini i:nth-child(2){animation-delay:.15s}
@@ -5544,6 +5552,10 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
 .lev-overlay .ov-chip .kbd{font-weight:800;font-size:.85rem;line-height:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.2rem .4rem;border-radius:.45rem;color:#fff}
 .lev-overlay .ov-chip.listen{padding-left:.9rem;padding-right:.9rem}
+.lev-overlay .ov-chip.browser{padding-left:.6rem;padding-right:.6rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)}
+.lev-overlay .browser-icon{font-size:.9rem;opacity:.9}
+.cta-link{color:inherit;text-decoration:none;cursor:pointer;transition:all 0.2s ease}
+.cta-link:hover{text-decoration:underline;opacity:0.9}
 .lev-overlay .eq-mini{display:inline-flex;gap:3px;margin-left:.2rem}
 .lev-overlay .eq-mini i{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.85;animation:equalize 1.2s ease-in-out infinite}
 .lev-overlay .eq-mini i:nth-child(2){animation-delay:.15s}
@@ -6484,6 +6496,10 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
 .lev-overlay .ov-chip .kbd{font-weight:800;font-size:.85rem;line-height:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.2rem .4rem;border-radius:.45rem;color:#fff}
 .lev-overlay .ov-chip.listen{padding-left:.9rem;padding-right:.9rem}
+.lev-overlay .ov-chip.browser{padding-left:.6rem;padding-right:.6rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)}
+.lev-overlay .browser-icon{font-size:.9rem;opacity:.9}
+.cta-link{color:inherit;text-decoration:none;cursor:pointer;transition:all 0.2s ease}
+.cta-link:hover{text-decoration:underline;opacity:0.9}
 .lev-overlay .eq-mini{display:inline-flex;gap:3px;margin-left:.2rem}
 .lev-overlay .eq-mini i{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.85;animation:equalize 1.2s ease-in-out infinite}
 .lev-overlay .eq-mini i:nth-child(2){animation-delay:.15s}
@@ -7424,6 +7440,10 @@ footer{padding:3rem 2rem;background:#0a0a0a;color:var(--muted);text-align:center
 .lev-overlay .ov-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-weight:700}
 .lev-overlay .ov-chip .kbd{font-weight:800;font-size:.85rem;line-height:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:.2rem .4rem;border-radius:.45rem;color:#fff}
 .lev-overlay .ov-chip.listen{padding-left:.9rem;padding-right:.9rem}
+.lev-overlay .ov-chip.browser{padding-left:.6rem;padding-right:.6rem;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15)}
+.lev-overlay .browser-icon{font-size:.9rem;opacity:.9}
+.cta-link{color:inherit;text-decoration:none;cursor:pointer;transition:all 0.2s ease}
+.cta-link:hover{text-decoration:underline;opacity:0.9}
 .lev-overlay .eq-mini{display:inline-flex;gap:3px;margin-left:.2rem}
 .lev-overlay .eq-mini i{width:3px;height:10px;border-radius:2px;background:#fff;opacity:.85;animation:equalize 1.2s ease-in-out infinite}
 .lev-overlay .eq-mini i:nth-child(2){animation-delay:.15s}

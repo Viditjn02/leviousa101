@@ -643,7 +643,7 @@ Your response should be based entirely on the actual search results above. If th
                     
                     // Actually execute the calendar tool
                     const toolArgs = {
-                        user_id: context.userId || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2',
+                        user_id: context.userId,
                         summary: calendarRequest.title,
                         description: `Meeting scheduled via Leviousa AI`,
                         start: {

@@ -275,25 +275,9 @@ class ToolRegistry extends EventEmitter {
             throw new Error(`Tool not found: ${fullName}. Available tools: ${availableTools.join(', ')}`);
         }
 
-        // Add user_id to args if it's a Paragon tool and user_id is not already present
+        // Validate that user_id is present for Paragon tools
         if (toolInfo.serverName === 'paragon' && !args.user_id) {
-            // Try to get current user ID
-            try {
-                const authService = require('../../common/services/authService');
-                const currentUserId = authService.getCurrentUserId();
-                if (currentUserId) {
-                    args.user_id = currentUserId;
-                    logger.info('Added user_id to Paragon tool args', { userId: currentUserId });
-                } else {
-                    // Use default user ID if no current user
-                    args.user_id = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
-                    logger.info('Using default user_id for Paragon tool', { userId: args.user_id });
-                }
-            } catch (error) {
-                // Use default user ID if auth service is not available
-                args.user_id = 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
-                logger.info('Using default user_id for Paragon tool (auth service unavailable)', { userId: args.user_id });
-            }
+            throw new Error('user_id is required for Paragon tools but was not provided');
         }
 
         logger.info('Invoking tool', { fullName, args });

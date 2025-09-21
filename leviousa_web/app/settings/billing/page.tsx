@@ -234,15 +234,9 @@ function BillingPageContent() {
                     <h2 className="text-xl font-semibold" style={{color: 'var(--text)'}}>
                       Current Plan
                     </h2>
-                    {isProUser && (
-                      <div className="flex items-center gap-1 px-3 py-1 brand-gradient text-black text-sm font-bold rounded-full">
-                        <Crown className="h-4 w-4" />
-                        Pro
-                      </div>
-                    )}
                   </div>
                   <p className="text-2xl font-bold mt-2 brand-gradient">
-                    {isProUser ? 'Pro Plan' : 'Free Plan'}
+                    {isProUser ? 'Pro' : 'Free Plan'}
                   </p>
                   <p className="text-sm mt-1" style={{color: 'var(--muted)'}}>
                     {isProUser ? '$18/month • Everything unlimited' : 'Limited daily usage • Perfect to get started'}

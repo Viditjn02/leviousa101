@@ -888,8 +888,8 @@ Please provide a natural, intelligent response that addresses what the user actu
         const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
         const currentDay = now.getDate();
         
-        // Get user ID from context or use the authenticated user
-        const userId = context.userId || context.user_id || 'vqLrzGnqajPGlX9Wzq89SgqVPsN2';
+        // Get user ID from context (should always be provided by calling code)
+        const userId = context.userId || context.user_id || 'unknown-user';
         
         return `You are an intelligent assistant with FULL ACCESS to the user's calendar, email, and other services through authenticated API tools. You MUST use these tools to answer user requests - do NOT tell the user you lack access.
 

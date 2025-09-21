@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 export function middleware(request) {
   const url = request.nextUrl.clone()
   
-  // Check if we should show wait page (enabled - show wait page)
-  const showWaitPage = true; // WAIT PAGE MODE ENABLED - SHOW "LITTLE MORE WAIT" PAGE
+  // Check if we should show wait page (disabled - show landing page)
+  const showWaitPage = false; // LANDING PAGE MODE ENABLED - SHOW FULL LANDING PAGE
   
   // If wait page is active and user is visiting root domain
   if (showWaitPage && url.pathname === '/') {

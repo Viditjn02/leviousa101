@@ -6,12 +6,10 @@ appId: com.leviousa.app
 # The user-facing application name
 productName: Leviousa
 
-# Publish configuration for GitHub releases
+# Publish configuration for Vercel-hosted updates
 publish:
-    provider: github
-    owner: Viditjn02
-    repo: leviousa101
-    releaseType: draft
+    provider: generic
+    url: https://leviousa.com/updates/mac
 
 # Protocols configuration for deep linking
 protocols:
@@ -41,6 +39,7 @@ extraResources:
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"
+    - "src/ui/assets/welcome-video.mp4"
     - "**/node_modules/sharp/**/*"
     - "**/node_modules/@img/**/*"
     - "**/node_modules/better-sqlite3/**/*"
@@ -80,7 +79,7 @@ nsis:
 # macOS specific configuration
 mac:
     # The application category type
-    category: public.app-category.utilities
+    category: public.app-category.productivity
     # Path to the .icns icon file
     icon: src/ui/assets/logo.icns
     # Minimum macOS version (supports both Intel and Apple Silicon)
@@ -95,11 +94,13 @@ mac:
     # signIgnore patterns removed to fix regex errors - will sign everything
     # Notarization enabled for production release
     notarize: true
+    # Custom artifact naming for updates
+    artifactName: Leviousa-${version}-mac.${ext}
     target:
-      - target: dmg
-        arch: universal  # Universal binary for both architectures
       - target: zip
-        arch: universal
+        arch: universal  # ZIP first for auto-updater
+      - target: dmg
+        arch: universal  # DMG for manual distribution
 
 # DMG specific configuration
 dmg:

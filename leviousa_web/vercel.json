@@ -10,5 +10,15 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/updates/mac/latest-mac.yml",
+      "destination": "/api/updates/mac/latest-mac.yml"
+    },
+    {
+      "source": "/updates/mac/(.*)",
+      "destination": "/api/updates/mac/$1"
+    }
   ]
 }

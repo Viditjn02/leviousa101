@@ -4,36 +4,25 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/utils/auth'
 
-// Function to check if countdown is still active
-async function checkCountdownStatus(): Promise<boolean> {
-  try {
-    const response = await fetch('/api/countdown-status')
-    const data = await response.json()
-    return data.countdownActive || false
-  } catch (error) {
-    console.error('Error checking countdown status:', error)
-    // Default to showing landing page if there's an error
-    return false
-  }
-}
-
 export default function Home() {
   const router = useRouter()
   const { user, isLoading } = useAuth()
 
   useEffect(() => {
-    // Wait for auth state to be determined before redirecting
-    if (!isLoading) {
-      if (user) {
-        // User is authenticated, go to activity
-        router.push('/activity')
-      } else {
-        // User not authenticated, show wait page
-        window.location.href = '/wait.html'
-      }
+    // If user is authenticated, redirect to activity page
+    if (!isLoading && user) {
+      router.push('/activity')
     }
   }, [isLoading, user, router])
 
+  // For non-authenticated users, redirect to landing page
+  useEffect(() => {
+    if (!isLoading && !user) {
+      window.location.href = '/landing.html'
+    }
+  }, [isLoading, user])
+
+  // Loading state
   return (
     <div className="min-h-screen flex items-center justify-center" style={{
       background: 'radial-gradient(circle at center, rgba(144, 81, 81, 0.25), #000)'

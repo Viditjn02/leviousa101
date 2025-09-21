@@ -622,11 +622,11 @@ app.whenReady().then(async () => {
         );
     }
 
-    // TEMP: Disable auto-updater while debugging MCP issues
-    if (process.env.AUTO_UPDATES === 'true') {
+    // Initialize auto-updater for production builds
+    if (!process.env.NODE_ENV || process.env.NODE_ENV === 'production') {
         initAutoUpdater();
     } else {
-        console.log('[AutoUpdater] Disabled - set AUTO_UPDATES=true to enable');
+        console.log('[AutoUpdater] Disabled in development mode');
     }
 
     // Process any pending deep link after everything is initialized
@@ -1425,33 +1425,84 @@ async function initializeParagonOAuthServer() {
 // Auto-update initialization
 async function initAutoUpdater() {
     if (process.env.NODE_ENV === 'development') {
-        console.log('Development environment, skipping auto-updater.');
+        console.log('[AutoUpdater] Development environment, skipping auto-updater.');
         return;
     }
 
     try {
-        await autoUpdater.checkForUpdates();
-        autoUpdater.on('update-available', () => {
-            console.log('Update available!');
-            autoUpdater.downloadUpdate();
+        console.log('[AutoUpdater] Initializing auto-updater...');
+        
+        // Configure auto-updater
+        autoUpdater.autoDownload = true;
+        autoUpdater.autoInstallOnAppQuit = true;
+        
+        // Set up event handlers
+        autoUpdater.on('checking-for-update', () => {
+            console.log('[AutoUpdater] Checking for updates...');
         });
-        autoUpdater.on('update-downloaded', (event, releaseNotes, releaseName, date, url) => {
-            console.log('Update downloaded:', releaseNotes, releaseName, date, url);
+        
+        autoUpdater.on('update-available', (info) => {
+            console.log('[AutoUpdater] Update available:', info.version);
+            console.log('[AutoUpdater] Starting download...');
+        });
+        
+        autoUpdater.on('update-not-available', (info) => {
+            console.log('[AutoUpdater] Update not available. Current version:', info.version);
+        });
+        
+        autoUpdater.on('download-progress', (progressObj) => {
+            let log = `[AutoUpdater] Download progress: ${Math.round(progressObj.percent)}%`;
+            log += ` (${Math.round(progressObj.transferred / 1024 / 1024)}MB / ${Math.round(progressObj.total / 1024 / 1024)}MB)`;
+            console.log(log);
+        });
+        
+        autoUpdater.on('update-downloaded', (info) => {
+            console.log('[AutoUpdater] Update downloaded successfully:', info.version);
+            
+            // Show user-friendly dialog
+            const { dialog } = require('electron');
             dialog.showMessageBox({
                 type: 'info',
-                title: 'Application Update',
-                message: `A new version of Leviousa (${releaseName}) has been downloaded. It will be installed the next time you launch the application.`,
-                buttons: ['Restart', 'Later']
-            }).then(response => {
-                if (response.response === 0) {
+                title: 'Leviousa Update Ready',
+                message: `A new version of Leviousa (v${info.version}) has been downloaded and is ready to install.`,
+                detail: 'The update will be installed when you restart the application. You can restart now or continue using the current version.',
+                buttons: ['Restart Now', 'Install Later'],
+                defaultId: 0,
+                cancelId: 1,
+                icon: path.join(__dirname, 'ui/assets/logo.png')
+            }).then(result => {
+                if (result.response === 0) {
+                    console.log('[AutoUpdater] User chose to restart now');
                     autoUpdater.quitAndInstall();
+                } else {
+                    console.log('[AutoUpdater] User chose to install later');
                 }
+            }).catch(err => {
+                console.error('[AutoUpdater] Error showing update dialog:', err);
             });
         });
+        
         autoUpdater.on('error', (err) => {
-            console.error('Error in auto-updater:', err);
+            console.error('[AutoUpdater] Error in auto-updater:', err);
+            console.error('[AutoUpdater] Error stack:', err.stack);
         });
+        
+        // Start checking for updates
+        console.log('[AutoUpdater] Starting initial update check...');
+        await autoUpdater.checkForUpdatesAndNotify();
+        
+        // Schedule frequent checks for immediate updates (every 5 minutes)
+        setInterval(() => {
+            console.log('[AutoUpdater] Performing scheduled update check...');
+            autoUpdater.checkForUpdatesAndNotify().catch(err => {
+                console.error('[AutoUpdater] Scheduled update check failed:', err);
+            });
+        }, 5 * 60 * 1000); // 5 minutes for immediate updates
+        
+        console.log('[AutoUpdater] Auto-updater initialized successfully');
+        
     } catch (err) {
-        console.error('Error initializing auto-updater:', err);
+        console.error('[AutoUpdater] Error initializing auto-updater:', err);
+        console.error('[AutoUpdater] Error stack:', err.stack);
     }
 }

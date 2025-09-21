@@ -232,7 +232,7 @@ const loadRuntimeConfig = async (): Promise<string | null> => {
     });
     if (response.ok) {
       const config = await response.json();
-      console.log('✅ Runtime config loaded:', config);
+      console.log('✅ Runtime config loaded:');
       return config.API_URL;
     } else {
       console.log('⚠️ Runtime config response not ok:', response.status);
@@ -775,6 +775,16 @@ export const logout = async () => {
       const { signOut } = await import('firebase/auth');
       await signOut(firebaseAuth);
       console.log('✅ Firebase sign out successful');
+    }
+    
+    // ENHANCED: Notify Electron main process to clear auth state
+    if (typeof window !== 'undefined' && (window as any).api?.firebaseLogout) {
+      try {
+        await (window as any).api.firebaseLogout();
+        console.log('✅ Electron main process auth cleared');
+      } catch (electronLogoutError) {
+        console.warn('⚠️ Could not clear Electron auth state:', electronLogoutError);
+      }
     }
     
     // Clear user info immediately

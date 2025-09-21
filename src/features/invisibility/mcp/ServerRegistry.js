@@ -12,11 +12,75 @@ const fs = require('fs').promises;
 const MCPAdapter = require('./MCPAdapter');
 const OAuthManager = require('../auth/OAuthManager');
 
+// Smart Node.js executable finder for all launch methods (Finder, Terminal, etc.)
+function findNodeExecutable() {
+    const { execSync } = require('child_process');
+    const fs = require('fs'); // Use sync fs for this function
+    
+    // Common Node.js installation paths to check
+    const os = require('os');
+    const homeDir = os.homedir();
+    
+    const commonPaths = [
+        '/usr/local/bin/node',           // Homebrew default (Intel)
+        '/opt/homebrew/bin/node',        // Homebrew M1 Mac
+        '/usr/bin/node',                 // System node
+        'node'                           // PATH fallback
+    ];
+    
+    // Add all nvm versions dynamically
+    try {
+        const nvmDir = `${homeDir}/.nvm/versions/node`;
+        if (fs.existsSync(nvmDir)) {
+            const versions = fs.readdirSync(nvmDir);
+            for (const version of versions) {
+                commonPaths.push(`${nvmDir}/${version}/bin/node`);
+            }
+        }
+    } catch (error) {
+        // NVM not installed, continue with other paths
+    }
+    
+    // Try each path until we find a working node executable
+    for (const nodePath of commonPaths) {
+        try {
+            if (nodePath === 'node') {
+                // Test if 'node' command works from PATH
+                execSync('which node', { stdio: 'ignore' });
+                console.log(`[ServerRegistry] ✅ Found node in PATH: ${nodePath}`);
+                return nodePath;
+            } else if (fs.existsSync(nodePath)) {
+                console.log(`[ServerRegistry] ✅ Found node at: ${nodePath}`);
+                return nodePath;
+            }
+        } catch (error) {
+            // Continue to next path
+        }
+    }
+    
+    console.warn(`[ServerRegistry] ⚠️ Node.js not found in common locations, using 'node' as fallback`);
+    return 'node'; // Final fallback
+}
+
 // Helper function for consistent Paragon path resolution
 function resolveParagonPath(relPath = '') {
-    // Always use development path for now - production path logic was incorrect
+    const { app } = require('electron');
+    
+    // Check if running in packaged app
+    if (app && app.isPackaged) {
+        // Packaged app: Use resources directory
+        if (process.resourcesPath) {
+            const packagedPath = path.join(process.resourcesPath, 'services/paragon-mcp', relPath);
+            console.log(`[ServerRegistry] 📦 Using packaged path: ${packagedPath}`);
+            return packagedPath;
+        }
+    }
+    
+    // Development: Use project root
     const projectRoot = '/Applications/XAMPP/xamppfiles/htdocs/Leviousa101';
-    return path.join(projectRoot, 'services/paragon-mcp', relPath);
+    const devPath = path.join(projectRoot, 'services/paragon-mcp', relPath);
+    console.log(`[ServerRegistry] 🔧 Using development path: ${devPath}`);
+    return devPath;
 }
 
 // Configure logger
@@ -66,7 +130,7 @@ const LEGACY_SERVER_DEFINITIONS = {
         capabilities: ['list_tables', 'describe_table', 'query', 'execute']
     },
     paragon: {
-        command: '/Users/viditjain/.nvm/versions/node/v18.20.8/bin/node',
+        command: findNodeExecutable(), // Smart node finder for all launch methods
         args: [resolveParagonPath('dist/index.mjs')],
         description: 'Paragon MCP server providing access to 130+ SaaS integrations including Gmail, Notion, Slack, and more',
         capabilities: ['get_authenticated_services', 'connect_service', 'disconnect_service'],
