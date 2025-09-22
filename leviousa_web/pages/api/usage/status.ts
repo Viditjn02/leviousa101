@@ -77,10 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Calculate daily bonus limits from referrals
     const bonusLimits = await calculateDailyBonusLimits(uid, today)
     
-    // Calculate final limits (base + bonus)
-    const baseLimits = isPro ? -1 : 10
-    const finalAutoAnswerLimit = baseLimits === -1 ? -1 : baseLimits + bonusLimits.auto_answer_bonus
-    const finalBrowserLimit = baseLimits === -1 ? -1 : baseLimits + bonusLimits.browser_bonus
+    // Calculate final limits (base + bonus) - Different limits for different features
+    const baseAutoAnswerLimit = isPro ? -1 : 3   // 3 minutes for cmd+L 
+    const baseBrowserLimit = isPro ? -1 : 10      // 10 minutes for browser
+    const finalAutoAnswerLimit = baseAutoAnswerLimit === -1 ? -1 : baseAutoAnswerLimit + bonusLimits.auto_answer_bonus
+    const finalBrowserLimit = baseBrowserLimit === -1 ? -1 : baseBrowserLimit + bonusLimits.browser_bonus
     
     const usageData = {
       auto_answer_used: todayUsage.cmd_l_usage_minutes || 0,

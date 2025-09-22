@@ -227,7 +227,6 @@ function LoginContent() {
         notification.innerHTML = `
           <div style="font-weight: 600; margin-bottom: 4px;">✅ Login Successful!</div>
           <div>Transferring auth to Leviousa app...</div>
-          <div style="font-size: 12px; margin-top: 4px; opacity: 0.8;">Development Mode Bridge</div>
         `
         document.body.appendChild(notification)
         

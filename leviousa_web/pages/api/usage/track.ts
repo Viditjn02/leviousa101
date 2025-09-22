@@ -82,8 +82,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         date: today,
         auto_answer_used: updatedUsage.cmd_l_usage_minutes,
         browser_used: updatedUsage.browser_usage_minutes,
-        auto_answer_limit: hasUnlimited ? -1 : 10,
-        browser_limit: hasUnlimited ? -1 : 10,
+        auto_answer_limit: hasUnlimited ? -1 : 3,  // 3 minutes for cmd+L
+        browser_limit: hasUnlimited ? -1 : 10,    // 10 minutes for browser
         subscription_plan: hasUnlimited ? 'pro' : 'free'
       }
     })
