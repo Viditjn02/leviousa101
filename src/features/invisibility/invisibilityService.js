@@ -505,6 +505,46 @@ class InvisibilityService extends EventEmitter {
             return;
         }
 
+        // 🔒 CRITICAL: Check subscription and usage limits for cmd+L feature
+        try {
+            const subscriptionService = require('../common/services/subscriptionService');
+            
+            console.log('[InvisibilityService] 🔍 Checking cmd+L usage limits...');
+            const usageCheck = await subscriptionService.checkUsageAllowed('cmd_l');
+            
+            if (!usageCheck.allowed) {
+                const errorMessage = usageCheck.unlimited ? 
+                    'Auto Answer feature is not available.' :
+                    `Auto Answer daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
+                    
+                console.log('[InvisibilityService] 🚫 CMD+L usage limit exceeded:', errorMessage);
+                
+                // Show custom branded upgrade dialog
+                const customDialogService = require('../common/services/customDialogService');
+                await customDialogService.showUpgradeDialog({
+                    title: 'Auto Answer Usage Limit Reached',
+                    message: errorMessage,
+                    detail: 'Upgrade to Pro for unlimited Auto Answer (Cmd+L) and advanced features.',
+                    featureType: 'cmd_l',
+                    usage: usageCheck.usage !== undefined ? {
+                        used: usageCheck.usage,
+                        limit: usageCheck.limit,
+                        remaining: usageCheck.remaining
+                    } : null
+                }).catch((error) => {
+                    console.error('[InvisibilityService] Custom dialog error:', error);
+                });
+                
+                return { success: false, error: errorMessage };
+            }
+            
+            console.log('[InvisibilityService] ✅ CMD+L usage check passed. Remaining:', usageCheck.remaining, 'minutes');
+            
+        } catch (limitError) {
+            console.error('[InvisibilityService] ⚠️ Usage limit check failed:', limitError.message);
+            // Continue anyway for development/fallback
+        }
+
         return await this._executeQuestionProcessing();
     }
 
@@ -535,6 +575,7 @@ class InvisibilityService extends EventEmitter {
 
         console.log('[InvisibilityService] 🧠 CMD+L triggered! Starting question detection and auto-answering...');
         this.isProcessingQuestion = true;
+        const startTime = Date.now(); // Track start time for usage calculation
 
         try {
             // Step 1: Capture current screen
@@ -693,6 +734,18 @@ class InvisibilityService extends EventEmitter {
                 } else {
                     console.log(`[InvisibilityService] ❌ Failed to focus field for question ${result.index + 1}`);
                 }
+            }
+            
+            // 🔒 CRITICAL: Track successful CMD+L usage time after completion
+            try {
+                const subscriptionService = require('../common/services/subscriptionService');
+                const usageMinutes = Math.ceil((Date.now() - startTime) / 60000); // Convert ms to minutes
+                
+                console.log(`[InvisibilityService] ✅ CMD+L completed successfully - tracking ${usageMinutes} minutes of usage`);
+                await subscriptionService.trackUsageToWebAPI('cmd_l', usageMinutes);
+                
+            } catch (trackingError) {
+                console.warn('[InvisibilityService] ⚠️ Could not track CMD+L usage:', trackingError.message);
             }
 
         } catch (error) {

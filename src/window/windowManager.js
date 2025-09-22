@@ -1037,6 +1037,7 @@ let browserTabs = []; // Array to store multiple BrowserViews
 let activeTabId = null;
 let globalRecentPopups = new Set(); // Global deduplication for popup URLs
 let googleAuthCooldown = false; // Prevent multiple Google auth popups
+let browserStartTime = null; // Track actual browser usage time
 
 const toggleBrowserWindow = async () => {
     if (globalBrowserWindow && !globalBrowserWindow.isDestroyed()) {
@@ -1056,6 +1057,22 @@ const toggleBrowserWindow = async () => {
         activeTabId = null;
         globalRecentPopups.clear(); // Clear popup deduplication when closing browser
         googleAuthCooldown = false; // Clear Google auth cooldown
+        
+        // 🔒 CRITICAL: Track actual browser usage time on close
+        if (browserStartTime) {
+            try {
+                const subscriptionService = require('../features/common/services/subscriptionService');
+                const usageMinutes = Math.ceil((Date.now() - browserStartTime) / 60000); // Convert ms to minutes
+                
+                console.log(`[WindowManager] ✅ Browser closed - tracking ${usageMinutes} minutes of actual usage`);
+                await subscriptionService.trackUsageToWebAPI('browser', usageMinutes);
+                
+            } catch (trackingError) {
+                console.warn('[WindowManager] ⚠️ Could not track browser usage:', trackingError.message);
+            }
+            browserStartTime = null; // Reset timer
+        }
+        
         globalBrowserWindow.close();
         globalBrowserWindow = null;
         return { isOpen: false };
@@ -1097,9 +1114,9 @@ const toggleBrowserWindow = async () => {
             
             console.log('[WindowManager] ✅ Browser usage check passed. Remaining:', usageCheck.remaining || 'unlimited');
             
-            // Track browser usage start (1 minute per session)
-            await subscriptionService.trackUsageToWebAPI('browser', 1);
-            console.log('[WindowManager] ✅ Browser usage tracked: +1 minute');
+            // Start tracking browser usage time (will be calculated on close)
+            browserStartTime = Date.now();
+            console.log('[WindowManager] ⏱️ Browser usage timer started');
             
         } catch (error) {
             console.error('[WindowManager] ❌ Error checking browser subscription:', error);
@@ -1523,7 +1540,7 @@ const toggleBrowserWindow = async () => {
         windowPool.set('browser', globalBrowserWindow);
         
         // Handle window closed
-        globalBrowserWindow.on('closed', () => {
+        globalBrowserWindow.on('closed', async () => {
             console.log('[WindowManager] 🌐 Browser window closed');
             // Clean up all tabs
             browserTabs.forEach(tab => {
@@ -1536,6 +1553,22 @@ const toggleBrowserWindow = async () => {
             });
             browserTabs = [];
             activeTabId = null;
+            
+            // 🔒 CRITICAL: Track actual browser usage time on window close event  
+            if (browserStartTime) {
+                try {
+                    const subscriptionService = require('../features/common/services/subscriptionService');
+                    const usageMinutes = Math.ceil((Date.now() - browserStartTime) / 60000);
+                    
+                    console.log(`[WindowManager] ✅ Browser window closed - tracking ${usageMinutes} minutes of actual usage`);
+                    await subscriptionService.trackUsageToWebAPI('browser', usageMinutes);
+                    
+                } catch (trackingError) {
+                    console.warn('[WindowManager] ⚠️ Could not track browser close usage:', trackingError.message);
+                }
+                browserStartTime = null; // Reset timer
+            }
+            
             globalBrowserWindow = null;
             windowPool.delete('browser');
             
