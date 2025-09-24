@@ -26,6 +26,15 @@
   <link rel="preload" as="image" href="https://archive.org/download/bigsur-icons/macOS%20Big%20Sur%20Icons%202/Applications/FaceTime.png">
   <link rel="preload" as="image" href="https://commons.wikimedia.org/wiki/Special:FilePath/WhatsApp.svg?width=256">
   <link rel="preload" as="image" href="https://commons.wikimedia.org/wiki/Special:FilePath/Microsoft_Office_Teams_%282018%E2%80%93present%29.svg?width=256">
+  
+  <!-- Twitter conversion tracking base code -->
+  <script>
+  !function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
+  },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
+  a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))}(window,document,'script');
+  twq('config','qiz89');
+  </script>
+  <!-- End Twitter conversion tracking base code -->
 </head>
 <body id="top">
   <header>
@@ -1291,4 +1300,22 @@ A practical example would be the coffee market during a frost in Brazil (a major
   </footer>
 
   <script src="/main.js"></script>
-  <script src="/avatar-fix.js"></script></body></html>
+  <script src="/avatar-fix.js"></script>
+  
+  <!-- Twitter conversion tracking event code for download button -->
+  <script type="text/javascript">
+    // Add event listener to download button for Twitter conversion tracking
+    document.addEventListener('DOMContentLoaded', function() {
+      const downloadBtn = document.getElementById('downloadBtn');
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+          // Insert Twitter Event ID
+          if (typeof twq !== 'undefined') {
+            twq('event', 'tw-qiz89-qiz89', {});
+          }
+        });
+      }
+    });
+  </script>
+  <!-- End Twitter conversion tracking event code -->
+</body></html>

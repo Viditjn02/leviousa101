@@ -36,6 +36,8 @@ extraResources:
     - from: services/paragon-mcp/node_modules
       to: services/paragon-mcp/node_modules
       filter: ["**/*"]
+    # Include Firebase service account file for packaged app
+    - firebase-service-account.json
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"

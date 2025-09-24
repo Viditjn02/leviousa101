@@ -17,6 +17,7 @@
     "@types/nodemailer": "^7.0.1",
     "@types/uuid": "^10.0.0",
     "@useparagon/connect": "^2.0.8",
+    "@vercel/analytics": "^1.5.0",
     "@vercel/blob": "^1.1.1",
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.0",

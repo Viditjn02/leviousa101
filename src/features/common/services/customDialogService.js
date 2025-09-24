@@ -32,19 +32,71 @@ class CustomDialogService {
         } = options;
 
         return new Promise((resolve) => {
-            console.log('[CustomDialogService] 🎯 Showing upgrade dialog as tutorial-style overlay');
+            console.log('[CustomDialogService] 🎯 Creating upgrade dialog as proper overlay window');
             
-            // Use tutorial-style overlay in header window instead of separate BrowserWindow
+            // Create upgrade dialog as a proper overlay window (like settings/browser)
+            const { BrowserWindow, screen } = require('electron');
             const { windowPool } = require('../../../window/windowManager');
-            const header = windowPool.get('header');
+            const path = require('path');
             
-            if (!header || header.isDestroyed()) {
-                console.error('[CustomDialogService] ❌ Header window not available for upgrade dialog');
-                resolve('cancel');
-                return;
+            // Check if upgrade dialog already exists
+            if (windowPool.has('upgrade-dialog')) {
+                const existingDialog = windowPool.get('upgrade-dialog');
+                if (existingDialog && !existingDialog.isDestroyed()) {
+                    existingDialog.focus();
+                    resolve('existing');
+                    return;
+                }
             }
             
             const dialogId = Date.now().toString();
+            
+            // Create proper overlay window with same properties as other overlays
+            const upgradeDialog = new BrowserWindow({
+                width: 500,
+                height: 600,
+                resizable: false,
+                movable: true,
+                minimizable: false,
+                maximizable: false,
+                fullscreenable: false,
+                show: false, // Start hidden, will show after setup
+                frame: false,
+                transparent: true,
+                hasShadow: false,
+                webSecurity: false,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    enableRemoteModule: false,
+                    preload: path.join(__dirname, '../../../preload.js')
+                }
+            });
+            
+            // Apply same privacy protection as other overlays (CRITICAL for hiding from screenshots)
+            try {
+                const { isContentProtectionOn } = require('../../../window/windowManager');
+                upgradeDialog.setContentProtection(isContentProtectionOn || true); // Always protect by default
+                console.log('[CustomDialogService] ✅ Content protection applied - dialog hidden from screenshots');
+            } catch (err) {
+                console.warn('[CustomDialogService] Could not get content protection setting:', err.message);
+                // Fallback: Always enable content protection for security
+                upgradeDialog.setContentProtection(true);
+            }
+            
+            // Make invisible like other overlays
+            upgradeDialog.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+            upgradeDialog.setSkipTaskbar(true); // Hide from taskbar like other overlays
+            
+            // Set always on top like other overlays
+            if (process.platform === 'darwin') {
+                upgradeDialog.setAlwaysOnTop(true, 'screen-saver');
+            } else {
+                upgradeDialog.setAlwaysOnTop(true);
+            }
+            
+            // Add to window pool for proper management
+            windowPool.set('upgrade-dialog', upgradeDialog);
             
             // Create the upgrade dialog HTML content
             const htmlContent = this.createUpgradeDialogHTML({
@@ -56,139 +108,94 @@ class CustomDialogService {
                 dialogId
             });
             
-            // Inject the dialog as an overlay in header window (tutorial style)
-            const script = `
-                (function() {
-                    // Remove any existing upgrade dialogs
-                    const existingDialogs = document.querySelectorAll('.upgrade-dialog-overlay');
-                    existingDialogs.forEach(dialog => dialog.remove());
-                    
-                    // Create tutorial-style overlay
-                    const overlay = document.createElement('div');
-                    overlay.className = 'upgrade-dialog-overlay';
-                    overlay.setAttribute('data-dialog-id', '${dialogId}');
-                    overlay.style.cssText = \`
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100vw;
-                        height: 100vh;
-                        z-index: 99999;
-                        background: rgba(0, 0, 0, 0.6);
-                        backdrop-filter: blur(3px);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        opacity: 0;
-                        transition: opacity 0.3s ease;
-                    \`;
-                    
-                    overlay.innerHTML = \`${htmlContent}\`;
-                    document.body.appendChild(overlay);
-                    
-                    // Animate in
-                    requestAnimationFrame(() => {
-                        overlay.style.opacity = '1';
-                    });
-                    
-                    // Set up event listeners for dialog actions
-                    const upgradeBtn = overlay.querySelector('.btn-upgrade');
-                    const laterBtn = overlay.querySelector('.btn-later');
-                    const closeBtn = overlay.querySelector('.dialog-close');
-                    
-                    const cleanup = () => {
-                        overlay.style.opacity = '0';
-                        setTimeout(() => {
-                            if (overlay.parentNode) {
-                                overlay.parentNode.removeChild(overlay);
-                            }
-                        }, 300);
-                    };
-                    
-                    if (upgradeBtn) {
-                        upgradeBtn.onclick = () => {
-                            cleanup();
-                            window.ipcRenderer?.send('dialog-action-upgrade', '${dialogId}');
-                        };
-                    }
-                    
-                    if (laterBtn) {
-                        laterBtn.onclick = () => {
-                            cleanup();
-                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
-                        };
-                    }
-                    
-                    if (closeBtn) {
-                        closeBtn.onclick = () => {
-                            cleanup();
-                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
-                        };
-                    }
-                    
-                    // ESC key to close
-                    const escHandler = (e) => {
-                        if (e.key === 'Escape') {
-                            cleanup();
-                            document.removeEventListener('keydown', escHandler);
-                            window.ipcRenderer?.send('dialog-action-cancel', '${dialogId}');
-                        }
-                    };
-                    document.addEventListener('keydown', escHandler);
-                    
-                    return true;
-                })();
-            `;
+            // Load HTML content into the overlay window
+            upgradeDialog.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
             
-            header.webContents.executeJavaScript(script).then(result => {
-                console.log('[CustomDialogService] ✅ Upgrade dialog overlay injected successfully');
-            }).catch(error => {
-                console.error('[CustomDialogService] ❌ Failed to inject upgrade dialog:', error);
-                resolve('cancel');
+            // Position the dialog window (centered on screen)
+            const primaryDisplay = screen.getPrimaryDisplay();
+            const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+            
+            upgradeDialog.setBounds({
+                x: Math.round((screenWidth - 500) / 2),
+                y: Math.round((screenHeight - 600) / 2),
+                width: 500,
+                height: 600
             });
-
+            
+            // Show the window after setup
+            upgradeDialog.once('ready-to-show', () => {
+                upgradeDialog.show();
+                upgradeDialog.focus();
+                console.log('[CustomDialogService] ✅ Upgrade dialog overlay window shown');
+            });
+            
             // Store dialog reference for cleanup
-            this.activeDialogs.set(dialogId, { type: 'overlay', windowRef: header });
+            this.activeDialogs.set(dialogId, { type: 'window', windowRef: upgradeDialog });
 
             // Handle dialog actions via IPC
             const { ipcMain } = require('electron');
             
-            const handleDialogAction = (event, receivedDialogId) => {
-                if (receivedDialogId === dialogId) {
-                    console.log(`[CustomDialogService] Dialog action received for: ${dialogId}`);
-                    
-                    // Clean up
-                    this.activeDialogs.delete(dialogId);
-                    
-                    // Remove IPC listeners
-                    ipcMain.removeAllListeners(`dialog-action-upgrade`);
-                    ipcMain.removeAllListeners(`dialog-action-cancel`);
-                    
-                    // Open upgrade page
-                    const { shell } = require('electron');
-                    shell.openExternal('https://www.leviousa.com/settings/billing');
-                    resolve('upgrade');
+            const handleUpgrade = () => {
+                console.log(`[CustomDialogService] Upgrade button clicked for dialog: ${dialogId}`);
+                
+                // Clean up window
+                if (upgradeDialog && !upgradeDialog.isDestroyed()) {
+                    upgradeDialog.close();
                 }
+                windowPool.delete('upgrade-dialog');
+                this.activeDialogs.delete(dialogId);
+                
+                // Remove IPC listeners  
+                ipcMain.removeAllListeners(`dialog-upgrade-${dialogId}`);
+                ipcMain.removeAllListeners(`dialog-cancel-${dialogId}`);
+                
+                // Open upgrade page
+                const { shell } = require('electron');
+                shell.openExternal('https://www.leviousa.com/settings/billing');
+                resolve('upgrade');
             };
 
-            const handleDialogCancel = (event, receivedDialogId) => {
-                if (receivedDialogId === dialogId) {
-                    console.log(`[CustomDialogService] Dialog cancelled for: ${dialogId}`);
-                    
-                    // Clean up
-                    this.activeDialogs.delete(dialogId);
-                    
-                    // Remove IPC listeners
-                    ipcMain.removeAllListeners(`dialog-action-upgrade`);
-                    ipcMain.removeAllListeners(`dialog-action-cancel`);
-                    
-                    resolve('cancel');
+            const handleCancel = () => {
+                console.log(`[CustomDialogService] Cancel button clicked for dialog: ${dialogId}`);
+                
+                // Clean up window
+                if (upgradeDialog && !upgradeDialog.isDestroyed()) {
+                    upgradeDialog.close();
                 }
+                windowPool.delete('upgrade-dialog');
+                this.activeDialogs.delete(dialogId);
+                
+                // Remove IPC listeners
+                ipcMain.removeAllListeners(`dialog-upgrade-${dialogId}`);
+                ipcMain.removeAllListeners(`dialog-cancel-${dialogId}`);
+                
+                resolve('cancel');
             };
 
-            // Register IPC listeners for this specific dialog
-            ipcMain.on('dialog-action-upgrade', handleDialogAction);
-            ipcMain.on('dialog-action-cancel', handleDialogCancel);
+            // Register IPC listeners with CORRECT event names (matching HTML)
+            ipcMain.once(`dialog-upgrade-${dialogId}`, handleUpgrade);
+            ipcMain.once(`dialog-cancel-${dialogId}`, handleCancel);
+            
+            // Handle window close event (X button or programmatic close)
+            upgradeDialog.on('closed', () => {
+                console.log(`[CustomDialogService] Upgrade dialog window closed`);
+                windowPool.delete('upgrade-dialog');
+                this.activeDialogs.delete(dialogId);
+                
+                // Clean up IPC listeners
+                ipcMain.removeAllListeners(`dialog-upgrade-${dialogId}`);
+                ipcMain.removeAllListeners(`dialog-cancel-${dialogId}`);
+                
+                resolve('closed');
+            });
+            
+            // Auto-cleanup after 60 seconds
+            setTimeout(() => {
+                if (upgradeDialog && !upgradeDialog.isDestroyed()) {
+                    console.log('[CustomDialogService] Auto-closing upgrade dialog after timeout');
+                    upgradeDialog.close();
+                }
+            }, 60000);
         });
     }
 
@@ -212,7 +219,7 @@ class CustomDialogService {
         const progressPercent = usage ? Math.min((usage.used / usage.limit) * 100, 100) : 100;
         const showUsageBar = usage && featureType !== 'integration';
 
-        return `
+        const html = `
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -238,10 +245,10 @@ class CustomDialogService {
                 }
 
                 .dialog-container {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg, #905151 0%, #724040 100%);
                     border-radius: 16px;
                     padding: 2px;
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    box-shadow: 0 20px 60px rgba(144, 81, 81, 0.4);
                     animation: slideIn 0.3s ease-out;
                 }
 
@@ -257,7 +264,7 @@ class CustomDialogService {
                 .dialog-icon {
                     width: 64px;
                     height: 64px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg, #905151 0%, #724040 100%);
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
@@ -271,7 +278,7 @@ class CustomDialogService {
                 .dialog-title {
                     font-size: 24px;
                     font-weight: 600;
-                    color: #1a1a1a;
+                    color: #905151;
                     margin-bottom: 12px;
                     line-height: 1.3;
                 }
@@ -315,7 +322,7 @@ class CustomDialogService {
 
                 .usage-progress {
                     height: 100%;
-                    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(90deg, #905151 0%, #724040 100%);
                     border-radius: 4px;
                     width: ${progressPercent}%;
                     transition: width 0.3s ease;
@@ -329,12 +336,12 @@ class CustomDialogService {
                 }
 
                 .integration-info {
-                    background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
+                    background: linear-gradient(135deg, rgba(144, 81, 81, 0.08) 0%, rgba(114, 64, 64, 0.08) 100%);
                     border-radius: 12px;
                     padding: 20px;
                     margin-bottom: 24px;
                     text-align: center;
-                    border: 1px solid #667eea20;
+                    border: 1px solid rgba(144, 81, 81, 0.2);
                 }
 
                 .integration-icon {
@@ -356,11 +363,12 @@ class CustomDialogService {
                 }
 
                 .pro-benefits {
-                    background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
+                    background: linear-gradient(135deg, rgba(144, 81, 81, 0.08) 0%, rgba(114, 64, 64, 0.08) 100%);
                     border-radius: 8px;
                     padding: 16px;
                     margin-bottom: 24px;
                     text-align: left;
+                    border: 1px solid rgba(144, 81, 81, 0.15);
                 }
 
                 .pro-benefits h4 {
@@ -386,7 +394,7 @@ class CustomDialogService {
                     content: "✓";
                     position: absolute;
                     left: 0;
-                    color: #667eea;
+                    color: #905151;
                     font-weight: bold;
                 }
 
@@ -408,13 +416,14 @@ class CustomDialogService {
                 }
 
                 .dialog-button.primary {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(45deg, #905151, #724040);
                     color: white;
                 }
 
                 .dialog-button.primary:hover {
                     transform: translateY(-2px);
-                    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+                    box-shadow: 0 8px 25px rgba(144, 81, 81, 0.4);
+                    background: linear-gradient(45deg, #724040, #5a3232);
                 }
 
                 .dialog-button.secondary {
@@ -480,7 +489,7 @@ class CustomDialogService {
                             <div class="usage-progress"></div>
                         </div>
                         <div class="usage-text">
-                            <span>${usage.used}/${usage.limit} minutes used</span>
+                            <span>Daily limit reached</span>
                             <span>Resets in 24 hours</span>
                         </div>
                     </div>
@@ -521,8 +530,17 @@ class CustomDialogService {
 
             <script>
                 function handleAction(action) {
-                    if (window.electronAPI) {
-                        window.electronAPI.send('dialog-action-${dialogId}', action);
+                    console.log('Dialog action clicked:', action);
+                    if (window.api && window.api.send) {
+                        if (action === 'upgrade') {
+                            console.log('Sending upgrade event for dialog: ${dialogId}');
+                            window.api.send('dialog-upgrade-${dialogId}');
+                        } else {
+                            console.log('Sending cancel event for dialog: ${dialogId}');
+                            window.api.send('dialog-cancel-${dialogId}');
+                        }
+                    } else {
+                        console.error('window.api.send not available');
                     }
                 }
 
@@ -543,6 +561,9 @@ class CustomDialogService {
         </body>
         </html>
         `;
+        
+        // Replace dialogId placeholders with actual dialogId  
+        return html.replace(/\$\{dialogId\}/g, dialogId);
     }
 
     /**

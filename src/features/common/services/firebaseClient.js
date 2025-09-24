@@ -35,9 +35,16 @@ async function createElectronStorePersistence(storeName = 'firebase-auth-session
     await initializeStore();
     
     // Create a single `electron-store` behind the scenes – all Persistence instances will use it.
+    // Disable encryption to avoid keytar issues in packaged apps
+    
+    const { app } = require('electron');
     const sharedStore = new Store({ 
         name: storeName,
-        projectName: 'Leviousa'
+        // Use explicit directory path instead of projectName for better packaged app compatibility
+        cwd: app.getPath('userData'),
+        encryptionKey: false, // Disable keytar encryption for packaged app compatibility
+        clearInvalidConfig: true, // Clear invalid config to prevent corruption issues
+        accessPropertiesByDotNotation: false, // Prevent dot-notation conflicts
     });
 
     return class ElectronStorePersistence {
@@ -150,15 +157,28 @@ async function initializeFirebaseAdmin() {
         const fs = require('fs');
         
         // Look for service account key in multiple locations
+        const { app } = require('electron');
+        
         const possiblePaths = [
+            // Packaged app paths
+            ...(app.isPackaged ? [
+                path.join(process.resourcesPath, 'firebase-service-account.json'),
+                path.join(process.resourcesPath, 'serviceAccountKey.json'),
+                path.join(process.resourcesPath, 'app.asar.unpacked', 'firebase-service-account.json'),
+                path.join(process.resourcesPath, 'app.asar.unpacked', 'serviceAccountKey.json'),
+            ] : []),
+            // Development paths
             path.join(__dirname, '../../../../firebase-service-account.json'),
             path.join(__dirname, '../../../../serviceAccountKey.json'),
             path.join(process.cwd(), 'firebase-service-account.json'),
             path.join(process.cwd(), 'serviceAccountKey.json'),
         ];
+        
+        console.log('[FirebaseClient] 🔍 Searching for service account file in:', possiblePaths);
 
         let serviceAccountPath = null;
         for (const filePath of possiblePaths) {
+            console.log(`[FirebaseClient] 🔍 Checking: ${filePath} - ${fs.existsSync(filePath) ? 'EXISTS' : 'NOT FOUND'}`);
             if (fs.existsSync(filePath)) {
                 serviceAccountPath = filePath;
                 break;
@@ -166,6 +186,7 @@ async function initializeFirebaseAdmin() {
         }
 
         if (serviceAccountPath) {
+            console.log(`[FirebaseClient] ✅ Using service account file: ${serviceAccountPath}`);
             // Initialize with service account key
             const serviceAccount = require(serviceAccountPath);
             adminApp = admin.initializeApp({

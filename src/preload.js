@@ -2,6 +2,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // Generic IPC communication
+  send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  
   // Platform information for renderer processes
   platform: {
     isLinux: process.platform === 'linux',

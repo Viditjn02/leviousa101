@@ -1088,7 +1088,7 @@ const toggleBrowserWindow = async () => {
             if (!usageCheck.allowed) {
                 const errorMessage = usageCheck.unlimited ? 
                     'Browser feature is not available.' :
-                    `Browser daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
+                    `Browser daily limit reached. Resets in 24 hours.`;
                     
                 console.log('[WindowManager] 🚫 Browser usage limit exceeded:', errorMessage);
                 

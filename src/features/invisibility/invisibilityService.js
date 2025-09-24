@@ -515,7 +515,7 @@ class InvisibilityService extends EventEmitter {
             if (!usageCheck.allowed) {
                 const errorMessage = usageCheck.unlimited ? 
                     'Auto Answer feature is not available.' :
-                    `Auto Answer daily limit reached. Used: ${usageCheck.usage}/${usageCheck.limit} minutes. Resets in 24 hours.`;
+                    `Auto Answer daily limit reached. Resets in 24 hours.`;
                     
                 console.log('[InvisibilityService] 🚫 CMD+L usage limit exceeded:', errorMessage);
                 

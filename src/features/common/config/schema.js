@@ -139,7 +139,7 @@ const LATEST_SCHEMA = {
             { name: 'date', type: 'TEXT NOT NULL' }, // YYYY-MM-DD format for daily tracking
             { name: 'cmd_l_usage_minutes', type: 'INTEGER DEFAULT 0' },
             { name: 'browser_usage_minutes', type: 'INTEGER DEFAULT 0' },
-            { name: 'cmd_l_limit_minutes', type: 'INTEGER DEFAULT 10' }, // Daily limit for cmd+L
+            { name: 'cmd_l_limit_minutes', type: 'INTEGER DEFAULT 3' }, // Daily limit for cmd+L (3 minutes)
             { name: 'browser_limit_minutes', type: 'INTEGER DEFAULT 10' }, // Daily limit for browser
             { name: 'created_at', type: 'INTEGER' },
             { name: 'updated_at', type: 'INTEGER' }

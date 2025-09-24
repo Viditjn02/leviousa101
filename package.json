@@ -1,7 +1,7 @@
 {
   "name": "leviousa",
   "productName": "Leviousa",
-  "version": "1.0.6",
+  "version": "1.0.11",
   "description": "Leviousa - Commercial AI Meeting Assistant with Pre-configured API Keys",
   "main": "src/index.js",
   "scripts": {
@@ -81,6 +81,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",
+    "resend": "^6.1.0",
     "sharp": "^0.34.2",
     "stripe": "^18.4.0",
     "temp": "^0.9.4",

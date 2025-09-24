@@ -71,6 +71,7 @@ async function uploadUpdates() {
             const blob = await put(file.remote, fileBuffer, {
                 access: 'public',
                 contentType: file.contentType,
+                allowOverwrite: true, // Allow overwriting existing files
                 // Add cache headers for different file types
                 cacheControlMaxAge: file.remote.includes('latest-mac.yml') ? 0 : 31536000 // 1 year for versioned files, no cache for latest.yml
             });

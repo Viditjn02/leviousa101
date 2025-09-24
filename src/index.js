@@ -1014,6 +1014,37 @@ async function handleFirebaseAuthCallback(params) {
             authService.currentUser = firebaseUser;
             authService.currentUserId = firebaseUser.uid;
             authService.currentUserMode = 'firebase';
+            
+            // CRITICAL: Save session data for persistence (since we bypass onAuthStateChanged)
+            try {
+                console.log(`[Auth] 💾 Saving session data for direct authentication fallback...`);
+                const Store = await import('electron-store');
+                const { app } = require('electron');
+                const authStore = new Store.default({ 
+                    name: 'leviousa-auth-persistence',
+                    cwd: app.getPath('userData'),
+                    encryptionKey: false,
+                    clearInvalidConfig: true
+                });
+                
+                const persistentUserData = {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email,
+                    displayName: firebaseUser.displayName,
+                    emailVerified: firebaseUser.emailVerified,
+                    isAnonymous: firebaseUser.isAnonymous || false,
+                    savedAt: Date.now(),
+                    lastSeen: Date.now(),
+                    directAuth: true // Flag to indicate this was saved via direct auth
+                };
+                
+                authStore.set('persistentUser', persistentUserData);
+                console.log(`[Auth] ✅ Session data saved for direct auth user: ${firebaseUser.email}`);
+                
+            } catch (persistError) {
+                console.error('[Auth] ⚠️ Failed to save session data in direct auth fallback:', persistError.message);
+            }
+            
             authService.broadcastUserState();
             
             console.log('[Auth] Direct authentication complete (Admin SDK bypass)');

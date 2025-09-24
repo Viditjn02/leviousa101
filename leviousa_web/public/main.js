@@ -307,11 +307,37 @@ document.addEventListener('DOMContentLoaded', () => {
       dl.querySelector('span').textContent = 'Preparing...';
       dl.style.opacity = '0.7';
       
-      // Track the download
+      // Track the download with multiple analytics
+      const platform = isMac ? 'mac' : (isWin ? 'windows' : 'unknown');
+      
+      // Google Analytics tracking
       if (typeof gtag !== 'undefined') {
         gtag('event', 'download_start', {
-          'platform': isMac ? 'mac' : (isWin ? 'windows' : 'unknown'),
+          'platform': platform,
           'source': 'landing_page'
+        });
+      }
+      
+      // PostHog tracking (comprehensive download analytics)
+      if (typeof posthog !== 'undefined') {
+        posthog.capture('download_button_clicked', {
+          platform: platform,
+          source: 'landing_page',
+          user_agent: navigator.userAgent,
+          screen_resolution: `${screen.width}x${screen.height}`,
+          viewport_size: `${window.innerWidth}x${window.innerHeight}`,
+          referrer: document.referrer || 'direct',
+          timestamp: Date.now(),
+          download_version: 'v1.0.6',
+          button_location: 'main_cta'
+        });
+      }
+      
+      // Vercel Analytics tracking
+      if (typeof va !== 'undefined') {
+        va.track('download_start', {
+          platform: platform,
+          source: 'landing_page'
         });
       }
       

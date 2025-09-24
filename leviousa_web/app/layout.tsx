@@ -2,6 +2,7 @@ import './globals.css'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/utils/auth'
 import { PostHogProvider } from '@/components/PostHogProvider'
+import { Analytics } from '@vercel/analytics/react'
 import '@/utils/urlParams'  // Initialize URL parameter preservation
 
 const inter = Inter({ subsets: ['latin'] })
@@ -16,12 +17,13 @@ export const metadata = {
     description: 'Your Invisible Upgrade.',
     type: 'website',
     url: 'https://www.leviousa.com',
+    siteName: 'Leviousa',
     images: [
       {
-        url: 'https://www.leviousa.com/og-image.svg',
+        url: 'https://www.leviousa.com/og-upgrade-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'Leviousa - Your Invisible Upgrade',
+        alt: 'Your invisible upgrade... cause sometimes the best superpower is being invisible',
       }
     ],
   },
@@ -29,7 +31,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Leviousa – Your Invisible Upgrade',
     description: 'Your Invisible Upgrade.',
-    images: ['https://www.leviousa.com/og-image.svg'],
+    images: ['https://www.leviousa.com/og-upgrade-image.jpg'],
   },
 }
 
@@ -83,6 +85,7 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </PostHogProvider>
+        <Analytics />
       </body>
     </html>
   )

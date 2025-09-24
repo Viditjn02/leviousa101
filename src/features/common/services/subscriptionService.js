@@ -23,7 +23,7 @@ class SubscriptionService {
             free: {
                 name: 'Free',
                 price: 0,
-                cmd_l_daily_minutes: 10,
+                cmd_l_daily_minutes: 3,  // Reduced from 10 to 3 minutes
                 browser_daily_minutes: 10,
                 features: {
                     default_model_only: true,

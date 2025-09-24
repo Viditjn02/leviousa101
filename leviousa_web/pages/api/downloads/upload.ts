@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate secure file path
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `${platform}-${architecture}-${timestamp}${fileExtension}`;
-    const blobPath = `releases/v1.0.0/${fileName}`;
+    const blobPath = `releases/v1.0.11/${fileName}`;
 
     console.log(`🔐 Uploading ${file.name} as ${blobPath}`);
 

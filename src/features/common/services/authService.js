@@ -95,7 +95,10 @@ class AuthService {
     initialize() {
         if (this.isInitialized) return this.initializationPromise;
 
-        this.initializationPromise = new Promise((resolve) => {
+        this.initializationPromise = new Promise(async (resolve) => {
+            // CRITICAL: Restore auth BEFORE Firebase setup to avoid timing issues
+            await this.restoreAuthBeforeFirebase();
+            
             const auth = getFirebaseAuth();
             onAuthStateChanged(auth, async (user) => {
                 console.log(`[AuthService] 🔔 AUTH STATE CHANGE TRIGGERED!`);
@@ -121,6 +124,36 @@ class AuthService {
                     this.currentUser = user;
                     this.currentUserId = user.uid;
                     this.currentUserMode = 'firebase';
+                    
+                    // CRITICAL: Save user to electron-store for manual persistence (Firebase persistence unreliable in Electron)
+                    try {
+                        console.log(`[AuthService] 💾 Saving user to persistent storage for reliable restoration...`);
+                        const Store = await import('electron-store');
+                        const { app } = require('electron');
+                        const authStore = new Store.default({ 
+                            name: 'leviousa-auth-persistence',
+                            // Use explicit userData directory for packaged app compatibility
+                            cwd: app.getPath('userData'),
+                            encryptionKey: false, // Disable keytar for packaged app compatibility
+                            clearInvalidConfig: true
+                        });
+                        
+                        const persistentUserData = {
+                            uid: user.uid,
+                            email: user.email,
+                            displayName: user.displayName,
+                            emailVerified: user.emailVerified,
+                            isAnonymous: user.isAnonymous,
+                            savedAt: Date.now(),
+                            lastSeen: Date.now()
+                        };
+                        
+                        authStore.set('persistentUser', persistentUserData);
+                        console.log(`[AuthService] ✅ User data saved to persistent storage for ${user.email}`);
+                        
+                    } catch (persistError) {
+                        console.error('[AuthService] ⚠️ Failed to save user to persistent storage:', persistError.message);
+                    }
 
                     // Clean up any zombie sessions from a previous run for this user.
                     await sessionRepository.endAllActiveSessions();
@@ -162,9 +195,13 @@ class AuthService {
                         // Check if this specific user has seen the tutorial before
                         try {
                             const Store = await import('electron-store');
+                            const { app } = require('electron');
                             const tutorialStore = new Store.default({ 
                                 name: 'leviousa-tutorial-tracking',
-                                projectName: 'Leviousa'
+                                // Use explicit userData directory for packaged app compatibility
+                                cwd: app.getPath('userData'),
+                                encryptionKey: false, // Disable keytar for packaged app compatibility
+                                clearInvalidConfig: true
                             });
                             
                             const userTutorialKey = `user_${user.uid}_tutorial_completed`;
@@ -212,9 +249,13 @@ class AuthService {
                     try {
                         console.log(`[AuthService] 🔍 Checking for persistent auth state in electron-store...`);
                         const Store = await import('electron-store');
+                        const { app } = require('electron');
                         const authStore = new Store.default({ 
                             name: 'leviousa-auth-persistence',
-                            projectName: 'Leviousa'
+                            // Use explicit userData directory for packaged app compatibility
+                            cwd: app.getPath('userData'),
+                            encryptionKey: false, // Disable keytar for packaged app compatibility
+                            clearInvalidConfig: true
                         });
                         
                         const persistentUser = authStore.get('persistentUser');
@@ -222,8 +263,12 @@ class AuthService {
                             console.log(`[AuthService] 🎯 Found persistent user: ${persistentUser.email}`);
                             
                             // Check if auth state is recent (within 7 days)
-                            const age = Date.now() - persistentUser.timestamp;
+                            const savedAt = persistentUser.savedAt || persistentUser.lastSeen || 0;
+                            const age = Date.now() - savedAt;
                             const sevenDays = 7 * 24 * 60 * 60 * 1000;
+                            
+                            console.log(`[AuthService] 🔍 Age calculation: savedAt=${savedAt}, age=${age}ms, sevenDays=${sevenDays}ms`);
+                            console.log(`[AuthService] 🔍 Age in days: ${age/86400000}, limit: 7 days`);
                             
                             if (age < sevenDays) {
                                 console.log(`[AuthService] ✅ Restoring persistent auth state for ${persistentUser.email}`);
@@ -288,7 +333,244 @@ class AuthService {
             });
         });
 
+        // Add manual auth restoration (Firebase persistence is unreliable in Electron)
+        this.initializationPromise.then(() => {
+            // Start manual auth restore immediately
+            this.startManualAuthRestore();
+        });
+
         return this.initializationPromise;
+    }
+
+    // CRITICAL: Restore auth BEFORE Firebase initialization to avoid timing conflicts
+    async restoreAuthBeforeFirebase() {
+        console.log('[AuthService] 🏃‍♂️ Pre-Firebase auth restoration starting...');
+        
+        try {
+            const Store = await import('electron-store');
+            const { app } = require('electron');
+            const authStore = new Store.default({ 
+                name: 'leviousa-auth-persistence',
+                // Use explicit userData directory for packaged app compatibility
+                cwd: app.getPath('userData'),
+                encryptionKey: false, // Disable keytar for packaged app compatibility
+                clearInvalidConfig: true
+            });
+            
+            console.log('[AuthService] 🔍 Checking for persistent user before Firebase init...');
+            let persistentUser = authStore.get('persistentUser');
+            
+            // MIGRATION: Check for old session data in previous location (projectName subdirectory)
+            if (!persistentUser) {
+                console.log('[AuthService] 🔄 No data in new location, checking for old session data to migrate...');
+                try {
+                    const oldAuthStore = new Store.default({ 
+                        name: 'leviousa-auth-persistence',
+                        projectName: 'Leviousa', // Old location with subdirectory
+                        encryptionKey: false,
+                        clearInvalidConfig: true
+                    });
+                    
+                    const oldPersistentUser = oldAuthStore.get('persistentUser');
+                    console.log(`[AuthService] 🔍 Old store path: ${oldAuthStore.path}`);
+                    console.log(`[AuthService] 🔍 Old store contents:`, Object.keys(oldAuthStore.store));
+                    console.log(`[AuthService] 🔍 Old session data found:`, !!oldPersistentUser);
+                    
+                    if (oldPersistentUser && oldPersistentUser.uid && oldPersistentUser.email) {
+                        console.log(`[AuthService] ✅ Migrating old session data for user: ${oldPersistentUser.email}`);
+                        
+                        // Copy old data to new location
+                        authStore.set('persistentUser', {
+                            ...oldPersistentUser,
+                            migratedAt: Date.now(),
+                            migratedFrom: oldAuthStore.path
+                        });
+                        
+                        // Use the migrated data
+                        persistentUser = oldPersistentUser;
+                        console.log(`[AuthService] ✅ Session data migration completed successfully`);
+                        
+                        // Optional: Clean up old location
+                        // oldAuthStore.delete('persistentUser');
+                    }
+                } catch (migrationError) {
+                    console.log(`[AuthService] ⚠️ Migration check failed:`, migrationError.message);
+                }
+            }
+            
+            // Debug: Show storage paths in dev vs packaged
+            const path = require('path');
+            console.log('[AuthService] 🔍 App paths debug:', {
+                isPackaged: app.isPackaged,
+                appPath: app.getAppPath(),
+                userData: app.getPath('userData'),
+                appData: app.getPath('appData'),
+                home: app.getPath('home')
+            });
+            
+            if (persistentUser && persistentUser.uid && persistentUser.email) {
+                console.log(`[AuthService] 🎯 Found persistent user: ${persistentUser.email}`);
+                console.log(`[AuthService] 🔍 Persistent user data:`, {
+                    uid: persistentUser.uid,
+                    email: persistentUser.email,
+                    savedAt: persistentUser.savedAt,
+                    lastSeen: persistentUser.lastSeen
+                });
+                
+                // SIMPLIFIED: Just restore the user directly without complex age checking
+                console.log(`[AuthService] ✅ Directly restoring user state (bypassing Firebase persistence)...`);
+                
+                try {
+                    // Create fresh custom token for immediate restoration
+                    const customToken = await createCustomToken(persistentUser.uid, {
+                        email: persistentUser.email,
+                        name: persistentUser.displayName,
+                        directRestore: true,
+                        restoredAt: Date.now()
+                    });
+                    
+                    console.log(`[AuthService] 🔥 Custom token created for direct restoration...`);
+                    
+                    // Sign in immediately to establish auth state before Firebase listener
+                    const auth = getFirebaseAuth();
+                    const { signInWithCustomToken } = require('firebase/auth');
+                    
+                    console.log(`[AuthService] 🔑 Signing in with custom token for immediate auth state...`);
+                    await signInWithCustomToken(auth, customToken);
+                    
+                    console.log(`[AuthService] ✅ Direct auth restoration successful! Firebase should now see user.`);
+                    
+                    // Update timestamp for successful restore
+                    authStore.set('persistentUser', {
+                        ...persistentUser,
+                        lastSeen: Date.now(),
+                        directRestoredAt: Date.now()
+                    });
+                    
+                    return true; // Successfully restored
+                    
+                } catch (restoreError) {
+                    console.error(`[AuthService] ❌ Direct auth restoration failed:`, restoreError.message);
+                    console.log(`[AuthService] 🔄 Will rely on Firebase's own persistence or manual restore later...`);
+                }
+            } else {
+                console.log('[AuthService] 📝 No persistent user found for direct restoration');
+            }
+            
+        } catch (error) {
+            console.error('[AuthService] ❌ Pre-Firebase auth restoration error:', error.message);
+        }
+        
+        return false; // No restoration performed
+    }
+
+    // Complete manual auth persistence system (Firebase web SDK is unreliable in Electron)
+    async startManualAuthRestore() {
+        console.log('[AuthService] 🔄 Starting comprehensive manual auth restoration...');
+        
+        try {
+            // Check electron-store for manually saved auth data first
+            const Store = await import('electron-store');
+            const { app } = require('electron');
+            const authStore = new Store.default({ 
+                name: 'leviousa-auth-persistence',
+                // Use explicit userData directory for packaged app compatibility
+                cwd: app.getPath('userData'),
+                encryptionKey: false, // Disable keytar for packaged app compatibility
+                clearInvalidConfig: true
+            });
+            
+            const persistentUser = authStore.get('persistentUser');
+            console.log('[AuthService] 🔍 Checking electron-store for persistent user...');
+            
+            if (persistentUser && persistentUser.uid && persistentUser.email) {
+                console.log(`[AuthService] 🎯 Found persistent user in electron-store: ${persistentUser.email}`);
+                
+                // Validate the stored user data is recent (within 30 days)
+                const now = Date.now();
+                const lastSeen = persistentUser.lastSeen || persistentUser.savedAt || 0;
+                const daysSinceLastSeen = (now - lastSeen) / (1000 * 60 * 60 * 24);
+                
+                console.log(`[AuthService] 🔍 Manual restore age check: lastSeen=${lastSeen}, daysSinceLastSeen=${daysSinceLastSeen}, limit=30 days`);
+                
+                if (daysSinceLastSeen > 30 && lastSeen > 0) { // Only delete if we have a valid timestamp
+                    console.log(`[AuthService] ⚠️ Persistent user data is ${Math.round(daysSinceLastSeen)} days old - requiring fresh login`);
+                    authStore.delete('persistentUser');
+                    return;
+                }
+                
+                console.log(`[AuthService] ✅ Persistent user data is fresh (${Math.round(daysSinceLastSeen)} days old)`);
+                
+                // Try to create a custom token to restore Firebase auth properly
+                try {
+                    console.log(`[AuthService] 🔄 Creating fresh custom token for stored user...`);
+                    const customToken = await createCustomToken(persistentUser.uid, {
+                        email: persistentUser.email,
+                        name: persistentUser.displayName,
+                        restored: true,
+                        restoredAt: Date.now()
+                    });
+                    
+                    console.log(`[AuthService] ✅ Custom token created, signing in to restore auth...`);
+                    await this.signInWithCustomToken(customToken);
+                    
+                    // Update last seen timestamp
+                    authStore.set('persistentUser', {
+                        ...persistentUser,
+                        lastSeen: Date.now(),
+                        restoredAt: Date.now()
+                    });
+                    
+                    console.log(`[AuthService] ✅ Auth successfully restored from persistent storage!`);
+                    return;
+                    
+                } catch (tokenError) {
+                    console.error(`[AuthService] ❌ Failed to create custom token for restoration:`, tokenError.message);
+                    
+                    // If token creation fails, do direct restoration
+                    console.log(`[AuthService] 🔄 Falling back to direct auth restoration...`);
+                    
+                    this.currentUser = {
+                        uid: persistentUser.uid,
+                        email: persistentUser.email,
+                        displayName: persistentUser.displayName,
+                        emailVerified: persistentUser.emailVerified,
+                        isAnonymous: false
+                    };
+                    this.currentUserId = persistentUser.uid;
+                    this.currentUserMode = 'firebase';
+                    
+                    // Initialize encryption key
+                    try {
+                        if (process.platform === 'darwin' && !(await permissionService.checkKeychainCompleted(this.currentUserId))) {
+                            console.warn('[AuthService] Keychain permission not yet completed for restored user. Deferring key initialization.');
+                        } else {
+                            await encryptionService.initializeKey(persistentUser.uid);
+                        }
+                    } catch (keyError) {
+                        console.warn('[AuthService] Encryption key initialization failed during restore:', keyError.message);
+                    }
+                    
+                    // Broadcast restored state
+                    console.log(`[AuthService] 📡 Broadcasting manually restored user state to UI`);
+                    this.broadcastUserState();
+                    
+                    // Update last seen
+                    authStore.set('persistentUser', {
+                        ...persistentUser,
+                        lastSeen: Date.now(),
+                        restoredAt: Date.now()
+                    });
+                    
+                    console.log(`[AuthService] ✅ Auth manually restored from persistent storage!`);
+                }
+            } else {
+                console.log('[AuthService] 📝 No persistent user found in electron-store - fresh login required');
+            }
+            
+        } catch (error) {
+            console.error('[AuthService] ❌ Manual auth restore failed:', error.message);
+        }
     }
 
     async startFirebaseAuthFlow() {
@@ -376,9 +658,13 @@ class AuthService {
                             // Manually save to electron-store for persistence
                             try {
                                 const Store = await import('electron-store');
+                                const { app } = require('electron');
                                 const authStore = new Store.default({ 
                                     name: 'leviousa-auth-persistence',
-                                    projectName: 'Leviousa'
+                                    // Use explicit userData directory for packaged app compatibility
+                                    cwd: app.getPath('userData'),
+                                    encryptionKey: false, // Disable keytar for packaged app compatibility
+                                    clearInvalidConfig: true
                                 });
                                 
                                 authStore.set('persistentUser', {
@@ -487,16 +773,23 @@ class AuthService {
                 const Store = await import('electron-store');
                 
                 // Clear manual backup storage
+                const { app } = require('electron');
                 const authStore = new Store.default({ 
                     name: 'leviousa-auth-persistence',
-                    projectName: 'Leviousa'
+                    // Use explicit userData directory for packaged app compatibility
+                    cwd: app.getPath('userData'),
+                    encryptionKey: false, // Disable keytar for packaged app compatibility
+                    clearInvalidConfig: true
                 });
                 authStore.delete('persistentUser');
                 
                 // Clear Firebase persistence storage
                 const firebaseStore = new Store.default({ 
                     name: 'firebase-auth-session',
-                    projectName: 'Leviousa'
+                    // Use explicit userData directory for packaged app compatibility
+                    cwd: app.getPath('userData'),
+                    encryptionKey: false, // Disable keytar for packaged app compatibility
+                    clearInvalidConfig: true
                 });
                 firebaseStore.clear(); // Clear all Firebase auth data
                 
@@ -518,9 +811,13 @@ class AuthService {
     async markTutorialCompleted(userId) {
         try {
             const Store = await import('electron-store');
+            const { app } = require('electron');
             const tutorialStore = new Store.default({ 
                 name: 'leviousa-tutorial-tracking',
-                projectName: 'Leviousa'
+                // Use explicit userData directory for packaged app compatibility
+                cwd: app.getPath('userData'),
+                encryptionKey: false, // Disable keytar for packaged app compatibility
+                clearInvalidConfig: true
             });
             
             const userTutorialKey = `user_${userId}_tutorial_completed`;

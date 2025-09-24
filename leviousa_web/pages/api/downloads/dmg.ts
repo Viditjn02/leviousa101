@@ -29,8 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     logger.debug(`🎯 Architecture: ${detectedArch} (${arch ? 'specified' : 'auto-detected'})`);
 
-    // Vercel Blob Storage - Latest Universal Notarized DMG (temporarily v1.0.0 until v1.0.1 uploaded)
-    const vercelBlobUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/Leviousa-1.0.0-mac.zip';
+    // Vercel Blob Storage - Latest Universal Notarized DMG with auth persistence fix
+    const vercelBlobUrl = 'https://0o5nwpnru4kg7num.public.blob.vercel-storage.com/Leviousa-1.0.11-mac.zip';
     
     const downloadUrl = vercelBlobUrl;
     logger.debug(`🔗 Redirecting to notarized DMG with OAuth fixes: ${downloadUrl}`);
@@ -40,8 +40,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader('X-User-Agent', userAgent.substring(0, 100));
     res.setHeader('X-Download-Source', 'vercel-blob-storage');
     res.setHeader('X-Apple-Notarized', 'true');
-    res.setHeader('X-Leviousa-Version', 'v1.0.0');
-    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa-1.0.0-mac.zip"');
+    res.setHeader('X-Leviousa-Version', 'v1.0.11');
+    res.setHeader('Content-Disposition', 'attachment; filename="Leviousa-1.0.11-mac.zip"');
+    
+    // Track download analytics server-side
+    logger.info(`📊 DOWNLOAD: v1.0.11 | ${detectedArch} | ${req.socket.remoteAddress} | ${userAgent.substring(0, 50)}`);
     
     // Direct redirect to Vercel Blob storage (notarized DMG)
     logger.debug('🚀 Redirecting to fresh notarized DMG via Vercel Blob');

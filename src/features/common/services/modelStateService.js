@@ -71,9 +71,13 @@ class ModelStateService extends EventEmitter {
                 const electronStore = await import('electron-store');
                 Store = electronStore.default;
             }
+            const { app } = require('electron');
             this.store = new Store({ 
                 name: 'leviousa-model-state',
-                projectName: 'Leviousa'
+                // Use explicit userData directory for packaged app compatibility
+                cwd: app.getPath('userData'),
+                encryptionKey: false, // Disable keytar for packaged app compatibility
+                clearInvalidConfig: true
             });
             console.log('[ModelStateService] Store initialized successfully');
         } catch (error) {

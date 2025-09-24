@@ -50,7 +50,7 @@ async function getOrCreateTodayUsage(uid) {
             date: today,
             cmd_l_usage_minutes: 0,
             browser_usage_minutes: 0,
-            cmd_l_limit_minutes: 10,
+            cmd_l_limit_minutes: 3,  // Updated to 3 minutes for cmd+L
             browser_limit_minutes: 10
         });
     }

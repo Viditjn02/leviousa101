@@ -23,7 +23,7 @@ function createTransport() {
     return {
       sendMail: async (options: any) => {
         const { data, error } = await resend.emails.send({
-          from: options.from || 'Leviousa Team <noreply@leviousa.com>',
+          from: options.from || 'Leviousa Team <info@leviousa.com>',
           to: [options.to],
           subject: options.subject,
           html: options.html,
@@ -98,7 +98,7 @@ export async function sendEmail(options: EmailOptions) {
     const transporter = createTransport();
     
     const mailOptions = {
-      from: options.from || `"Leviousa Team" <info@leviousa.com>`,
+      from: options.from || 'Leviousa Team <info@leviousa.com>',
       to: options.to,
       subject: options.subject,
       html: options.html,
